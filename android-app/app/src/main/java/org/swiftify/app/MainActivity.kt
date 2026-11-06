@@ -15,7 +15,6 @@ import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -31,13 +30,16 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.shadow
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.*
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.Stroke
@@ -1105,7 +1107,6 @@ val openArtistScreen: (String, String) -> Unit = { artName, artUri ->
                                         )
                                     )
                                 )
-                                .border(1.dp, Color(0x38FFFFFF), RoundedCornerShape(22.dp))
                                 .clickable { isPlayerExpanded = true }
                                 .padding(horizontal = 12.dp, vertical = 8.dp)
                         ) {
@@ -1158,17 +1159,20 @@ val openArtistScreen: (String, String) -> Unit = { artName, artUri ->
                         }
                     }
 
-                    // Compact Translucent Navigation Bar (Glass effect)
+                    // Compact Translucent Navigation Bar (Glass effect bleeding off screen)
                     Surface(
                         color = Color(0xD9161311),
+                        shape = RectangleShape,
                         modifier = Modifier
                             .fillMaxWidth()
-                            .border(
-                                width = 0.5.dp,
-                                color = Color(0x28FFFFFF),
-                                shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp)
-                            ),
-                        shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp)
+                            .drawBehind {
+                                drawLine(
+                                    color = Color(0x28FFFFFF),
+                                    start = Offset(0f, 0f),
+                                    end = Offset(size.width, 0f),
+                                    strokeWidth = 1.dp.toPx()
+                                )
+                            }
                     ) {
                         Column(
                             modifier = Modifier
@@ -1220,7 +1224,7 @@ val openArtistScreen: (String, String) -> Unit = { artName, artUri ->
                                     }
                                 )
                             }
-                            Spacer(modifier = Modifier.height(6.dp))
+                            Spacer(modifier = Modifier.height(16.dp))
                         }
                     }
                 }
@@ -1573,8 +1577,7 @@ fun HomeScreen(
                 modifier = Modifier
                     .size(38.dp)
                     .clip(CircleShape)
-                    .background(Color(0xFF26201E))
-                    .border(1.dp, Color(0xFF382F2C), CircleShape),
+                    .background(Color(0xFF26201E)),
                 contentAlignment = Alignment.Center
             ) {
                 Text("⋮", color = Color(0xFFCDC2BB), fontSize = 18.sp, fontWeight = FontWeight.Bold)
@@ -1630,7 +1633,6 @@ fun HomeScreen(
                             listOf(heroPalette.dominant.copy(alpha = 0.85f), heroPalette.secondary.copy(alpha = 0.95f))
                         )
                     )
-                    .border(1.dp, Color(0x22FFFFFF), RoundedCornerShape(26.dp))
                     .padding(18.dp)
             ) {
                 Column {
@@ -1734,7 +1736,6 @@ fun HomeScreen(
                     .weight(1f)
                     .clip(RoundedCornerShape(18.dp))
                     .background(Color(0xFF26201E))
-                    .border(1.dp, Color(0xFF382F2C), RoundedCornerShape(18.dp))
                     .clickable {
                         onPlaylistClick(
                             PlaylistItem(
@@ -1771,7 +1772,6 @@ fun HomeScreen(
                     .weight(1f)
                     .clip(RoundedCornerShape(18.dp))
                     .background(Color(0xFF26201E))
-                    .border(1.dp, Color(0xFF382F2C), RoundedCornerShape(18.dp))
                     .clickable { onSeeAllPlaylists() }
                     .padding(12.dp)
             ) {
@@ -2001,7 +2001,7 @@ fun HomeScreen(
             }
         }
 
-        Spacer(modifier = Modifier.height(110.dp))
+        Spacer(modifier = Modifier.height(140.dp))
     }
 }
 
