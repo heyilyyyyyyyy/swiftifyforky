@@ -392,12 +392,16 @@ impl Session {
     // you need more fields at once, in which case this can spare multiple `read`
     // locks.
     pub fn user_data(&self) -> UserData {
-        self.0
+        let mut data = self.0
             .data
             .read()
             .expect(SESSION_DATA_POISON_MSG)
             .user_data
-            .clone()
+            .clone();
+        if data.country.is_empty() {
+            data.country = "UA".to_owned();
+        }
+        data
     }
 
     pub fn session_id(&self) -> String {
@@ -567,13 +571,18 @@ impl Session {
     }
 
     pub fn country(&self) -> String {
-        self.0
+        let country = self.0
             .data
             .read()
             .expect(SESSION_DATA_POISON_MSG)
             .user_data
             .country
-            .clone()
+            .clone();
+        if country.is_empty() {
+            "UA".to_owned()
+        } else {
+            country
+        }
     }
 
     pub fn filter_explicit_content(&self) -> bool {

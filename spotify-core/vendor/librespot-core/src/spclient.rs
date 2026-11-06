@@ -491,7 +491,13 @@ impl SpClient {
                 .body(Bytes::copy_from_slice(body))?;
 
             // Reconnection logic: keep getting (cached) tokens because they might have expired.
-            let token = self.session().login5().auth_token().await?;
+            let token = match self.session().login5().auth_token().await {
+                Ok(t) => t,
+                Err(e) => {
+                    warn!("login5 auth_token failed ({e}), falling back to token_provider");
+                    self.session().token_provider().get_token("streaming").await?
+                }
+            };
 
             let headers_mut = request.headers_mut();
             if let Some(ref headers) = headers {

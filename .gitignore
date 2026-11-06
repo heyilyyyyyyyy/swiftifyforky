@@ -27,3 +27,7 @@ target/
 *.swp
 *.swo
 *~
+.directory
+.gradle/
+local.properties
+

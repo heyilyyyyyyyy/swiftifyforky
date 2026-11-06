@@ -48,28 +48,61 @@ pub(crate) fn open_stereo_stream<F>(fill: F) -> Option<(cpal::Stream, u32)>
 where
     F: FnMut(&mut [f32]) + Clone + Send + 'static,
 {
-    let device = cpal::default_host().default_output_device()?;
-    let supported = device.default_output_config().ok()?;
-    let config: cpal::StreamConfig = supported.config();
-    let rate = config.sample_rate.0;
-    // a thousand frames a callback rather than the device's usual 512: the
-    // system's work for each callback is most of what the stream costs, and
-    // at about 21 ms it is still no longer than an analysis hop, so the
-    // visualizers are fed as evenly as before. a device that will not take
-    // that is opened as it comes
-    let larger = match *supported.buffer_size() {
-        cpal::SupportedBufferSize::Range { min, max } => Some(cpal::StreamConfig {
-            buffer_size: cpal::BufferSize::Fixed(1_024_u32.clamp(min, max)),
-            ..config.clone()
-        }),
-        cpal::SupportedBufferSize::Unknown => None,
+    let host = cpal::default_host();
+    let device = match host.default_output_device() {
+        Some(d) => d,
+        None => {
+            log::warn!("default_output_device was None, trying output_devices fallback");
+            match host.output_devices() {
+                Ok(mut devs) => match devs.next() {
+                    Some(d) => d,
+                    None => {
+                        log::error!("No output devices available");
+                        return None;
+                    }
+                },
+                Err(e) => {
+                    log::error!("Failed to query output devices: {e:?}");
+                    return None;
+                }
+            }
+        }
     };
-    let stream = larger
-        .and_then(|larger| {
-            build_stereo_stream(&device, supported.sample_format(), &larger, fill.clone())
+    log::info!("Audio output device selected: {:?}", device.name().ok());
+
+    #[cfg(target_os = "android")]
+    let (supported_format, config) = {
+        log::info!("Android AAudio: using direct 44.1kHz stereo config without querying default_output_config");
+        (cpal::SampleFormat::F32, cpal::StreamConfig {
+            channels: 2,
+            sample_rate: cpal::SampleRate(44100),
+            buffer_size: cpal::BufferSize::Default,
         })
-        .or_else(|| build_stereo_stream(&device, supported.sample_format(), &config, fill))?;
-    stream.pause().ok()?;
+    };
+
+    #[cfg(not(target_os = "android"))]
+    let (supported_format, config) = match device.default_output_config() {
+        Ok(c) => (c.sample_format(), c.config()),
+        Err(e) => {
+            log::warn!("default_output_config failed ({e:?}), using 44.1kHz stereo fallback");
+            (cpal::SampleFormat::F32, cpal::StreamConfig {
+                channels: 2,
+                sample_rate: cpal::SampleRate(44100),
+                buffer_size: cpal::BufferSize::Default,
+            })
+        }
+    };
+
+    log::info!("Audio output config: {:?}, format: {:?}", config, supported_format);
+    let rate = config.sample_rate.0;
+    let stream = match build_stereo_stream(&device, supported_format, &config, fill) {
+        Some(s) => s,
+        None => {
+            log::error!("build_stereo_stream returned None!");
+            return None;
+        }
+    };
+    log::info!("Audio output stream successfully opened! Rate: {rate} Hz");
     Some((stream, rate))
 }
 
@@ -85,16 +118,30 @@ where
     match (format, config.channels) {
         (cpal::SampleFormat::F32, 2) => {
             let mut fill = fill;
-            device
-                .build_output_stream::<f32, _, _>(config, move |data, _| fill(data), |_| {}, None)
-                .ok()
+            match device.build_output_stream::<f32, _, _>(
+                config,
+                move |data, _| fill(data),
+                |err| {
+                    log::error!("Audio stream error: {:?}", err);
+                },
+                None,
+            ) {
+                Ok(s) => Some(s),
+                Err(e) => {
+                    log::error!("Failed to build_output_stream (F32, 2ch): {:?}", e);
+                    None
+                }
+            }
         }
         (cpal::SampleFormat::F32, _) => mapped_stream::<f32, F>(device, config, fill),
         (cpal::SampleFormat::I16, _) => mapped_stream::<i16, F>(device, config, fill),
         (cpal::SampleFormat::I32, _) => mapped_stream::<i32, F>(device, config, fill),
         (cpal::SampleFormat::U16, _) => mapped_stream::<u16, F>(device, config, fill),
         (cpal::SampleFormat::F64, _) => mapped_stream::<f64, F>(device, config, fill),
-        _ => None,
+        _ => {
+            log::error!("Unsupported sample format: {:?}", format);
+            None
+        }
     }
 }
 
@@ -109,32 +156,38 @@ where
 {
     let channels = usize::from(config.channels);
     let mut stereo = Vec::new();
-    device
-        .build_output_stream::<T, _, _>(
-            config,
-            move |data: &mut [T], _| {
-                let frames = data.len() / channels;
-                // grows only when the device asks for more at once than before
-                stereo.resize(frames * 2, 0.0);
-                fill(&mut stereo);
-                for (frame, out) in data.chunks_exact_mut(channels).enumerate() {
-                    let left = stereo[frame * 2];
-                    let right = stereo[frame * 2 + 1];
-                    if channels == 1 {
-                        out[0] = T::from_sample((left + right) * 0.5);
-                    } else {
-                        out[0] = T::from_sample(left);
-                        out[1] = T::from_sample(right);
-                        for rest in &mut out[2..] {
-                            *rest = T::from_sample(0.0);
-                        }
+    match device.build_output_stream::<T, _, _>(
+        config,
+        move |data: &mut [T], _| {
+            let frames = data.len() / channels;
+            // grows only when the device asks for more at once than before
+            stereo.resize(frames * 2, 0.0);
+            fill(&mut stereo);
+            for (frame, out) in data.chunks_exact_mut(channels).enumerate() {
+                let left = stereo[frame * 2];
+                let right = stereo[frame * 2 + 1];
+                if channels == 1 {
+                    out[0] = T::from_sample((left + right) * 0.5);
+                } else {
+                    out[0] = T::from_sample(left);
+                    out[1] = T::from_sample(right);
+                    for rest in &mut out[2..] {
+                        *rest = T::from_sample(0.0);
                     }
                 }
-            },
-            |_| {},
-            None,
-        )
-        .ok()
+            }
+        },
+        |err| {
+            log::error!("Audio mapped_stream error: {:?}", err);
+        },
+        None,
+    ) {
+        Ok(s) => Some(s),
+        Err(e) => {
+            log::error!("Failed to build mapped_stream: {:?}", e);
+            None
+        }
+    }
 }
 
 /// a source the device reads a block at a time

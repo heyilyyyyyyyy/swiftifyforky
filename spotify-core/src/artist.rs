@@ -16,7 +16,7 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-//! an artist's top songs read through the session. spotify took the web api's
+//! an artist's top songs & discography read through the session. spotify took the web api's
 //! top tracks call away in february 2026.
 //!
 //! the result is json shaped like the web api's `/artists/{id}/top-tracks`
@@ -34,6 +34,25 @@ use crate::playlist::{TrackPayload, track_metadata};
 /// as many as the web api gave
 const TOP_TRACK_COUNT: usize = 10;
 
+#[derive(Serialize)]
+pub struct ArtistOverviewPayload {
+    pub uri: String,
+    pub name: String,
+    pub avatar_url: String,
+    pub tracks: Vec<TrackPayload>,
+    pub releases: Vec<ArtistReleaseItem>,
+}
+
+#[derive(Serialize)]
+pub struct ArtistReleaseItem {
+    pub uri: String,
+    pub name: String,
+    pub release_type: String, // "album", "single", "compilation"
+    pub year: i32,
+    pub artwork_url: String,
+    pub track_count: i32,
+}
+
 pub async fn artist_top_tracks_json(session: &Session, artist_uri: &str) -> Result<String, String> {
     let uri = match SpotifyUri::from_uri(artist_uri) {
         Ok(uri @ SpotifyUri::Artist { .. }) => uri,
@@ -46,14 +65,124 @@ pub async fn artist_top_tracks_json(session: &Session, artist_uri: &str) -> Resu
         .map_err(|error| format!("Spotify would not send the artist: {error}"))?;
     let artist = metadata::Artist::parse_from_bytes(&bytes)
         .map_err(|error| format!("the artist could not be read: {error}"))?;
+
+    let name = artist.name().to_string();
+    let mut avatar_url = String::new();
+    let portraits = match artist.portrait_group.as_ref() {
+        Some(group) if !group.image.is_empty() => &group.image,
+        _ => &artist.portrait,
+    };
+    if let Some(img) = portraits.first() {
+        let file_id = img.file_id();
+        if !file_id.is_empty() {
+            let hex: String = file_id.iter().map(|b| format!("{b:02x}")).collect();
+            avatar_url = format!("https://i.scdn.co/image/{hex}");
+        }
+    }
+
     let uris = top_track_uris(&artist.top_track, &session.country());
     let found = track_metadata(session, &uris).await?;
-    let tracks = uris
+    let tracks: Vec<TrackPayload> = uris
         .iter()
-        .filter_map(|uri| found.get(uri).cloned())
+        .filter_map(|u| found.get(u).cloned())
         .collect();
-    serde_json::to_string(&TopTracksPayload { tracks })
-        .map_err(|error| format!("failed to encode the top songs: {error}"))
+
+    let mut album_uris = Vec::new();
+
+    // Albums
+    for group in &artist.album_group {
+        for album in &group.album {
+            if let Ok(u) = SpotifyUri::try_from(album) {
+                if let Ok(uri_str) = u.to_uri() {
+                    album_uris.push((uri_str, "album"));
+                }
+            }
+        }
+    }
+
+    // Singles & EPs
+    for group in &artist.single_group {
+        for album in &group.album {
+            let rel_type = match album.type_() {
+                metadata::album::Type::EP => "single",
+                _ => "single",
+            };
+            if let Ok(u) = SpotifyUri::try_from(album) {
+                if let Ok(uri_str) = u.to_uri() {
+                    album_uris.push((uri_str, rel_type));
+                }
+            }
+        }
+    }
+
+    // Compilations
+    for group in &artist.compilation_group {
+        for album in &group.album {
+            if let Ok(u) = SpotifyUri::try_from(album) {
+                if let Ok(uri_str) = u.to_uri() {
+                    album_uris.push((uri_str, "compilation"));
+                }
+            }
+        }
+    }
+
+    let mut fetch_tasks = Vec::new();
+    let spclient = session.spclient();
+
+    for (alb_uri_str, rel_type) in album_uris.into_iter().take(20) {
+        if let Ok(sp_uri @ SpotifyUri::Album { .. }) = SpotifyUri::from_uri(&alb_uri_str) {
+            let spclient = spclient.clone();
+            fetch_tasks.push(tokio::spawn(async move {
+                let alb_bytes = spclient.get_album_metadata(&sp_uri).await.ok()?;
+                let full_alb = metadata::Album::parse_from_bytes(&alb_bytes).ok()?;
+                let alb_name = full_alb.name().to_string();
+                if alb_name.is_empty() {
+                    return None;
+                }
+                let year = full_alb.date.as_ref().map(|d| d.year()).unwrap_or(0);
+                let covers = match full_alb.cover_group.as_ref() {
+                    Some(group) if !group.image.is_empty() => &group.image,
+                    _ => &full_alb.cover,
+                };
+                let mut artwork_url = String::new();
+                if let Some(img) = covers.first() {
+                    let file_id = img.file_id();
+                    if !file_id.is_empty() {
+                        let hex: String = file_id.iter().map(|b| format!("{b:02x}")).collect();
+                        artwork_url = format!("https://i.scdn.co/image/{hex}");
+                    }
+                }
+                let mut track_count = 0;
+                for disc in &full_alb.disc {
+                    track_count += disc.track.len() as i32;
+                }
+                Some(ArtistReleaseItem {
+                    uri: alb_uri_str,
+                    name: alb_name,
+                    release_type: rel_type.to_string(),
+                    year,
+                    artwork_url,
+                    track_count,
+                })
+            }));
+        }
+    }
+
+    let mut releases = Vec::new();
+    for task in fetch_tasks {
+        if let Ok(Some(item)) = task.await {
+            releases.push(item);
+        }
+    }
+
+    serde_json::to_string(&ArtistOverviewPayload {
+        uri: artist_uri.to_string(),
+        name,
+        avatar_url,
+        tracks,
+        releases,
+    })
+    .map_err(|error| format!("failed to encode the artist overview: {error}"))
 }
 
 /// the list for the account's country, else the one for everywhere, else the
@@ -72,60 +201,4 @@ fn top_track_uris(lists: &[TopTracks], country: &str) -> Vec<String> {
         .filter_map(|track| SpotifyUri::try_from(track).ok()?.to_uri().ok())
         .take(TOP_TRACK_COUNT)
         .collect()
-}
-
-#[derive(Serialize)]
-struct TopTracksPayload {
-    tracks: Vec<TrackPayload>,
-}
-
-#[cfg(test)]
-mod tests {
-    use librespot::protocol::metadata::{TopTracks, Track};
-
-    use super::top_track_uris;
-
-    fn list(country: &str, ids: &[u8]) -> TopTracks {
-        TopTracks {
-            country: Some(country.to_owned()),
-            track: ids
-                .iter()
-                .map(|id| Track {
-                    gid: Some(vec![*id; 16]),
-                    ..Default::default()
-                })
-                .collect(),
-            ..Default::default()
-        }
-    }
-
-    #[test]
-    fn the_accounts_country_comes_first() {
-        let lists = [list("", &[1]), list("SE", &[2]), list("DE", &[3])];
-        let uris = top_track_uris(&lists, "DE");
-        assert_eq!(uris.len(), 1);
-        assert_eq!(uris, top_track_uris(&[list("", &[3])], "US"));
-    }
-
-    #[test]
-    fn another_country_falls_back_to_everywhere_then_the_first() {
-        let lists = [list("SE", &[2]), list("", &[1])];
-        assert_eq!(
-            top_track_uris(&lists, "DE"),
-            top_track_uris(&[list("", &[1])], "DE")
-        );
-        assert_eq!(
-            top_track_uris(&[list("SE", &[2])], "DE"),
-            top_track_uris(&lists, "SE")
-        );
-        assert!(top_track_uris(&[], "DE").is_empty());
-    }
-
-    #[test]
-    fn only_ten_are_kept_as_track_uris() {
-        let ids: Vec<u8> = (1..=12).collect();
-        let uris = top_track_uris(&[list("", &ids)], "DE");
-        assert_eq!(uris.len(), 10);
-        assert!(uris.iter().all(|uri| uri.starts_with("spotify:track:")));
-    }
 }

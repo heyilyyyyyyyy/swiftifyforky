@@ -49,23 +49,24 @@ pub async fn playlist_json(session: &Session, playlist_uri: &str) -> Result<Stri
         Ok(SpotifyUri::Playlist { id, .. }) => id,
         _ => return Err(format!("not a spotify playlist: {playlist_uri}")),
     };
-    let uris = item_uris(session, &id).await?;
+    let (uris, cover_url) = item_uris_and_cover(session, &id).await?;
     let tracks = track_metadata(session, &uris).await?;
     let items = uris
         .iter()
         .filter_map(|uri| tracks.get(uri))
         .map(|track| ItemPayload { item: track.clone() })
         .collect();
-    serde_json::to_string(&PagePayload { items })
+    serde_json::to_string(&PagePayload { items, cover_url })
         .map_err(|error| format!("failed to encode the playlist: {error}"))
 }
 
-/// every item's uri, in the playlist's order
-async fn item_uris(session: &Session, id: &SpotifyId) -> Result<Vec<String>, String> {
+/// every item's uri, in the playlist's order, and playlist artwork url if found
+async fn item_uris_and_cover(session: &Session, id: &SpotifyId) -> Result<(Vec<String>, String), String> {
     let base62 = id
         .to_base62()
         .map_err(|error| format!("invalid playlist id: {error}"))?;
     let mut uris = Vec::new();
+    let mut cover_url = String::new();
     loop {
         let endpoint = format!(
             "/playlist/v2/playlist/{base62}?from={}&length={PAGE_LENGTH}",
@@ -78,8 +79,27 @@ async fn item_uris(session: &Session, id: &SpotifyId) -> Result<Vec<String>, Str
             .map_err(|error| format!("Spotify would not send the playlist: {error}"))?;
         let list = SelectedListContent::parse_from_bytes(&bytes)
             .map_err(|error| format!("the playlist could not be read: {error}"))?;
+
+        if cover_url.is_empty() {
+            if let Some(attrs) = list.attributes.as_ref() {
+                if let Some(pic_bytes) = attrs.picture.as_ref() {
+                    if !pic_bytes.is_empty() {
+                        let hex: String = pic_bytes.iter().map(|b| format!("{b:02x}")).collect();
+                        cover_url = format!("https://i.scdn.co/image/{hex}");
+                    }
+                }
+                if cover_url.is_empty() {
+                    if let Some(ps) = attrs.picture_size.first() {
+                        if let Some(u) = ps.url.as_ref() {
+                            cover_url = u.clone();
+                        }
+                    }
+                }
+            }
+        }
+
         if !append_page(&mut uris, &list) {
-            return Ok(uris);
+            return Ok((uris, cover_url));
         }
     }
 }
@@ -201,6 +221,7 @@ pub(crate) async fn track_metadata(
 #[derive(Serialize)]
 struct PagePayload {
     items: Vec<ItemPayload>,
+    cover_url: String,
 }
 
 #[derive(Serialize)]
@@ -211,29 +232,29 @@ struct ItemPayload {
 #[derive(Clone, Serialize)]
 pub(crate) struct TrackPayload {
     #[serde(rename = "type")]
-    kind: &'static str,
-    uri: String,
-    name: String,
+    pub(crate) kind: &'static str,
+    pub(crate) uri: String,
+    pub(crate) name: String,
     duration_ms: i32,
     explicit: bool,
     is_playable: bool,
-    artists: Vec<ArtistPayload>,
+    pub(crate) artists: Vec<ArtistPayload>,
     album: Option<AlbumPayload>,
 }
 
 #[derive(Clone, Serialize)]
-struct ArtistPayload {
-    id: String,
-    uri: String,
-    name: String,
+pub(crate) struct ArtistPayload {
+    pub(crate) id: String,
+    pub(crate) uri: String,
+    pub(crate) name: String,
 }
 
 #[derive(Clone, Serialize)]
 struct AlbumPayload {
-    id: String,
-    uri: String,
-    name: String,
-    artists: Vec<ArtistPayload>,
+    pub(crate) id: String,
+    pub(crate) uri: String,
+    pub(crate) name: String,
+    pub(crate) artists: Vec<ArtistPayload>,
     images: Vec<ImagePayload>,
 }
 

@@ -85,6 +85,7 @@ void swiftify_core_lyrics_json(const SwiftifyCore *core, uint64_t request_id,
 /* a playlist's songs read through the session, which still has them for a
  * playlist someone else made. completes with json shaped like the web api's
  * /v1/playlists/{id}/items page. */
+void swiftify_core_album_json(const struct SwiftifyCore *core, uint64_t request_id, const char *album_uri);
 void swiftify_core_playlist_json(const SwiftifyCore *core, uint64_t request_id,
                                  const char *playlist_uri);
 /* an artist's top songs, read through the session, since the web api no
@@ -138,6 +139,7 @@ bool swiftify_core_session_is_valid(const SwiftifyCore *core);
 bool swiftify_core_audio_output_stalled(const SwiftifyCore *core);
 uint32_t swiftify_core_playback_position_ms(const SwiftifyCore *core);
 uint32_t swiftify_core_playback_duration_ms(const SwiftifyCore *core);
+char *swiftify_core_current_track(const SwiftifyCore *core);
 bool swiftify_core_take_end_of_track(const SwiftifyCore *core);
 float swiftify_core_volume(const SwiftifyCore *core);
 /* the rate the output for files and live audio runs at (opening it); 0 if none */

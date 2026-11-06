@@ -1,0 +1,1685 @@
+package org.swiftify.app
+
+import android.content.Context
+import android.content.Intent
+import android.content.SharedPreferences
+import android.net.Uri
+import android.os.Bundle
+import android.util.Log
+import androidx.activity.ComponentActivity
+import androidx.activity.compose.setContent
+import androidx.browser.customtabs.CustomTabsIntent
+import androidx.compose.animation.*
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.*
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.StrokeJoin
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import coil.compose.AsyncImage
+import kotlinx.coroutines.*
+import org.json.JSONObject
+import java.io.BufferedReader
+import java.io.InputStreamReader
+import java.net.HttpURLConnection
+import java.net.InetAddress
+import java.net.ServerSocket
+import java.net.URL
+import java.security.MessageDigest
+import java.security.SecureRandom
+import java.util.Base64
+import java.util.Calendar
+import kotlin.math.PI
+import kotlin.math.sin
+
+// ─── Data ────────────────────────────────────────────────────────────────────
+
+data class TrackItem(
+    val title: String,
+    val artist: String,
+    val album: String,
+    val artworkUrl: String,
+    val durationMs: Long,
+    val uri: String
+)
+
+data class PlaylistItem(
+    val name: String,
+    val owner: String,
+    val artworkUrl: String,
+    val uri: String = ""
+) {
+    val subtitle: String get() = owner
+    val coverUrl: String get() = artworkUrl
+}
+
+data class ArtistItem(
+    val name: String,
+    val artworkUrl: String,
+    val uri: String = ""
+)
+
+// ─── PKCE helpers ─────────────────────────────────────────────────────────────
+
+private fun generateCodeVerifier(): String {
+    val bytes = ByteArray(64)
+    SecureRandom().nextBytes(bytes)
+    return Base64.getUrlEncoder().withoutPadding().encodeToString(bytes)
+}
+
+private fun generateCodeChallenge(verifier: String): String {
+    val digest = MessageDigest.getInstance("SHA-256").digest(verifier.toByteArray(Charsets.US_ASCII))
+    return Base64.getUrlEncoder().withoutPadding().encodeToString(digest)
+}
+
+// ─── Spotify OAuth constants matching Swiftify desktop ─────────────────────────
+
+private const val CLIENT_ID = "65b708073fc0480ea92a077233ca87bd"
+private const val REDIRECT_PORT = 8898
+private const val REDIRECT_URI = "http://127.0.0.1:8898/login"
+private const val SCOPES = "streaming"
+private const val PREFS_NAME = "swiftify_prefs"
+private const val KEY_LOGIN_BLOB = "login_blob"
+private const val KEY_ACCESS_TOKEN = "access_token"
+private const val KEY_CACHED_PLAYLISTS = "cached_playlists_json"
+
+// ─── MainActivity ─────────────────────────────────────────────────────────────
+
+class MainActivity : ComponentActivity() {
+
+    private lateinit var prefs: SharedPreferences
+    private var codeVerifier: String = ""
+    private var authServer: ServerSocket? = null
+
+    // Compose states
+    private val authState = mutableStateOf<AuthState>(AuthState.Loading)
+    private val accessTokenState = mutableStateOf<String?>(null)
+    private val tracksState = mutableStateListOf<TrackItem>()
+    private val userPlaylistsState = mutableStateListOf<PlaylistItem>()
+    private val currentTrackIndex = mutableIntStateOf(0)
+    private val livePlayingTrack = mutableStateOf<TrackItem?>(null)
+    private val isPlaying = mutableStateOf(false)
+    private val progressMs = mutableLongStateOf(0L)
+    private val isShuffle = mutableStateOf(false)
+    private val repeatMode = mutableIntStateOf(0) // 0 = off, 1 = repeat all, 2 = repeat one
+    private val originalQueueBeforeShuffle = mutableListOf<TrackItem>()
+    private val stopAtEndOfQueue = mutableStateOf(false)
+    private val connectEnabled = mutableStateOf(false)
+    private val statusMsg = mutableStateOf("")
+
+    private var pollingJob: Job? = null
+    private val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+
+        // Instant playlists from disk cache
+        prefs.getString(KEY_CACHED_PLAYLISTS, null)?.let {
+            parseAndApplyPlaylists(it)
+        }
+
+        SpotifyBridge.init()
+        setupBridgeCallbacks()
+        startPolling()
+
+        setContent {
+            MaterialTheme(
+                colorScheme = darkColorScheme(
+                    primary = Color(0xFFF2A385),
+                    background = Color(0xFF0F0F12),
+                    surface = Color(0xFF18181D)
+                )
+            ) {
+                Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
+                    SwiftifyApp(
+                        authState = authState.value,
+                        tracks = tracksState,
+                        userPlaylists = userPlaylistsState,
+                        currentTrackIndex = currentTrackIndex.intValue,
+                        livePlayingTrack = livePlayingTrack.value,
+                        isPlaying = isPlaying.value,
+                        progressMs = progressMs.longValue,
+                        connectEnabled = connectEnabled.value,
+                        statusMsg = statusMsg.value,
+                        accessToken = accessTokenState.value,
+                        onLoginClick = { startSpotifyLogin() },
+                        onTrackClick = { idx -> onTrackClick(idx) },
+                        onTrackSelect = { track, contextList -> playTrackItem(track, contextList) },
+                        onAddToQueue = { track -> addToQueue(track) },
+                        onPlayPause = { togglePlay() },
+                        onNext = { nextTrack() },
+                        onPrev = { prevTrack() },
+                        onSeek = { ms -> progressMs.longValue = ms; SpotifyBridge.seek(ms) },
+                        onConnectToggle = { v -> connectEnabled.value = v; SpotifyBridge.setSpotifyConnect(v) },
+                        onSetStopAtEnd = { stopAtEndOfQueue.value = it },
+                        isShuffle = isShuffle.value,
+                        repeatMode = repeatMode.intValue,
+                        onToggleShuffle = { toggleShuffle() },
+                        onToggleRepeat = { toggleRepeat() }
+                    )
+                }
+            }
+        }
+
+        // Check for stored credentials
+        val storedLogin = prefs.getString(KEY_LOGIN_BLOB, null)
+        val storedToken = prefs.getString(KEY_ACCESS_TOKEN, null)
+        accessTokenState.value = storedToken
+        if (storedLogin != null) {
+            authState.value = AuthState.Connecting
+            statusMsg.value = "Reconnecting stored session..."
+            SpotifyBridge.connectStored(storedLogin)
+        } else if (storedToken != null) {
+            authState.value = AuthState.Connecting
+            statusMsg.value = "Connecting with token..."
+            SpotifyBridge.connect(storedToken)
+        } else {
+            authState.value = AuthState.LoggedOut
+            loadSampleTracks()
+        }
+    }
+
+    private fun startSpotifyLogin() {
+        try {
+            codeVerifier = generateCodeVerifier()
+            val challenge = generateCodeChallenge(codeVerifier)
+
+            // Start loopback HTTP server on 127.0.0.1:8898
+            startLocalRedirectServer()
+
+            val url = Uri.Builder()
+                .scheme("https")
+                .authority("accounts.spotify.com")
+                .path("/authorize")
+                .appendQueryParameter("client_id", CLIENT_ID)
+                .appendQueryParameter("response_type", "code")
+                .appendQueryParameter("redirect_uri", REDIRECT_URI)
+                .appendQueryParameter("scope", SCOPES)
+                .appendQueryParameter("code_challenge_method", "S256")
+                .appendQueryParameter("code_challenge", challenge)
+                .build()
+
+            authState.value = AuthState.Connecting
+            statusMsg.value = "Waiting for authorization in browser..."
+            CustomTabsIntent.Builder().build().launchUrl(this, url)
+        } catch (e: Exception) {
+            Log.e("Auth", "Failed to start login", e)
+            statusMsg.value = "Login init failed: ${e.message}"
+        }
+    }
+
+    private fun startLocalRedirectServer() {
+        try {
+            authServer?.close()
+        } catch (_: Exception) {}
+
+        scope.launch(Dispatchers.IO) {
+            try {
+                val server = ServerSocket(REDIRECT_PORT, 1, InetAddress.getByName("127.0.0.1"))
+                authServer = server
+                Log.d("AuthServer", "Listening on http://127.0.0.1:$REDIRECT_PORT/login")
+
+                val socket = server.accept()
+                val reader = BufferedReader(InputStreamReader(socket.getInputStream()))
+                val requestLine = reader.readLine() ?: ""
+                Log.d("AuthServer", "Request: $requestLine")
+
+                // Parse: GET /login?code=... HTTP/1.1
+                val urlPart = requestLine.split(" ").getOrNull(1) ?: ""
+                val uri = Uri.parse("http://127.0.0.1$urlPart")
+                val code = uri.getQueryParameter("code")
+                val error = uri.getQueryParameter("error")
+
+                val responseHtml = """
+                    <!doctype html><html><head><meta charset="utf-8">
+                    <title>Swiftify</title>
+                    <style>body{font-family:sans-serif;background:#0F0F12;color:#fff;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;text-align:center;}h2{color:#1DB954;}</style>
+                    </head><body><div><h2>✓ Signed In to Swiftify!</h2><p>You can return to the Swiftify app now.</p></div></body></html>
+                """.trimIndent()
+
+                val responseBytes = responseHtml.toByteArray(Charsets.UTF_8)
+                val out = socket.getOutputStream()
+                out.write("HTTP/1.1 200 OK\r\n".toByteArray())
+                out.write("Content-Type: text/html; charset=utf-8\r\n".toByteArray())
+                out.write("Content-Length: ${responseBytes.size}\r\n".toByteArray())
+                out.write("Connection: close\r\n\r\n".toByteArray())
+                out.write(responseBytes)
+                out.flush()
+                socket.close()
+                server.close()
+
+                withContext(Dispatchers.Main) {
+                    if (code != null) {
+                        Log.d("AuthServer", "Captured authorization code!")
+                        statusMsg.value = "Exchanging code for token..."
+                        scope.launch { exchangeCodeForToken(code) }
+                    } else {
+                        Log.e("AuthServer", "Auth failed or cancelled: $error")
+                        authState.value = AuthState.LoggedOut
+                        statusMsg.value = "Auth cancelled: $error"
+                    }
+                }
+            } catch (e: Exception) {
+                Log.e("AuthServer", "Server exception", e)
+            }
+        }
+    }
+
+    private suspend fun exchangeCodeForToken(code: String) {
+        try {
+            val token = withContext(Dispatchers.IO) {
+                val conn = URL("https://accounts.spotify.com/api/token")
+                    .openConnection() as HttpURLConnection
+                conn.requestMethod = "POST"
+                conn.setRequestProperty("Content-Type", "application/x-www-form-urlencoded")
+                conn.doOutput = true
+                val body = "grant_type=authorization_code" +
+                        "&code=${Uri.encode(code)}" +
+                        "&redirect_uri=${Uri.encode(REDIRECT_URI)}" +
+                        "&client_id=$CLIENT_ID" +
+                        "&code_verifier=${Uri.encode(codeVerifier)}"
+                conn.outputStream.write(body.toByteArray())
+                val response = conn.inputStream.bufferedReader().readText()
+                conn.disconnect()
+                val token = JSONObject(response).getString("access_token")
+                accessTokenState.value = token
+                token
+            }
+            Log.d("Auth", "Access token acquired (${token.length} chars)")
+            prefs.edit().putString(KEY_ACCESS_TOKEN, token).apply()
+            statusMsg.value = "Connecting audio core..."
+            SpotifyBridge.connect(token)
+        } catch (e: Exception) {
+            Log.e("Auth", "Token exchange failed", e)
+            authState.value = AuthState.LoggedOut
+            statusMsg.value = "Token exchange failed: ${e.message}"
+        }
+    }
+
+    private fun setupBridgeCallbacks() {
+        SpotifyBridge.onConnectSuccess = { loginBlob ->
+            Log.d("Auth", "Connected to Spotify! Login blob length=${loginBlob.length}")
+            prefs.edit().putString(KEY_LOGIN_BLOB, loginBlob).apply()
+            authState.value = AuthState.LoggedIn
+            statusMsg.value = "Connected to Spotify ✓"
+            // Enable Spotify Connect now that session is authenticated
+            SpotifyBridge.setSpotifyConnect(connectEnabled.value)
+            startPolling()
+            scope.launch {
+                loadRecentlyPlayed()
+                loadUserPlaylists()
+            }
+        }
+        SpotifyBridge.onConnectError = { error ->
+            Log.e("Auth", "Core connect error: $error")
+            prefs.edit().remove(KEY_LOGIN_BLOB).apply()
+            authState.value = AuthState.LoggedOut
+            statusMsg.value = "Session error: $error"
+        }
+        SpotifyBridge.onPlayTrackError = { error ->
+            Log.e("Playback", "Play track error: $error")
+            statusMsg.value = "Playback error: $error"
+        }
+    }
+
+    private fun startPolling() {
+        pollingJob?.cancel()
+        pollingJob = scope.launch {
+            while (isActive) {
+                SpotifyBridge.pollCompletions()
+                val pos = SpotifyBridge.playbackPositionMs()
+                val dur = SpotifyBridge.playbackDurationMs()
+                if (dur > 0) progressMs.longValue = pos
+                val trackJson = SpotifyBridge.currentTrackJson()
+                if (!trackJson.isNullOrEmpty()) {
+                    try {
+                        val obj = JSONObject(trackJson)
+                        val uri = obj.optString("uri")
+                        val title = obj.optString("title")
+                        val artist = obj.optString("artist")
+                        val album = obj.optString("album")
+                        val artwork = obj.optString("artwork_url")
+                        val duration = obj.optLong("duration_ms")
+                        if (title.isNotEmpty()) {
+                            livePlayingTrack.value = TrackItem(title, artist, album, artwork, duration, uri)
+                        }
+                    } catch (e: Exception) {
+                        Log.e("Polling", "Failed to parse current track json", e)
+                    }
+                }
+                // Handle end of track auto-advancement in queue
+                if (SpotifyBridge.takeEndOfTrack()) {
+                    Log.d("Playback", "Track ended, auto-advancing to next track in queue")
+                    if (tracksState.isNotEmpty()) {
+                        nextTrack()
+                    }
+                }
+                delay(250)
+            }
+        }
+    }
+
+    private suspend fun loadRecentlyPlayed() {
+        try {
+            val token = prefs.getString(KEY_ACCESS_TOKEN, null) ?: return
+            val tracks = withContext(Dispatchers.IO) {
+                val conn = URL("https://api.spotify.com/v1/me/player/recently-played?limit=20")
+                    .openConnection() as HttpURLConnection
+                conn.setRequestProperty("Authorization", "Bearer $token")
+                val json = JSONObject(conn.inputStream.bufferedReader().readText())
+                conn.disconnect()
+                val items = json.getJSONArray("items")
+                (0 until items.length()).map { i ->
+                    val track = items.getJSONObject(i).getJSONObject("track")
+                    val artists = (0 until track.getJSONArray("artists").length())
+                        .joinToString(", ") { j -> track.getJSONArray("artists").getJSONObject(j).getString("name") }
+                    val images = track.getJSONObject("album").getJSONArray("images")
+                    val artUrl = if (images.length() > 0) images.getJSONObject(0).getString("url") else ""
+                    TrackItem(
+                        title = track.getString("name"),
+                        artist = artists,
+                        album = track.getJSONObject("album").getString("name"),
+                        artworkUrl = artUrl,
+                        durationMs = track.getLong("duration_ms"),
+                        uri = track.getString("uri")
+                    )
+                }
+            }
+            if (tracks.isNotEmpty()) {
+                tracksState.clear()
+                tracksState.addAll(tracks)
+                Log.d("API", "Loaded ${tracks.size} tracks from Spotify (ready, not auto-playing)")
+            }
+        } catch (e: Exception) {
+            Log.e("API", "Failed to load recently played", e)
+            if (tracksState.isEmpty()) loadSampleTracks()
+        }
+    }
+
+    private fun loadSampleTracks() {
+        tracksState.clear()
+        tracksState.addAll(listOf(
+            TrackItem("Ключ", "Midix", "Ты любишь запах крови",
+                "https://i.scdn.co/image/ab67616d0000b27344e9d13c687469d32a9f22a8", 147000L, "spotify:track:24RuIkjSDgLFhnscvGHK9W"),
+            TrackItem("в запое", "лиззз", "дайте спиться",
+                "https://i.scdn.co/image/ab67616d0000b273101567f5c16b6398d56ef7fc", 142000L, "spotify:track:3NWAkoHf4COLmtevWzHLOs"),
+            TrackItem("intellectual greed", "brakence", "hypochondriac",
+                "https://i.scdn.co/image/ab67616d0000b273cbf54392eca47bb30303db4c", 170000L, "spotify:track:1o0hKMX2d4wIViz31dR7sG"),
+            TrackItem("Отпусти меня", "SEREBRO", "СИЛА ТРЕХ",
+                "https://i.scdn.co/image/ab67616d0000b273a2eb35c344f7bf4eb5d81c1a", 231000L, "spotify:track:6jDczq41moCrpYCxzDlCnz"),
+            TrackItem("UNCA / Composure", "glaive, kurtains", "God Save The Three",
+                "https://i.scdn.co/image/ab67616d0000b273212b26d61d694eb660bb7759", 135000L, "spotify:track:3bnfKViVyASdXa1twrMxeC")
+        ))
+    }
+
+
+
+    private fun loadUserPlaylists() {
+        // Load immediately from offline disk cache if available (0 ms delay)
+        val cached = prefs.getString(KEY_CACHED_PLAYLISTS, null)
+        if (cached != null && userPlaylistsState.isEmpty()) {
+            parseAndApplyPlaylists(cached)
+        }
+
+        // Fetch fresh list in background (Stale-While-Revalidate)
+        SpotifyBridge.fetchUserPlaylists { ok, payload ->
+            if (ok && payload.isNotEmpty()) {
+                if (parseAndApplyPlaylists(payload)) {
+                    prefs.edit().putString(KEY_CACHED_PLAYLISTS, payload).apply()
+                }
+            }
+        }
+    }
+
+    private fun parseAndApplyPlaylists(jsonStr: String): Boolean {
+        try {
+            val obj = JSONObject(jsonStr)
+            val arr = obj.optJSONArray("playlists")
+            if (arr != null && arr.length() > 0) {
+                val parsed = mutableListOf<PlaylistItem>()
+                for (i in 0 until arr.length()) {
+                    val p = arr.getJSONObject(i)
+                    val uri = p.optString("uri")
+                    val name = p.optString("name")
+                    val owner = p.optString("owner", "Spotify")
+                    val artwork = p.optString("artwork_url")
+                    if (uri.isNotEmpty() && name.isNotEmpty()) {
+                        parsed.add(PlaylistItem(name, owner, artwork, uri))
+                    }
+                }
+                if (parsed.isNotEmpty()) {
+                    userPlaylistsState.clear()
+                    userPlaylistsState.addAll(parsed)
+                    Log.d("Playlists", "Loaded ${parsed.size} user playlists")
+                    return true
+                }
+            }
+        } catch (e: Exception) {
+            Log.e("Playlists", "Failed to parse playlists", e)
+        }
+        return false
+    }
+
+    private fun addToQueue(item: TrackItem) {
+        val insertPos = (currentTrackIndex.intValue + 1).coerceAtMost(tracksState.size)
+        tracksState.add(insertPos, item)
+        Log.d("Queue", "Added '${item.title}' at position $insertPos in queue")
+    }
+
+    private fun playTrackItem(item: TrackItem, queueContext: List<TrackItem>? = null) {
+        if (!queueContext.isNullOrEmpty()) {
+            tracksState.clear()
+            tracksState.addAll(queueContext)
+            val idx = tracksState.indexOfFirst { it.uri == item.uri }
+            currentTrackIndex.intValue = if (idx >= 0) idx else 0
+        } else {
+            val existingIdx = tracksState.indexOfFirst { it.uri == item.uri }
+            if (existingIdx >= 0) {
+                currentTrackIndex.intValue = existingIdx
+            } else {
+                val insertPos = (currentTrackIndex.intValue + 1).coerceAtMost(tracksState.size)
+                tracksState.add(insertPos, item)
+                currentTrackIndex.intValue = insertPos
+            }
+        }
+        progressMs.longValue = 0L
+        isPlaying.value = true
+        SpotifyBridge.playTrack(item.uri)
+        PlaybackService.updateNotification(
+            this,
+            item.title,
+            item.artist,
+            item.artworkUrl,
+            true
+        )
+    }
+
+    private fun onTrackClick(idx: Int) {
+        currentTrackIndex.intValue = idx
+        progressMs.longValue = 0L
+        isPlaying.value = true
+        val item = tracksState.getOrNull(idx) ?: return
+        SpotifyBridge.playTrack(item.uri)
+        PlaybackService.updateNotification(
+            this,
+            item.title,
+            item.artist,
+            item.artworkUrl,
+            true
+        )
+    }
+
+    private fun togglePlay() {
+        isPlaying.value = !isPlaying.value
+        if (isPlaying.value) SpotifyBridge.play() else SpotifyBridge.pause()
+        val active = livePlayingTrack.value ?: tracksState.getOrNull(currentTrackIndex.intValue)
+        if (active != null) {
+            PlaybackService.updateNotification(
+                this,
+                active.title,
+                active.artist,
+                active.artworkUrl,
+                isPlaying.value
+            )
+        }
+    }
+
+    
+    private fun toggleShuffle() {
+        isShuffle.value = !isShuffle.value
+        if (isShuffle.value) {
+            if (tracksState.isNotEmpty()) {
+                originalQueueBeforeShuffle.clear()
+                originalQueueBeforeShuffle.addAll(tracksState)
+                val curr = livePlayingTrack.value ?: tracksState.getOrNull(currentTrackIndex.intValue)
+                val rest = tracksState.filter { it.uri != curr?.uri }.shuffled()
+                tracksState.clear()
+                if (curr != null) {
+                    tracksState.add(curr)
+                }
+                tracksState.addAll(rest)
+                currentTrackIndex.intValue = 0
+            }
+        } else {
+            if (originalQueueBeforeShuffle.isNotEmpty()) {
+                val curr = livePlayingTrack.value ?: tracksState.getOrNull(currentTrackIndex.intValue)
+                tracksState.clear()
+                tracksState.addAll(originalQueueBeforeShuffle)
+                val idx = tracksState.indexOfFirst { it.uri == curr?.uri }
+                currentTrackIndex.intValue = if (idx >= 0) idx else 0
+            }
+        }
+    }
+
+    private fun toggleRepeat() {
+        // cycle: 0 (off) -> 1 (repeat all) -> 2 (repeat one) -> 0
+        repeatMode.intValue = (repeatMode.intValue + 1) % 3
+    }
+
+    private fun nextTrack() {
+        if (tracksState.isEmpty()) return
+        if (repeatMode.intValue == 2) {
+            // Repeat one: replay current track from start
+            onTrackClick(currentTrackIndex.intValue)
+            return
+        }
+        val next = currentTrackIndex.intValue + 1
+        if (next >= tracksState.size) {
+            if (repeatMode.intValue == 1) {
+                // Repeat all: loop back to 0
+                onTrackClick(0)
+            } else if (stopAtEndOfQueue.value) {
+                SpotifyBridge.pause()
+                isPlaying.value = false
+                return
+            } else {
+                onTrackClick(0)
+            }
+        } else {
+            onTrackClick(next)
+        }
+    }
+
+    private fun prevTrack() {
+        if (tracksState.isEmpty()) return
+        if (progressMs.longValue > 3000L || repeatMode.intValue == 2) {
+            SpotifyBridge.seek(0)
+            progressMs.longValue = 0L
+            return
+        }
+        val prev = if (currentTrackIndex.intValue > 0) currentTrackIndex.intValue - 1 else tracksState.size - 1
+        onTrackClick(prev)
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        authServer?.close()
+        pollingJob?.cancel()
+        scope.cancel()
+    }
+}
+
+// ─── Auth state ───────────────────────────────────────────────────────────────
+
+sealed class AuthState {
+    object Loading : AuthState()
+    object LoggedOut : AuthState()
+    object Connecting : AuthState()
+    object LoggedIn : AuthState()
+}
+
+// ─── Composable UI ────────────────────────────────────────────────────────────
+
+@Composable
+fun SwiftifyApp(
+    authState: AuthState,
+    tracks: List<TrackItem>,
+    userPlaylists: List<PlaylistItem>,
+    currentTrackIndex: Int,
+    livePlayingTrack: TrackItem?,
+    isPlaying: Boolean,
+    progressMs: Long,
+    connectEnabled: Boolean,
+    statusMsg: String,
+    accessToken: String?,
+    onLoginClick: () -> Unit,
+    onTrackClick: (Int) -> Unit,
+    onTrackSelect: (TrackItem, List<TrackItem>?) -> Unit,
+    onAddToQueue: (TrackItem) -> Unit,
+    onPlayPause: () -> Unit,
+    onNext: () -> Unit,
+    onPrev: () -> Unit,
+    onSeek: (Long) -> Unit,
+    onConnectToggle: (Boolean) -> Unit,
+    onSetStopAtEnd: ((Boolean) -> Unit)? = null,
+    isShuffle: Boolean = false,
+    repeatMode: Int = 0,
+    onToggleShuffle: () -> Unit = {},
+    onToggleRepeat: () -> Unit = {}
+) {
+    var selectedTab by remember { mutableIntStateOf(0) }
+    var isPlayerExpanded by remember { mutableStateOf(false) }
+    var activePlaylist by remember { mutableStateOf<PlaylistItem?>(null) }
+    var activeArtist by remember { mutableStateOf<ArtistItem?>(null) }
+    var showAllPlaylists by remember { mutableStateOf(false) }
+    var activeAlbumUri by remember { mutableStateOf<String?>(null) }
+    var activeAlbumTitle by remember { mutableStateOf("Album") }
+    var activeAlbumArtwork by remember { mutableStateOf("") }
+    var artistPickerList by remember { mutableStateOf<List<ArtistItem>?>(null) }
+
+    
+    val openAlbumByTrack: (TrackItem) -> Unit = { t ->
+        // Search album or if album is present
+        val albTitle = if (t.album.isNotEmpty()) t.album else t.title
+        // Search album or fetch album uri
+        SpotifyBridge.searchTracks(albTitle) { ok, json ->
+            var albUri = ""
+            var albArt = t.artworkUrl
+            if (ok && json.isNotEmpty()) {
+                try {
+                    val obj = org.json.JSONObject(json)
+                    val arr = obj.optJSONArray("tracks")
+                    if (arr != null && arr.length() > 0) {
+                        for (i in 0 until arr.length()) {
+                            val item = arr.getJSONObject(i)
+                            val albObj = item.optJSONObject("album")
+                            if (albObj != null) {
+                                val uri = albObj.optString("uri")
+                                if (uri.isNotEmpty()) {
+                                    albUri = uri
+                                    val imgs = albObj.optJSONArray("images")
+                                    if (imgs != null && imgs.length() > 0) {
+                                        albArt = imgs.getJSONObject(0).optString("url")
+                                    }
+                                    break
+                                }
+                            }
+                        }
+                    }
+                } catch (_: Exception) {}
+            }
+            if (albUri.isNotEmpty()) {
+                activeAlbumUri = albUri
+                activeAlbumTitle = albTitle
+                activeAlbumArtwork = albArt
+            }
+        }
+    }
+val openArtistScreen: (String, String) -> Unit = { artName, artUri ->
+        val names = artName.split(",").map { it.trim() }.filter { it.isNotEmpty() }
+        if (names.size > 1) {
+            val items = names.map { n ->
+                ArtistItem(name = n, artworkUrl = "", uri = if (n == names[0]) artUri else "")
+            }
+            artistPickerList = items
+        } else {
+            activeArtist = ArtistItem(name = artName, artworkUrl = "", uri = artUri)
+        }
+    }
+
+
+    val currentTrack = livePlayingTrack ?: tracks.getOrNull(currentTrackIndex) ?: tracks.firstOrNull()
+
+    // Handle system back gesture
+    androidx.activity.compose.BackHandler(enabled = isPlayerExpanded || activePlaylist != null || activeArtist != null || activeAlbumUri != null || showAllPlaylists) {
+        if (isPlayerExpanded) {
+            isPlayerExpanded = false
+        } else if (activeAlbumUri != null) {
+            activeAlbumUri = null
+        } else if (activePlaylist != null) {
+            activePlaylist = null
+        } else if (activeArtist != null) {
+            activeArtist = null
+        } else if (showAllPlaylists) {
+            showAllPlaylists = false
+        }
+    }
+
+
+    Box(modifier = Modifier.fillMaxSize().background(Color(0xFF131110))) {
+        Scaffold(
+            containerColor = Color(0xFF131110),
+            bottomBar = {
+                Column(modifier = Modifier.background(Color(0xFF131110))) {
+                    // Floating Mini Player (Material 3 Expressive Pill)
+                    if (currentTrack != null) {
+                        val miniPalette = rememberTrackPalette(androidx.compose.ui.platform.LocalContext.current, currentTrack.artworkUrl)
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 14.dp, vertical = 6.dp)
+                                .shadow(14.dp, RoundedCornerShape(24.dp), spotColor = miniPalette.accent.copy(alpha = 0.35f))
+                                .clip(RoundedCornerShape(24.dp))
+                                .background(
+                                    Brush.horizontalGradient(
+                                        listOf(
+                                            miniPalette.dominant.copy(alpha = 0.95f),
+                                            miniPalette.secondary.copy(alpha = 0.95f)
+                                        )
+                                    )
+                                )
+                                .border(1.dp, Color(0x33FFFFFF), RoundedCornerShape(24.dp))
+                                .clickable { isPlayerExpanded = true }
+                                .padding(horizontal = 14.dp, vertical = 10.dp)
+                        ) {
+                            Column {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    AsyncImage(
+                                        model = currentTrack.artworkUrl,
+                                        contentDescription = null,
+                                        modifier = Modifier
+                                            .size(46.dp)
+                                            .clip(RoundedCornerShape(14.dp)),
+                                        contentScale = ContentScale.Crop
+                                    )
+                                    Spacer(modifier = Modifier.width(12.dp))
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(
+                                            text = currentTrack.title,
+                                            color = Color.White,
+                                            fontSize = 15.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis,
+                                            modifier = Modifier.clickable { openAlbumByTrack(currentTrack) }
+                                        )
+                                        Text(
+                                            text = currentTrack.artist,
+                                            color = Color(0xCCFFFFFF),
+                                            fontSize = 13.sp,
+                                            fontWeight = FontWeight.Medium,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis,
+                                            modifier = Modifier.clickable {
+                                                openArtistScreen(currentTrack.artist, "")
+                                            }
+                                        )
+                                    }
+                                    IconButton(
+                                        onClick = onPlayPause,
+                                        modifier = Modifier
+                                            .size(44.dp)
+                                            .clip(CircleShape)
+                                            .background(miniPalette.accent)
+                                    ) {
+                                        Icon(
+                                            imageVector = if (isPlaying) Icons.Rounded.Pause else Icons.Rounded.PlayArrow,
+                                            contentDescription = if (isPlaying) "Pause" else "Play",
+                                            tint = miniPalette.onAccent,
+                                            modifier = Modifier.size(24.dp)
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    NavigationBar(
+                        containerColor = Color(0xFF14100E),
+                        contentColor = Color(0xFFF2A385),
+                        tonalElevation = 8.dp
+                    ) {
+                        NavigationBarItem(
+                            selected = selectedTab == 0 && activePlaylist == null && activeArtist == null,
+                            onClick = {
+                                selectedTab = 0
+                                activePlaylist = null
+                                activeArtist = null
+                                showAllPlaylists = false
+                            },
+                            colors = NavigationBarItemDefaults.colors(
+                                selectedIconColor = Color(0xFFF2A385),
+                                selectedTextColor = Color(0xFFF2A385),
+                                indicatorColor = Color(0xFF33241F),
+                                unselectedIconColor = Color(0xFF8A807A),
+                                unselectedTextColor = Color(0xFF8A807A)
+                            ),
+                            label = { Text("Home", fontWeight = FontWeight.SemiBold) },
+                            icon = {
+                                Icon(
+                                    imageVector = Icons.Rounded.Home,
+                                    contentDescription = "Home",
+                                    modifier = Modifier.size(22.dp)
+                                )
+                            }
+                        )
+                        NavigationBarItem(
+                            selected = selectedTab == 1 && activePlaylist == null && activeArtist == null,
+                            onClick = {
+                                selectedTab = 1
+                                activePlaylist = null
+                                activeArtist = null
+                                showAllPlaylists = false
+                            },
+                            colors = NavigationBarItemDefaults.colors(
+                                selectedIconColor = Color(0xFFF2A385),
+                                selectedTextColor = Color(0xFFF2A385),
+                                indicatorColor = Color(0xFF33241F),
+                                unselectedIconColor = Color(0xFF8A807A),
+                                unselectedTextColor = Color(0xFF8A807A)
+                            ),
+                            label = { Text("Search", fontWeight = FontWeight.SemiBold) },
+                            icon = {
+                                Icon(
+                                    imageVector = Icons.Rounded.Search,
+                                    contentDescription = "Search",
+                                    modifier = Modifier.size(22.dp)
+                                )
+                            }
+                        )
+                        NavigationBarItem(
+                            selected = selectedTab == 2 && activePlaylist == null && activeArtist == null,
+                            onClick = {
+                                selectedTab = 2
+                                activePlaylist = null
+                                activeArtist = null
+                                showAllPlaylists = false
+                            },
+                            colors = NavigationBarItemDefaults.colors(
+                                selectedIconColor = Color(0xFFF2A385),
+                                selectedTextColor = Color(0xFFF2A385),
+                                indicatorColor = Color(0xFF33241F),
+                                unselectedIconColor = Color(0xFF8A807A),
+                                unselectedTextColor = Color(0xFF8A807A)
+                            ),
+                            label = { Text("Settings", fontWeight = FontWeight.SemiBold) },
+                            icon = {
+                                Icon(
+                                    imageVector = Icons.Rounded.Settings,
+                                    contentDescription = "Settings",
+                                    modifier = Modifier.size(22.dp)
+                                )
+                            }
+                        )
+                    }
+                }
+            }
+        ) { padding ->
+            Box(modifier = Modifier.fillMaxSize().padding(padding)) {
+                if (showAllPlaylists) {
+                    AllPlaylistsScreen(
+                        playlists = if (userPlaylists.isNotEmpty()) userPlaylists else samplePlaylists,
+                        onBack = { showAllPlaylists = false },
+                        onPlaylistClick = {
+                            showAllPlaylists = false
+                            activePlaylist = it
+                        }
+                    )
+                } else if (activeArtist != null) {
+                    ArtistDetailScreen(
+                        artist = activeArtist!!,
+                        livePlayingTrack = livePlayingTrack,
+                        isPlaying = isPlaying,
+                        onBack = { activeArtist = null },
+                        onTrackSelect = { selectedTrack, playlistTracks ->
+                            onTrackSelect(selectedTrack, playlistTracks)
+                        },
+                        onPlayAll = { artistTracks ->
+                            if (artistTracks.isNotEmpty()) {
+                                onTrackSelect(artistTracks.first(), artistTracks)
+                            }
+                        },
+                        onAddToQueue = onAddToQueue,
+                        onAlbumSelect = { albUri, albTitle, albArt ->
+                            activeAlbumUri = albUri
+                            activeAlbumTitle = albTitle
+                            activeAlbumArtwork = albArt
+                        }
+                    )
+                } else if (activeAlbumUri != null) {
+                    AlbumDetailScreen(
+                        albumUri = activeAlbumUri!!,
+                        initialTitle = activeAlbumTitle,
+                        initialArtworkUrl = activeAlbumArtwork,
+                        livePlayingTrack = livePlayingTrack,
+                        isPlaying = isPlaying,
+                        onBack = { activeAlbumUri = null },
+                        onTrackSelect = { selectedTrack, playlistTracks ->
+                            onTrackSelect(selectedTrack, playlistTracks)
+                        },
+                        onPlayAll = { albumTracks ->
+                            if (albumTracks.isNotEmpty()) {
+                                onSetStopAtEnd?.invoke(true)
+                                onTrackSelect(albumTracks.first(), albumTracks)
+                            }
+                        },
+                        onAddToQueue = onAddToQueue,
+                        onArtistClick = { aName, aUri ->
+                            openArtistScreen(aName, aUri)
+                        }
+                    )
+                } else if (activePlaylist != null) {
+                    PlaylistDetailScreen(
+                        playlist = activePlaylist!!,
+                        tracks = tracks,
+                        livePlayingTrack = livePlayingTrack,
+                        isPlaying = isPlaying,
+                        onBack = { activePlaylist = null },
+                        onTrackSelect = { selectedTrack, playlistTracks ->
+                            onTrackSelect(selectedTrack, playlistTracks)
+                        },
+                        onPlayAll = { playlistTracks ->
+                            if (playlistTracks.isNotEmpty()) {
+                                onTrackSelect(playlistTracks.first(), playlistTracks)
+                            }
+                        },
+                        onAddToQueue = onAddToQueue,
+                        onTrackTitleClick = { track -> openAlbumByTrack(track) },
+                        onArtistClick = { artistName -> openArtistScreen(artistName, "") }
+                    )
+                } else {
+                    when (selectedTab) {
+                        0 -> HomeScreen(
+                            authState = authState,
+                            tracks = tracks,
+                            currentTrackIndex = currentTrackIndex,
+                            livePlayingTrack = livePlayingTrack,
+                            isPlaying = isPlaying,
+                            statusMsg = statusMsg,
+                            onLoginClick = onLoginClick,
+                            onTrackClick = onTrackClick,
+                            onPlayPause = onPlayPause,
+                            userPlaylists = userPlaylists,
+                            onPlaylistClick = { activePlaylist = it },
+                            onArtistClick = { activeArtist = it },
+                            onSeeAllPlaylists = { showAllPlaylists = true }
+                        )
+                        1 -> SearchScreen(
+                            accessToken = accessToken,
+                            allTracks = tracks,
+                            currentTrackIndex = currentTrackIndex,
+                            livePlayingTrack = livePlayingTrack,
+                            isPlaying = isPlaying,
+                            onTrackSelect = { track -> onTrackSelect(track, null) },
+                            onAddToQueue = onAddToQueue,
+                            onArtistSelect = { artist ->
+                                activeArtist = artist
+                            },
+                            onAlbumSelect = { track ->
+                                openAlbumByTrack(track)
+                            },
+                            onPlaylistSelect = { activePlaylist = it }
+                        )
+                        2 -> SettingsScreen(
+                            connectEnabled = connectEnabled,
+                            onConnectToggle = onConnectToggle
+                        )
+                    }
+                }
+            }
+        }
+
+        // Full Screen Player
+        if (currentTrack != null) {
+            AnimatedVisibility(
+                visible = isPlayerExpanded,
+                enter = slideInVertically(initialOffsetY = { it }),
+                exit = slideOutVertically(targetOffsetY = { it })
+            ) {
+                ExpandedPlayer(
+                    track = currentTrack,
+                    allTracks = tracks,
+                    isPlaying = isPlaying,
+                    progressMs = progressMs,
+                    onCollapse = { isPlayerExpanded = false },
+                    onPlayPause = onPlayPause,
+                    onNext = onNext,
+                    onPrev = onPrev,
+                    onSeek = onSeek,
+                    onSelectTrack = { track -> onTrackSelect(track, null) },
+                    onArtistClick = { artistName ->
+                        isPlayerExpanded = false
+                        openArtistScreen(artistName, "")
+                    },
+                    onAlbumClick = {
+                        isPlayerExpanded = false
+                        openAlbumByTrack(currentTrack)
+                    },
+                    isShuffle = isShuffle,
+                    repeatMode = repeatMode,
+                    onToggleShuffle = onToggleShuffle,
+                    onToggleRepeat = onToggleRepeat
+                )
+            }
+
+            // Artist Picker Bottom Sheet for songs with multiple artists
+            if (artistPickerList != null) {
+                ArtistPickerBottomSheet(
+                    artists = artistPickerList!!,
+                    onDismiss = { artistPickerList = null },
+                    onArtistSelect = { sel ->
+                        artistPickerList = null
+                        activeArtist = sel
+                    }
+                )
+            }
+        }
+    }
+}
+
+// ─── Wavy Line Component ──────────────────────────────────────────────────────
+
+@Composable
+fun WavyLine(
+    modifier: Modifier = Modifier,
+    color: Color = Color(0x33F2A385),
+    wavelength: Float = 14.2f,
+    amplitude: Float = 1.3f,
+    strokeWidth: Float = 2.0f
+) {
+    Canvas(modifier = modifier.height((amplitude * 2 + strokeWidth * 2 + 4f).dp)) {
+        val width = size.width
+        val midY = size.height / 2f
+        val wavelengthPx = wavelength.dp.toPx()
+        val ampPx = amplitude.dp.toPx()
+        val strokePx = strokeWidth.dp.toPx()
+
+        val path = Path()
+        var first = true
+        val step = 1.5f
+        var x = 0f
+        while (x <= width) {
+            val y = midY + sin((x / wavelengthPx) * 2f * PI.toFloat()) * ampPx
+            if (first) {
+                path.moveTo(x, y)
+                first = false
+            } else {
+                path.lineTo(x, y)
+            }
+            x += step
+        }
+        drawPath(
+            path = path,
+            color = color,
+            style = Stroke(
+                width = strokePx,
+                cap = StrokeCap.Round,
+                join = StrokeJoin.Round
+            )
+        )
+    }
+}
+
+@Composable
+fun Cookie12Border(
+    modifier: Modifier = Modifier,
+    color: Color = Color(0x66F2A385),
+    lobes: Int = 12,
+    strokeWidth: Dp = 1.6.dp
+) {
+    Canvas(modifier = modifier) {
+        val cx = size.width / 2f
+        val cy = size.height / 2f
+        val maxR = (minOf(size.width, size.height) / 2f) - strokeWidth.toPx()
+        val amp = maxR * 0.08f
+        val baseR = maxR - amp
+        val path = Path()
+        val steps = 180
+        for (i in 0..steps) {
+            val theta = (i.toFloat() / steps) * (2f * Math.PI.toFloat())
+            val r = baseR + amp * kotlin.math.cos(lobes * theta)
+            val x = cx + r * kotlin.math.cos(theta)
+            val y = cy + r * kotlin.math.sin(theta)
+            if (i == 0) path.moveTo(x, y) else path.lineTo(x, y)
+        }
+        path.close()
+        drawPath(
+            path = path,
+            color = color,
+            style = Stroke(
+                width = strokeWidth.toPx(),
+                cap = StrokeCap.Round,
+                join = StrokeJoin.Round
+            )
+        )
+    }
+}
+
+// ─── Playlists & Artists data ────────────────────────────────────────────────
+
+val samplePlaylists = listOf(
+    PlaylistItem("вайб банутый", "alert('Hey, I Love You!')", "https://i.scdn.co/image/ab67616d0000b27364c8b41faf576a0bab551fb9", "spotify:playlist:15tGlcjsEAxEAqhW57w5yf"),
+    PlaylistItem("shma", "свегпрогуччекилиррпсихотер...", "https://i.scdn.co/image/ab67616d0000b27301b854c4411bca4150f2ab50", "spotify:playlist:1DedHxjtlx3vGoj1D6Ihsr"),
+    PlaylistItem("When I feel like the alpha 😈🐺", "Leigha ❣️", "https://i.scdn.co/image/ab67616d0000b273187c3b1239c0faeeb0a66d8e", "spotify:playlist:4nR6ftxgWGeehg8Ea2ClgW"),
+    PlaylistItem("glaive and shit", "alert('Hey, I Love You!')", "https://i.scdn.co/image/ab67616d0000b273d4ee79f87cbb5bbfa4b9d031", "spotify:playlist:5eYCAj4nXl5BUugqevozIh"),
+    PlaylistItem("Your All-Time Top Songs", "Spotify", "https://pickasso.spotifycdn.com/image/ab67c0de0000deef/dt/v1/img/atts/atts/2017/en", "spotify:playlist:37i9dQZF1CKMFBxUbxRIAg"),
+    PlaylistItem("Your Top Songs 2025", "Spotify", "https://i.scdn.co/image/ab67706f00000002b8d5231c6f1d244975d04586", "spotify:playlist:37i9dQZEVXcXHWVVT0lfDq")
+)
+
+val sampleArtists = listOf(
+    ArtistItem("лиззз", "https://i.scdn.co/image/ab6761610000e5eb408ed62ccf98127a1689c396", "spotify:artist:4w6m5DoTABuW3kJgVb9dUo"),
+    ArtistItem("brakence", "https://i.scdn.co/image/ab6761610000e5ebe1dce3b56c044ae242ea558f", "spotify:artist:5JZPSVFMUk4HGDdx68lN77"),
+    ArtistItem("SEREBRO", "https://i.scdn.co/image/ab6761610000e5eb42a3f73b48158b68f1728970", "spotify:artist:1Ulwacsns9Me7dz4OVwkiQ"),
+    ArtistItem("glaive", "https://i.scdn.co/image/ab6761610000e5ebf400be855a03bee882dc9dc3", "spotify:artist:4cJKDGSv4Dz9QycXYmo565"),
+    ArtistItem("Midix", "https://i.scdn.co/image/ab6761610000e5eb26c2c1b9c094b22357fcb9c7", "spotify:artist:6Y5o021VaeAm5iRncZhLei")
+)
+
+// ─── Home Screen (Swiftify Desktop Style) ──────────────────────────────────────
+
+@Composable
+fun HomeScreen(
+    authState: AuthState,
+    tracks: List<TrackItem>,
+    userPlaylists: List<PlaylistItem>,
+    currentTrackIndex: Int,
+    livePlayingTrack: TrackItem?,
+    isPlaying: Boolean,
+    statusMsg: String,
+    onLoginClick: () -> Unit,
+    onTrackClick: (Int) -> Unit,
+    onPlayPause: () -> Unit,
+    onPlaylistClick: (PlaylistItem) -> Unit,
+    onArtistClick: (ArtistItem) -> Unit,
+    onSeeAllPlaylists: () -> Unit
+) {
+    val scrollState = rememberScrollState()
+    val hour = Calendar.getInstance().get(Calendar.HOUR_OF_DAY)
+    val greetingText = when (hour) {
+        in 5..11 -> "Good morning."
+        in 12..16 -> "Good afternoon."
+        in 17..21 -> "Good evening."
+        else -> "Up late..."
+    }
+    val greetingEmoji = when (hour) {
+        in 5..11 -> "☀️"
+        in 12..16 -> "🌤"
+        in 17..21 -> "🌅"
+        else -> "🌙"
+    }
+
+    val spotlightTrack = livePlayingTrack ?: tracks.getOrNull(currentTrackIndex) ?: tracks.firstOrNull()
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .verticalScroll(scrollState)
+            .padding(horizontal = 16.dp, vertical = 10.dp)
+    ) {
+        // Top Header
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(top = 4.dp, bottom = 12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = "Swiftify",
+                    color = Color(0xFFF7F2EE),
+                    fontSize = 32.sp,
+                    fontWeight = FontWeight.Black,
+                    letterSpacing = (-0.8).sp
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(
+                        modifier = Modifier
+                            .size(26.dp)
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(Color(0xFF2C221F)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(greetingEmoji, fontSize = 13.sp)
+                    }
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = greetingText,
+                        color = Color(0xFFA59B94),
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Medium
+                    )
+                }
+            }
+            Box(
+                modifier = Modifier
+                    .size(38.dp)
+                    .clip(CircleShape)
+                    .background(Color(0xFF221C1B))
+                    .border(1.dp, Color(0xFF332A26), CircleShape),
+                contentAlignment = Alignment.Center
+            ) {
+                Text("⋮", color = Color(0xFFCDC2BB), fontSize = 18.sp, fontWeight = FontWeight.Bold)
+            }
+        }
+
+        // Auth status or Login Card if logged out
+        when (authState) {
+            is AuthState.LoggedOut -> {
+                Card(
+                    modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp),
+                    colors = CardDefaults.cardColors(containerColor = Color(0xFF221B19)),
+                    shape = RoundedCornerShape(20.dp)
+                ) {
+                    Column(modifier = Modifier.padding(18.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text("Connect Spotify", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 18.sp)
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text("Spotify Premium required for full playback", color = Color(0xFFA59B94), fontSize = 13.sp)
+                        Spacer(modifier = Modifier.height(14.dp))
+                        Button(
+                            onClick = onLoginClick,
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFF2A385)),
+                            shape = RoundedCornerShape(999.dp)
+                        ) {
+                            Text("Log in with Spotify", color = Color(0xFF251510), fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
+            }
+            is AuthState.Loading, is AuthState.Connecting -> {
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    CircularProgressIndicator(modifier = Modifier.size(18.dp), color = Color(0xFFF2A385), strokeWidth = 2.dp)
+                    Spacer(modifier = Modifier.width(10.dp))
+                    Text(statusMsg.ifEmpty { "Connecting Spotify..." }, color = Color(0xFFA59B94), fontSize = 13.sp)
+                }
+            }
+            is AuthState.LoggedIn -> {}
+        }
+
+        // Continue Listening (Hero Spotlight Card - Material 3 Expressive)
+        if (spotlightTrack != null) {
+            val heroPalette = rememberTrackPalette(androidx.compose.ui.platform.LocalContext.current, spotlightTrack.artworkUrl)
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .shadow(16.dp, RoundedCornerShape(26.dp), spotColor = heroPalette.accent.copy(alpha = 0.3f))
+                    .clip(RoundedCornerShape(26.dp))
+                    .background(
+                        Brush.verticalGradient(
+                            listOf(heroPalette.dominant.copy(alpha = 0.85f), heroPalette.secondary.copy(alpha = 0.95f))
+                        )
+                    )
+                    .border(1.dp, Color(0x22FFFFFF), RoundedCornerShape(26.dp))
+                    .padding(18.dp)
+            ) {
+                Column {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(118.dp)
+                                .shadow(12.dp, RoundedCornerShape(20.dp), spotColor = heroPalette.accent.copy(alpha = 0.4f))
+                                .clip(RoundedCornerShape(20.dp))
+                        ) {
+                            AsyncImage(
+                                model = spotlightTrack.artworkUrl,
+                                contentDescription = null,
+                                modifier = Modifier.fillMaxSize(),
+                                contentScale = ContentScale.Crop
+                            )
+                        }
+                        Spacer(modifier = Modifier.width(16.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = if (isPlaying) "NOW PLAYING" else "CONTINUE LISTENING",
+                                color = heroPalette.accent,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.ExtraBold,
+                                letterSpacing = 1.2.sp
+                            )
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = spotlightTrack.title,
+                                color = Color.White,
+                                fontSize = 21.sp,
+                                fontWeight = FontWeight.Black,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                            Spacer(modifier = Modifier.height(2.dp))
+                            Text(
+                                text = spotlightTrack.artist,
+                                color = Color(0xDDFFFFFF),
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                            Spacer(modifier = Modifier.height(2.dp))
+                            Text(
+                                text = spotlightTrack.album,
+                                color = Color(0x88FFFFFF),
+                                fontSize = 12.sp,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                            Spacer(modifier = Modifier.height(12.dp))
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Button(
+                                    onClick = onPlayPause,
+                                    colors = ButtonDefaults.buttonColors(containerColor = heroPalette.accent),
+                                    shape = RoundedCornerShape(999.dp),
+                                    contentPadding = PaddingValues(horizontal = 18.dp, vertical = 6.dp),
+                                    modifier = Modifier.height(38.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = if (isPlaying) Icons.Rounded.Pause else Icons.Rounded.PlayArrow,
+                                        contentDescription = null,
+                                        tint = heroPalette.onAccent,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text(
+                                        text = if (isPlaying) "Pause" else "Resume",
+                                        color = heroPalette.onAccent,
+                                        fontSize = 13.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                            }
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(16.dp))
+                    WavyLine(
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp),
+                        color = heroPalette.accent.copy(alpha = 0.35f)
+                    )
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(14.dp))
+
+        // Two Quick Shortcuts: Favourite Songs & Your Playlists
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            // Favourite Songs
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .clip(RoundedCornerShape(18.dp))
+                    .background(Color(0xFF201B1A))
+                    .border(1.dp, Color(0xFF312825), RoundedCornerShape(18.dp))
+                    .clickable {
+                        onPlaylistClick(
+                            PlaylistItem(
+                                name = "Favourite Songs",
+                                owner = "3,495 favourited tracks",
+                                artworkUrl = "https://i.scdn.co/image/ab67616d0000b27344e9d13c687469d32a9f22a8",
+                                uri = "spotify:collection"
+                            )
+                        )
+                    }
+                    .padding(12.dp)
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    ShapeBadge(
+                        shape = "heart",
+                        icon = Icons.Rounded.Star,
+                        size = 38.dp,
+                        iconSize = 19.dp,
+                        shapeAlpha = 0.32f,
+                        glyphAlpha = 0.95f
+                    )
+                    Spacer(modifier = Modifier.width(10.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text("Favourite Songs", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold, maxLines = 1)
+                        Text("Favourited: 3495", color = Color(0xFF9E948E), fontSize = 11.sp, maxLines = 1)
+                    }
+                    Text("›", color = Color(0xFF8F8580), fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                }
+            }
+
+            // Your Playlists Shortcut
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .clip(RoundedCornerShape(18.dp))
+                    .background(Color(0xFF201B1A))
+                    .border(1.dp, Color(0xFF312825), RoundedCornerShape(18.dp))
+                    .clickable { onSeeAllPlaylists() }
+                    .padding(12.dp)
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    ShapeBadge(
+                        shape = "bun",
+                        icon = Icons.Rounded.LibraryMusic,
+                        size = 38.dp,
+                        iconSize = 20.dp,
+                        shapeAlpha = 0.32f,
+                        glyphAlpha = 0.95f
+                    )
+                    Spacer(modifier = Modifier.width(10.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text("Your Playlists", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold, maxLines = 1)
+                        val count = if (userPlaylists.isNotEmpty()) userPlaylists.size else 5
+                        Text("Collections: $count", color = Color(0xFF9E948E), fontSize = 11.sp, maxLines = 1)
+                    }
+                    Text("›", color = Color(0xFF8F8580), fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(24.dp))
+
+        // Section 1: Your Playlists
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            ShapeBadge(
+                shape = "bun",
+                icon = Icons.Rounded.QueueMusic,
+                size = 34.dp,
+                iconSize = 18.dp,
+                shapeAlpha = 0.30f,
+                glyphAlpha = 0.90f
+            )
+            Spacer(modifier = Modifier.width(10.dp))
+            Text("Your Playlists", color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+            WavyLine(
+                modifier = Modifier.weight(1f).padding(horizontal = 12.dp),
+                color = Color(0x33F2A385)
+            )
+            Box(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(999.dp))
+                    .background(Color(0xFF2E2725))
+                    .clickable { onSeeAllPlaylists() }
+                    .padding(horizontal = 12.dp, vertical = 6.dp)
+            ) {
+                Text("→ See All", color = Color(0xFFD8CDC7), fontSize = 12.sp, fontWeight = FontWeight.Medium)
+            }
+        }
+
+        Spacer(modifier = Modifier.height(14.dp))
+
+        val displayPlaylists = if (userPlaylists.isNotEmpty()) userPlaylists else samplePlaylists
+        LazyRow(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+            items(displayPlaylists) { playlist ->
+                Column(modifier = Modifier.width(136.dp).clickable { onPlaylistClick(playlist) }) {
+                    AsyncImage(
+                        model = playlist.artworkUrl,
+                        contentDescription = null,
+                        modifier = Modifier
+                            .size(136.dp)
+                            .clip(RoundedCornerShape(18.dp)),
+                        contentScale = ContentScale.Crop
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = playlist.name,
+                        color = Color.White,
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    Text(
+                        text = playlist.owner,
+                        color = Color(0xFF9E948E),
+                        fontSize = 12.sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(24.dp))
+
+        // Section 2: Recently Played
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            ShapeBadge(
+                shape = "clamShell",
+                icon = Icons.Rounded.History,
+                size = 34.dp,
+                iconSize = 18.dp,
+                shapeAlpha = 0.30f,
+                glyphAlpha = 0.90f
+            )
+            Spacer(modifier = Modifier.width(10.dp))
+            Text("Recently Played", color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+            WavyLine(
+                modifier = Modifier.weight(1f).padding(start = 12.dp),
+                color = Color(0x33F2A385)
+            )
+        }
+
+        Spacer(modifier = Modifier.height(14.dp))
+
+        LazyRow(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+            itemsIndexed(tracks) { index, track ->
+                val isCurrent = (livePlayingTrack != null && livePlayingTrack.uri == track.uri) || (livePlayingTrack == null && index == currentTrackIndex)
+                Column(modifier = Modifier.width(136.dp).clickable { onTrackClick(index) }) {
+                    Box(
+                        modifier = Modifier
+                            .size(136.dp)
+                            .shadow(if (isCurrent && isPlaying) 16.dp else 6.dp, RoundedCornerShape(22.dp), spotColor = Color(0x66F2A385))
+                            .clip(RoundedCornerShape(22.dp))
+                            .background(Color(0xFF201B19))
+                    ) {
+                        AsyncImage(
+                            model = track.artworkUrl,
+                            contentDescription = null,
+                            modifier = Modifier.fillMaxSize(),
+                            contentScale = ContentScale.Crop
+                        )
+                        if (isCurrent && isPlaying) {
+                            Box(
+                                modifier = Modifier
+                                    .align(Alignment.BottomEnd)
+                                    .padding(8.dp)
+                                    .size(32.dp)
+                                    .clip(CircleShape)
+                                    .background(Color(0xFFF2A385)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Rounded.VolumeUp,
+                                    contentDescription = null,
+                                    tint = Color(0xFF1B110E),
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            }
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(10.dp))
+                    Text(
+                        text = track.title,
+                        color = if (isCurrent) Color(0xFFF2A385) else Color.White,
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    Text(
+                        text = track.artist,
+                        color = Color(0xFFA59B94),
+                        fontSize = 12.sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(24.dp))
+
+        // Section 3: Artists in Your Rotation
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            ShapeBadge(
+                shape = "cookie12",
+                icon = Icons.Rounded.Person,
+                size = 34.dp,
+                iconSize = 18.dp,
+                shapeAlpha = 0.30f,
+                glyphAlpha = 0.90f
+            )
+            Spacer(modifier = Modifier.width(10.dp))
+            Text("Artists in Your Rotation", color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+            WavyLine(
+                modifier = Modifier.weight(1f).padding(start = 12.dp),
+                color = Color(0x33F2A385)
+            )
+        }
+
+        Spacer(modifier = Modifier.height(14.dp))
+
+        LazyRow(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+            items(sampleArtists) { artist ->
+                Column(
+                    modifier = Modifier
+                        .width(136.dp)
+                        .clickable {
+                            onArtistClick(artist)
+                        },
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    SquiggleAvatar(
+                        imageUrl = artist.artworkUrl,
+                        contentDescription = artist.name,
+                        modifier = Modifier.size(136.dp),
+                        ringColor = Color(0xFFF2A385),
+                        waves = 20,
+                        amplitude = 1.3.dp,
+                        strokeWidth = 2.0.dp,
+                        gap = 4.0.dp
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = artist.name,
+                        color = Color.White,
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Medium,
+                        textAlign = TextAlign.Center,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(110.dp))
+    }
+}
+
+fun formatTime(ms: Long): String {
+    val totalSeconds = ms / 1000
+    val minutes = totalSeconds / 60
+    val seconds = totalSeconds % 60
+    return String.format("%d:%02d", minutes, seconds)
+}

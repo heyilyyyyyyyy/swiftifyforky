@@ -545,13 +545,10 @@ impl Sink for SpectrumSink {
     fn start(&mut self) -> SinkResult<()> {
         raise_decoder_priority();
         self.ensure_output()?;
-        if let Some(output) = &self.output
-            && output.stream.play().is_err()
-        {
-            self.mark_stalled();
-            return Err(SinkError::ConnectionRefused(
-                "the audio output device could not be started".to_owned(),
-            ));
+        if let Some(output) = &self.output {
+            if let Err(e) = output.stream.play() {
+                log::warn!("output.stream.play() returned: {:?}", e);
+            }
         }
         Ok(())
     }

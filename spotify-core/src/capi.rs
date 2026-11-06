@@ -462,6 +462,12 @@ async_call!(
     }
 );
 async_call!(
+    /// completes with an album and its tracks as json, read through the session.
+    swiftify_core_album_json(album_uri) => |core| {
+        core.album_json(album_uri).await
+    }
+);
+async_call!(
     /// completes with a playlist's songs as json, read through the session.
     swiftify_core_playlist_json(playlist_uri) => |core| {
         core.playlist_json(playlist_uri).await
@@ -471,6 +477,30 @@ async_call!(
     /// completes with an artist's top songs as json, read through the session.
     swiftify_core_artist_top_tracks_json(artist_uri) => |core| {
         core.artist_top_tracks_json(artist_uri).await
+    }
+);
+async_call!(
+    /// completes with search artist results as json, read through the session.
+    swiftify_core_search_artists_json(query) => |core| {
+        core.search_artists_json(query).await
+    }
+);
+async_call!(
+    /// completes with search track results as json, read through the session.
+    swiftify_core_search_tracks_json(query) => |core| {
+        core.search_tracks_json(query).await
+    }
+);
+async_call!(
+    /// completes with user playlist uris as json, read through the session.
+    swiftify_core_user_playlists_json() => |core| {
+        core.user_playlists_json().await
+    }
+);
+async_call!(
+    /// completes with user liked songs as json, read through the session.
+    swiftify_core_collection_tracks_json() => |core| {
+        core.collection_tracks_json().await
     }
 );
 
@@ -698,6 +728,19 @@ query!(swiftify_core_playback_duration_ms -> u32, 0, |core| core.playback_durati
 query!(swiftify_core_take_end_of_track -> bool, false, |core| core.take_end_of_track());
 query!(swiftify_core_volume -> f32, 0.75, |core| core.volume());
 query!(swiftify_core_output_rate -> u32, 0, |core| core.output_rate());
+
+/// Returns the current track metadata as JSON, or an empty string.
+/// Free the returned string with swiftify_string_free.
+///
+/// # Safety
+/// `core` is null or live.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn swiftify_core_current_track(core: *const SwiftifyCore) -> *mut c_char {
+    let json = unsafe { handle(core) }
+        .and_then(|h| h.core.current_track_json())
+        .unwrap_or_default();
+    into_raw(json)
+}
 
 /// # Safety
 /// `core` is null or live.

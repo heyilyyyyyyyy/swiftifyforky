@@ -15,10 +15,10 @@ pub(crate) const IOS_CLIENT_ID: &str = "58bd3c95768941ea9eb4350aaa033eb3";
 // Spotify rejects librespot's native iOS AP identity and a mixed iOS/Linux identity can connect
 // but fail later while loading audio. Keep the complete Spotify protocol identity consistent by
 // presenting iOS builds as Linux. This does not change the Rust compilation target or audio sink.
-#[cfg(target_os = "ios")]
+#[cfg(any(target_os = "ios", target_os = "android"))]
 pub const OS: &str = "linux";
 
-#[cfg(not(target_os = "ios"))]
+#[cfg(not(any(target_os = "ios", target_os = "android")))]
 pub const OS: &str = std::env::consts::OS;
 
 // valid versions for some os:

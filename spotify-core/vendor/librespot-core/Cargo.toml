@@ -28,7 +28,7 @@ repository = "https://github.com/librespot-org/librespot"
 
 [features]
 __rustls = []
-default = ["native-tls"]
+default = ["rustls-tls-webpki-roots"]
 native-tls = [
     "dep:hyper-tls",
     "hyper-proxy2/tls",

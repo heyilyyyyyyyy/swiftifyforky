@@ -50,7 +50,11 @@ pub mod live_input;
 pub mod local;
 mod output;
 mod playlist;
+mod search;
+mod album;
 mod spectrum;
+
+
 
 use dsp::{EQ_BAND_COUNT, SharedDsp};
 use rodio::Source;
@@ -174,9 +178,32 @@ struct PlaybackTimeline {
     is_playing: bool,
     end_of_track: bool,
     observed_at: Option<Instant>,
+    current_track_json: Option<String>,
 }
 
 impl PlaybackTimeline {
+    fn set_track(&mut self, audio_item: &librespot::metadata::audio::AudioItem) {
+        let (artists, album) = match &audio_item.unique_fields {
+            librespot::metadata::audio::UniqueFields::Track { album_artists, album, .. } => {
+                (album_artists.join(", "), album.clone())
+            }
+            librespot::metadata::audio::UniqueFields::Episode { show_name, .. } => {
+                (show_name.clone(), show_name.clone())
+            }
+            _ => (String::new(), String::new()),
+        };
+        let artwork_url = audio_item.covers.first().map(|c| c.url.as_str()).unwrap_or("");
+        let json = serde_json::json!({
+            "uri": audio_item.uri,
+            "title": audio_item.name,
+            "artist": artists,
+            "album": album,
+            "artwork_url": artwork_url,
+            "duration_ms": audio_item.duration_ms,
+        }).to_string();
+        self.duration_ms = audio_item.duration_ms;
+        self.current_track_json = Some(json);
+    }
     /// how long the timeline will keep extrapolating between position updates.
     const STALL_TIMEOUT: Duration = Duration::from_secs(6);
 
@@ -262,9 +289,41 @@ impl Default for SpotifyCore {
     }
 }
 
-/// librespot and the core log through the log crate, which drops everything
-/// until a logger is set. this sets one that reads RUST_LOG (Logging.cpp fills
-/// it in when logging is on), unless the host set its own first
+#[cfg(target_os = "android")]
+struct AndroidLogger;
+
+#[cfg(target_os = "android")]
+impl log::Log for AndroidLogger {
+    fn enabled(&self, _metadata: &log::Metadata) -> bool { true }
+    fn log(&self, record: &log::Record) {
+        let tag = std::ffi::CString::new(record.target()).unwrap_or_default();
+        let msg = std::ffi::CString::new(format!("{}", record.args())).unwrap_or_default();
+        let fmt = std::ffi::CString::new("%s").unwrap_or_default();
+        let prio = match record.level() {
+            log::Level::Error => 6, // ANDROID_LOG_ERROR
+            log::Level::Warn => 5,  // ANDROID_LOG_WARN
+            log::Level::Info => 4,  // ANDROID_LOG_INFO
+            log::Level::Debug => 3, // ANDROID_LOG_DEBUG
+            log::Level::Trace => 2, // ANDROID_LOG_VERBOSE
+        };
+        unsafe {
+            unsafe extern "C" {
+                fn __android_log_print(prio: i32, tag: *const std::ffi::c_char, fmt: *const std::ffi::c_char, ...) -> i32;
+            }
+            __android_log_print(prio, tag.as_ptr(), fmt.as_ptr(), msg.as_ptr());
+        }
+    }
+    fn flush(&self) {}
+}
+
+#[cfg(target_os = "android")]
+fn start_logging() {
+    static LOGGER: AndroidLogger = AndroidLogger;
+    let _ = log::set_logger(&LOGGER);
+    log::set_max_level(log::LevelFilter::Debug);
+}
+
+#[cfg(not(target_os = "android"))]
 fn start_logging() {
     let _ = env_logger::Builder::from_default_env().try_init();
 }
@@ -421,6 +480,8 @@ impl SpotifyCore {
                     return Err(SUPERSEDED.to_owned());
                 }
             }
+            let u = session.user_data();
+            log::info!("Session connected: user={}, country={}, type={:?}", u.canonical_username, u.country, u.attributes.get("type"));
         }
         let mixer_builder =
             mixer::find(None).ok_or_else(|| "no librespot volume mixer is available".to_owned())?;
@@ -725,14 +786,21 @@ impl SpotifyCore {
             }
 
             match event {
-                PlayerEvent::Playing { track_id, .. } if track_id == uri => return Ok(()),
+                PlayerEvent::Playing { track_id, .. } if track_id == uri => {
+                    log::info!("Player: track playing {:?}", track_id);
+                    return Ok(());
+                }
                 PlayerEvent::Unavailable { track_id, .. } if track_id == uri => {
+                    log::warn!("Player: track UNAVAILABLE {:?}", track_id);
                     return Err(UNAVAILABLE.to_owned());
                 }
                 PlayerEvent::Stopped { track_id, .. } if track_id == uri => {
+                    log::warn!("Player: track STOPPED {:?}", track_id);
                     return Err("the Spotify track stopped before playback began".to_owned());
                 }
-                _ => {}
+                other => {
+                    log::info!("Player: other event {:?}", other);
+                }
             }
         }
     }
@@ -1254,6 +1322,10 @@ impl SpotifyCore {
         self.lock_state().map(|state| state.volume).unwrap_or(0.75)
     }
 
+    pub fn current_track_json(&self) -> Option<String> {
+        self.timeline.lock().ok()?.current_track_json.clone()
+    }
+
     /// Registration is opt-in and changes only apply to the next connection.
     pub fn set_spotify_connect(&self, enabled: bool, device_id: String) -> Result<(), String> {
         if enabled && device_id.trim().is_empty() {
@@ -1301,6 +1373,11 @@ impl SpotifyCore {
     /// a playlist's songs read through the session, as json shaped like the
     /// web api's items page. works for a playlist someone else made, which the
     /// web api no longer gives the songs of
+    
+    pub async fn album_json(&self, album_uri: String) -> Result<String, String> {
+        album::album_json(&self.session()?, &album_uri).await
+    }
+
     pub async fn playlist_json(&self, playlist_uri: String) -> Result<String, String> {
         playlist::playlist_json(&self.session()?, &playlist_uri).await
     }
@@ -1309,6 +1386,26 @@ impl SpotifyCore {
     /// the web api's top tracks response, which spotify took away
     pub async fn artist_top_tracks_json(&self, artist_uri: String) -> Result<String, String> {
         artist::artist_top_tracks_json(&self.session()?, &artist_uri).await
+    }
+
+    /// search tracks through the session via spclient context-resolve
+    
+    pub async fn search_artists_json(&self, query: String) -> Result<String, String> {
+        search::search_artists_json(&self.session()?, &query).await
+    }
+
+    pub async fn search_tracks_json(&self, query: String) -> Result<String, String> {
+        search::search_tracks_json(&self.session()?, &query).await
+    }
+
+    /// user rootlist playlist uris read through the session
+    pub async fn user_playlists_json(&self) -> Result<String, String> {
+        search::user_playlists_json(&self.session()?).await
+    }
+
+    /// user liked songs (collection) read through the session
+    pub async fn collection_tracks_json(&self) -> Result<String, String> {
+        search::collection_tracks_json(&self.session()?).await
     }
 
     pub fn spectrum_levels(&self) -> Vec<f32> {
@@ -1704,7 +1801,7 @@ async fn monitor_player_events(
                 timeline.observe_position(position_ms, None);
             }
             PlayerEvent::TrackChanged { audio_item } => {
-                timeline.duration_ms = audio_item.duration_ms;
+                timeline.set_track(&audio_item);
             }
             PlayerEvent::EndOfTrack { .. } => {
                 timeline.position_ms = timeline.duration_ms;

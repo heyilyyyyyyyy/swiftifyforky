@@ -5,12 +5,13 @@ edition = "2024"
 publish = false
 
 [dependencies]
+log = "0.4"
 # RUST_LOG for librespot and the core (start_logging in lib.rs)
 env_logger = "=0.11.11"
 hound = "3.5.1"
 # a playlist read through the session (playlist.rs), as librespot reads it
 http = "=1.5.0"
-librespot = "=0.8.0"
+librespot = { version = "=0.8.0", default-features = false, features = ["rodio-backend", "with-libmdns", "rustls-tls-webpki-roots"] }
 rustfft = "=6.4.1"
 # local music: mp3, flac, ogg vorbis, wav and aiff, and aac or apple lossless
 # in an mp4 (m4a) container, all through symphonia, librespot's own decoder
@@ -38,7 +39,7 @@ swift = ["dep:swift-bridge", "dep:swift-bridge-build"]
 capi = []
 
 [lib]
-crate-type = ["staticlib"]
+crate-type = ["staticlib", "cdylib"]
 
 [profile.release]
 codegen-units = 1
