@@ -39,22 +39,26 @@ import kotlinx.coroutines.launch
 import org.json.JSONObject
 import kotlin.math.roundToInt
 
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.*
+import androidx.compose.ui.graphics.vector.ImageVector
+
 data class GenreItem(
     val name: String,
-    val symbol: String,
+    val icon: ImageVector,
     val startColor: Color,
     val endColor: Color
 )
 
 val featuredGenres = listOf(
-    GenreItem("Pop", "🎵", Color(0xFFFF375F), Color(0xFFFF9F0A)),
-    GenreItem("Hip-Hop", "🎧", Color(0xFF5E5CE6), Color(0xFFBF5AF2)),
-    GenreItem("Electronic", "⚡", Color(0xFF64D2FF), Color(0xFF30D158)),
-    GenreItem("Alternative", "🎸", Color(0xFFBF5AF2), Color(0xFFFF375F)),
-    GenreItem("R&B", "🎙️", Color(0xFFFF453A), Color(0xFFFF9F0A)),
-    GenreItem("Indie", "✨", Color(0xFF63E6E2), Color(0xFF40C8E0)),
-    GenreItem("Dance", "🔥", Color(0xFF0A84FF), Color(0xFF5E5CE6)),
-    GenreItem("Chill", "🌙", Color(0xFF40C8E0), Color(0xFF0A84FF))
+    GenreItem("Pop", Icons.Rounded.MusicNote, Color(0xFFD6336C), Color(0xFFF76707)),
+    GenreItem("Hip-Hop", Icons.Rounded.Headphones, Color(0xFF5C5FDC), Color(0xFFA259FF)),
+    GenreItem("Electronic", Icons.Rounded.Bolt, Color(0xFF20C997), Color(0xFF0CA678)),
+    GenreItem("Alternative", Icons.Rounded.GraphicEq, Color(0xFFA259FF), Color(0xFFD6336C)),
+    GenreItem("R&B", Icons.Rounded.Mic, Color(0xFFE03131), Color(0xFFF76707)),
+    GenreItem("Indie", Icons.Rounded.Star, Color(0xFF15AABF), Color(0xFF1C7ED6)),
+    GenreItem("Dance", Icons.Rounded.LocalFireDepartment, Color(0xFF1C7ED6), Color(0xFF5C5FDC)),
+    GenreItem("Chill", Icons.Rounded.Nightlight, Color(0xFF15AABF), Color(0xFF1C7ED6))
 )
 
 @Composable
@@ -177,7 +181,12 @@ fun SearchScreen(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier.fillMaxWidth()
             ) {
-                Text("🔍", fontSize = 16.sp)
+                Icon(
+                    imageVector = Icons.Rounded.Search,
+                    contentDescription = null,
+                    tint = Color(0xFFF2A385),
+                    modifier = Modifier.size(20.dp)
+                )
                 Spacer(modifier = Modifier.width(10.dp))
                 BasicTextField(
                     value = query,
@@ -285,10 +294,13 @@ fun SearchScreen(
                             fontWeight = FontWeight.Bold,
                             modifier = Modifier.align(Alignment.TopStart)
                         )
-                        Text(
-                            text = genre.symbol,
-                            fontSize = 32.sp,
-                            modifier = Modifier.align(Alignment.BottomEnd)
+                        Icon(
+                            imageVector = genre.icon,
+                            contentDescription = null,
+                            tint = Color.White.copy(alpha = 0.85f),
+                            modifier = Modifier
+                                .size(32.dp)
+                                .align(Alignment.BottomEnd)
                         )
                     }
                 }
@@ -356,8 +368,7 @@ fun SearchScreen(
                                     )
                                     Spacer(modifier = Modifier.width(16.dp))
                                     Column(modifier = Modifier.weight(1f)) {
-                                        Text(topSong.title, color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis,
-                                            modifier = Modifier.clickable { onAlbumSelect?.invoke(topSong) })
+                                        Text(topSong.title, color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
                                         Text(topSong.artist, color = Color(0xFFA59B94), fontSize = 14.sp, modifier = Modifier.padding(top = 2.dp))
                                         Text("SONG", color = Color(0xFFF2A385), fontSize = 11.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 4.dp))
                                     }
@@ -435,7 +446,12 @@ fun SearchScreen(
                                                 modifier = Modifier.fillMaxSize().background(Color(0x77000000)),
                                                 contentAlignment = Alignment.Center
                                             ) {
-                                                Text("🔊", fontSize = 12.sp)
+                                                Icon(
+                                                    imageVector = Icons.Rounded.VolumeUp,
+                                                    contentDescription = null,
+                                                    tint = Color(0xFFF2A385),
+                                                    modifier = Modifier.size(16.dp)
+                                                )
                                             }
                                         }
                                     }
@@ -447,8 +463,7 @@ fun SearchScreen(
                                             fontSize = 15.sp,
                                             fontWeight = FontWeight.SemiBold,
                                             maxLines = 1,
-                                            overflow = TextOverflow.Ellipsis,
-                                            modifier = Modifier.clickable { onAlbumSelect?.invoke(track) }
+                                            overflow = TextOverflow.Ellipsis
                                         )
                                         Text(
                                             text = "${track.artist} • ${track.album}",

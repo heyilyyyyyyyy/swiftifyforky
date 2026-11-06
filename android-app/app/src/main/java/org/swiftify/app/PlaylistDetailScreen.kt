@@ -382,7 +382,12 @@ fun PlaylistDetailScreen(
                                 modifier = Modifier.fillMaxSize().background(Color(0x77000000)),
                                 contentAlignment = Alignment.Center
                             ) {
-                                Text("🔊", fontSize = 12.sp)
+                                Icon(
+                                    imageVector = Icons.Rounded.VolumeUp,
+                                    contentDescription = null,
+                                    tint = Color(0xFFF2A385),
+                                    modifier = Modifier.size(16.dp)
+                                )
                             }
                         }
                     }
@@ -403,8 +408,7 @@ fun PlaylistDetailScreen(
                             color = Color(0xFF9E948E),
                             fontSize = 13.sp,
                             maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                            modifier = Modifier.clickable { onArtistClick?.invoke(track.artist) }
+                            overflow = TextOverflow.Ellipsis
                         )
                     }
 

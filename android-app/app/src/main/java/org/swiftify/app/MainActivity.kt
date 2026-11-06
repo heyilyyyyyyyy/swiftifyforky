@@ -34,6 +34,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.*
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
@@ -259,8 +260,11 @@ class MainActivity : ComponentActivity() {
             MaterialTheme(
                 colorScheme = darkColorScheme(
                     primary = Color(0xFFF2A385),
-                    background = Color(0xFF161413),
-                    surface = Color(0xFF221E1C)
+                    background = Color(0xFF110F0E),
+                    surface = Color(0xFF1F1A18),
+                    surfaceVariant = Color(0xFF28221F),
+                    onBackground = Color(0xFFF7F2EE),
+                    onSurface = Color(0xFFF7F2EE)
                 )
             ) {
                 Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
@@ -1075,167 +1079,147 @@ val openArtistScreen: (String, String) -> Unit = { artName, artUri ->
     }
 
 
-    Box(modifier = Modifier.fillMaxSize().background(Color(0xFF161413))) {
+    Box(modifier = Modifier.fillMaxSize().background(Color(0xFF110F0E))) {
         Scaffold(
-            containerColor = Color(0xFF161413),
+            containerColor = Color(0xFF110F0E),
             bottomBar = {
-                Column(modifier = Modifier.background(Color(0xFF161413))) {
-                    // Floating Mini Player (Material 3 Expressive Pill)
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(Color.Transparent)
+                ) {
+                    // Floating Mini Player (Independent floating box above navigation)
                     if (currentTrack != null) {
                         val miniPalette = rememberTrackPalette(androidx.compose.ui.platform.LocalContext.current, currentTrack.artworkUrl)
                         Box(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .padding(horizontal = 14.dp, vertical = 6.dp)
-                                .shadow(14.dp, RoundedCornerShape(24.dp), spotColor = miniPalette.accent.copy(alpha = 0.35f))
-                                .clip(RoundedCornerShape(24.dp))
+                                .shadow(16.dp, RoundedCornerShape(22.dp), spotColor = miniPalette.accent.copy(alpha = 0.45f))
+                                .clip(RoundedCornerShape(22.dp))
                                 .background(
                                     Brush.horizontalGradient(
                                         listOf(
-                                            miniPalette.dominant.copy(alpha = 0.95f),
-                                            miniPalette.secondary.copy(alpha = 0.95f)
+                                            miniPalette.dominant.copy(alpha = 0.94f),
+                                            miniPalette.secondary.copy(alpha = 0.94f)
                                         )
                                     )
                                 )
-                                .border(1.dp, Color(0x33FFFFFF), RoundedCornerShape(24.dp))
+                                .border(1.dp, Color(0x38FFFFFF), RoundedCornerShape(22.dp))
                                 .clickable { isPlayerExpanded = true }
-                                .padding(horizontal = 14.dp, vertical = 10.dp)
+                                .padding(horizontal = 12.dp, vertical = 8.dp)
                         ) {
-                            Column {
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    AsyncImage(
-                                        model = currentTrack.artworkUrl,
-                                        contentDescription = null,
-                                        modifier = Modifier
-                                            .size(46.dp)
-                                            .clip(RoundedCornerShape(14.dp)),
-                                        contentScale = ContentScale.Crop
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                AsyncImage(
+                                    model = currentTrack.artworkUrl,
+                                    contentDescription = null,
+                                    modifier = Modifier
+                                        .size(44.dp)
+                                        .clip(RoundedCornerShape(12.dp)),
+                                    contentScale = ContentScale.Crop
+                                )
+                                Spacer(modifier = Modifier.width(12.dp))
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = currentTrack.title,
+                                        color = Color.White,
+                                        fontSize = 14.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
                                     )
-                                    Spacer(modifier = Modifier.width(12.dp))
-                                    Column(modifier = Modifier.weight(1f)) {
-                                        Text(
-                                            text = currentTrack.title,
-                                            color = Color.White,
-                                            fontSize = 15.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            maxLines = 1,
-                                            overflow = TextOverflow.Ellipsis
-                                        )
-                                        Text(
-                                            text = currentTrack.artist,
-                                            color = Color(0xCCFFFFFF),
-                                            fontSize = 13.sp,
-                                            fontWeight = FontWeight.Medium,
-                                            maxLines = 1,
-                                            overflow = TextOverflow.Ellipsis
-                                        )
-                                    }
-                                    IconButton(
-                                        onClick = onPlayPause,
-                                        modifier = Modifier
-                                            .size(44.dp)
-                                            .clip(CircleShape)
-                                            .background(miniPalette.accent)
-                                    ) {
-                                        Icon(
-                                            imageVector = if (isPlaying) Icons.Rounded.Pause else Icons.Rounded.PlayArrow,
-                                            contentDescription = if (isPlaying) "Pause" else "Play",
-                                            tint = miniPalette.onAccent,
-                                            modifier = Modifier.size(24.dp)
-                                        )
-                                    }
+                                    Text(
+                                        text = currentTrack.artist,
+                                        color = Color(0xCCFFFFFF),
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.Medium,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                }
+                                IconButton(
+                                    onClick = onPlayPause,
+                                    modifier = Modifier
+                                        .size(40.dp)
+                                        .clip(CircleShape)
+                                        .background(miniPalette.accent)
+                                ) {
+                                    Icon(
+                                        imageVector = if (isPlaying) Icons.Rounded.Pause else Icons.Rounded.PlayArrow,
+                                        contentDescription = if (isPlaying) "Pause" else "Play",
+                                        tint = miniPalette.onAccent,
+                                        modifier = Modifier.size(22.dp)
+                                    )
                                 }
                             }
                         }
                     }
-                    NavigationBar(
-                        containerColor = Color(0xFF1E1A18),
-                        contentColor = Color(0xFFF2A385),
-                        tonalElevation = 8.dp
+
+                    // Compact Translucent Navigation Bar (Glass effect)
+                    Surface(
+                        color = Color(0xD9161311),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(58.dp)
+                            .border(
+                                width = 0.5.dp,
+                                color = Color(0x26FFFFFF),
+                                shape = RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp)
+                            ),
+                        shape = RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp)
                     ) {
-                        NavigationBarItem(
-                            selected = selectedTab == 0 && activePlaylist == null && activeArtist == null && activeAlbumUri == null && !showAllPlaylists,
-                            onClick = {
-                                selectedTab = 0
-                                activePlaylist = null
-                                activeArtist = null
-                                activeAlbumUri = null
-                                showAllPlaylists = false
-                            },
-                            colors = NavigationBarItemDefaults.colors(
-                                selectedIconColor = Color(0xFFF2A385),
-                                selectedTextColor = Color(0xFFF2A385),
-                                indicatorColor = Color(0xFF33241F),
-                                unselectedIconColor = Color(0xFF8A807A),
-                                unselectedTextColor = Color(0xFF8A807A)
-                            ),
-                            label = { Text("Home", fontWeight = FontWeight.SemiBold) },
-                            icon = {
-                                Icon(
-                                    imageVector = Icons.Rounded.Home,
-                                    contentDescription = "Home",
-                                    modifier = Modifier.size(22.dp)
-                                )
-                            }
-                        )
-                        NavigationBarItem(
-                            selected = selectedTab == 1 && activePlaylist == null && activeArtist == null && activeAlbumUri == null && !showAllPlaylists,
-                            onClick = {
-                                selectedTab = 1
-                                activePlaylist = null
-                                activeArtist = null
-                                activeAlbumUri = null
-                                showAllPlaylists = false
-                            },
-                            colors = NavigationBarItemDefaults.colors(
-                                selectedIconColor = Color(0xFFF2A385),
-                                selectedTextColor = Color(0xFFF2A385),
-                                indicatorColor = Color(0xFF33241F),
-                                unselectedIconColor = Color(0xFF8A807A),
-                                unselectedTextColor = Color(0xFF8A807A)
-                            ),
-                            label = { Text("Search", fontWeight = FontWeight.SemiBold) },
-                            icon = {
-                                Icon(
-                                    imageVector = Icons.Rounded.Search,
-                                    contentDescription = "Search",
-                                    modifier = Modifier.size(22.dp)
-                                )
-                            }
-                        )
-                        NavigationBarItem(
-                            selected = selectedTab == 2 && activePlaylist == null && activeArtist == null && activeAlbumUri == null && !showAllPlaylists,
-                            onClick = {
-                                selectedTab = 2
-                                activePlaylist = null
-                                activeArtist = null
-                                activeAlbumUri = null
-                                showAllPlaylists = false
-                            },
-                            colors = NavigationBarItemDefaults.colors(
-                                selectedIconColor = Color(0xFFF2A385),
-                                selectedTextColor = Color(0xFFF2A385),
-                                indicatorColor = Color(0xFF33241F),
-                                unselectedIconColor = Color(0xFF8A807A),
-                                unselectedTextColor = Color(0xFF8A807A)
-                            ),
-                            label = { Text("Settings", fontWeight = FontWeight.SemiBold) },
-                            icon = {
-                                Icon(
-                                    imageVector = Icons.Rounded.Settings,
-                                    contentDescription = "Settings",
-                                    modifier = Modifier.size(22.dp)
-                                )
-                            }
-                        )
+                        Row(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(horizontal = 16.dp),
+                            horizontalArrangement = Arrangement.SpaceAround,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            CompactNavItem(
+                                icon = Icons.Rounded.Home,
+                                label = "Home",
+                                selected = selectedTab == 0 && activePlaylist == null && activeArtist == null && activeAlbumUri == null && !showAllPlaylists,
+                                onClick = {
+                                    selectedTab = 0
+                                    activePlaylist = null
+                                    activeArtist = null
+                                    activeAlbumUri = null
+                                    showAllPlaylists = false
+                                }
+                            )
+                            CompactNavItem(
+                                icon = Icons.Rounded.Search,
+                                label = "Search",
+                                selected = selectedTab == 1 && activePlaylist == null && activeArtist == null && activeAlbumUri == null && !showAllPlaylists,
+                                onClick = {
+                                    selectedTab = 1
+                                    activePlaylist = null
+                                    activeArtist = null
+                                    activeAlbumUri = null
+                                    showAllPlaylists = false
+                                }
+                            )
+                            CompactNavItem(
+                                icon = Icons.Rounded.Settings,
+                                label = "Settings",
+                                selected = selectedTab == 2 && activePlaylist == null && activeArtist == null && activeAlbumUri == null && !showAllPlaylists,
+                                onClick = {
+                                    selectedTab = 2
+                                    activePlaylist = null
+                                    activeArtist = null
+                                    activeAlbumUri = null
+                                    showAllPlaylists = false
+                                }
+                            )
+                        }
                     }
                 }
             }
         ) { padding ->
-            Box(modifier = Modifier.fillMaxSize().padding(padding)) {
+            Box(modifier = Modifier.fillMaxSize().padding(top = padding.calculateTopPadding())) {
                 if (showAllPlaylists) {
                     AllPlaylistsScreen(
                         playlists = if (userPlaylists.isNotEmpty()) userPlaylists else samplePlaylists,
@@ -1555,15 +1539,20 @@ fun HomeScreen(
                 )
                 Spacer(modifier = Modifier.height(4.dp))
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    ShapeBadge(
-                        shape = greetingShape,
-                        icon = greetingIcon,
-                        size = 28.dp,
-                        iconSize = 16.dp,
-                        shapeAlpha = 0.35f,
-                        glyphAlpha = 0.95f,
-                        tint = Color(0xFFF2A385)
-                    )
+                    Box(
+                        modifier = Modifier
+                            .size(24.dp)
+                            .clip(CircleShape)
+                            .background(Color(0x29F2A385)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = greetingIcon,
+                            contentDescription = null,
+                            tint = Color(0xFFF2A385),
+                            modifier = Modifier.size(15.dp)
+                        )
+                    }
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
                         text = greetingText,
@@ -2014,4 +2003,42 @@ fun formatTime(ms: Long): String {
     val minutes = totalSeconds / 60
     val seconds = totalSeconds % 60
     return String.format("%d:%02d", minutes, seconds)
+}
+
+@Composable
+private fun CompactNavItem(
+    icon: ImageVector,
+    label: String,
+    selected: Boolean,
+    onClick: () -> Unit
+) {
+    val accentColor = Color(0xFFF2A385)
+    val inactiveColor = Color(0xFF8A807A)
+    val activeBg = Color(0x2EF2A385)
+
+    Row(
+        modifier = Modifier
+            .clip(RoundedCornerShape(16.dp))
+            .background(if (selected) activeBg else Color.Transparent)
+            .clickable(onClick = onClick)
+            .padding(horizontal = 14.dp, vertical = 7.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.Center
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = label,
+            tint = if (selected) accentColor else inactiveColor,
+            modifier = Modifier.size(20.dp)
+        )
+        if (selected) {
+            Spacer(modifier = Modifier.width(6.dp))
+            Text(
+                text = label,
+                color = accentColor,
+                fontSize = 13.sp,
+                fontWeight = FontWeight.Bold
+            )
+        }
+    }
 }

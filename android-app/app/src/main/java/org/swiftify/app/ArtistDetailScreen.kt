@@ -410,7 +410,12 @@ fun ArtistDetailScreen(
                         }
 
                         if (isCurrent && isPlaying) {
-                            Text("🔊", fontSize = 14.sp)
+                            Icon(
+                                imageVector = Icons.Rounded.VolumeUp,
+                                contentDescription = null,
+                                tint = Color(0xFFF2A385),
+                                modifier = Modifier.size(16.dp)
+                            )
                         } else {
                             val min = track.durationMs / 60000
                             val sec = (track.durationMs % 60000) / 1000
