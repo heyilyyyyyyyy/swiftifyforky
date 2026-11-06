@@ -1163,57 +1163,64 @@ val openArtistScreen: (String, String) -> Unit = { artName, artUri ->
                         color = Color(0xD9161311),
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(58.dp)
                             .border(
                                 width = 0.5.dp,
-                                color = Color(0x26FFFFFF),
-                                shape = RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp)
+                                color = Color(0x28FFFFFF),
+                                shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp)
                             ),
-                        shape = RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp)
+                        shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp)
                     ) {
-                        Row(
+                        Column(
                             modifier = Modifier
-                                .fillMaxSize()
-                                .padding(horizontal = 16.dp),
-                            horizontalArrangement = Arrangement.SpaceAround,
-                            verticalAlignment = Alignment.CenterVertically
+                                .fillMaxWidth()
+                                .windowInsetsPadding(WindowInsets.navigationBars)
                         ) {
-                            CompactNavItem(
-                                icon = Icons.Rounded.Home,
-                                label = "Home",
-                                selected = selectedTab == 0 && activePlaylist == null && activeArtist == null && activeAlbumUri == null && !showAllPlaylists,
-                                onClick = {
-                                    selectedTab = 0
-                                    activePlaylist = null
-                                    activeArtist = null
-                                    activeAlbumUri = null
-                                    showAllPlaylists = false
-                                }
-                            )
-                            CompactNavItem(
-                                icon = Icons.Rounded.Search,
-                                label = "Search",
-                                selected = selectedTab == 1 && activePlaylist == null && activeArtist == null && activeAlbumUri == null && !showAllPlaylists,
-                                onClick = {
-                                    selectedTab = 1
-                                    activePlaylist = null
-                                    activeArtist = null
-                                    activeAlbumUri = null
-                                    showAllPlaylists = false
-                                }
-                            )
-                            CompactNavItem(
-                                icon = Icons.Rounded.Settings,
-                                label = "Settings",
-                                selected = selectedTab == 2 && activePlaylist == null && activeArtist == null && activeAlbumUri == null && !showAllPlaylists,
-                                onClick = {
-                                    selectedTab = 2
-                                    activePlaylist = null
-                                    activeArtist = null
-                                    activeAlbumUri = null
-                                    showAllPlaylists = false
-                                }
-                            )
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(58.dp)
+                                    .padding(horizontal = 16.dp),
+                                horizontalArrangement = Arrangement.SpaceAround,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                CompactNavItem(
+                                    icon = Icons.Rounded.Home,
+                                    label = "Home",
+                                    selected = selectedTab == 0 && activePlaylist == null && activeArtist == null && activeAlbumUri == null && !showAllPlaylists,
+                                    onClick = {
+                                        selectedTab = 0
+                                        activePlaylist = null
+                                        activeArtist = null
+                                        activeAlbumUri = null
+                                        showAllPlaylists = false
+                                    }
+                                )
+                                CompactNavItem(
+                                    icon = Icons.Rounded.Search,
+                                    label = "Search",
+                                    selected = selectedTab == 1 && activePlaylist == null && activeArtist == null && activeAlbumUri == null && !showAllPlaylists,
+                                    onClick = {
+                                        selectedTab = 1
+                                        activePlaylist = null
+                                        activeArtist = null
+                                        activeAlbumUri = null
+                                        showAllPlaylists = false
+                                    }
+                                )
+                                CompactNavItem(
+                                    icon = Icons.Rounded.Settings,
+                                    label = "Settings",
+                                    selected = selectedTab == 2 && activePlaylist == null && activeArtist == null && activeAlbumUri == null && !showAllPlaylists,
+                                    onClick = {
+                                        selectedTab = 2
+                                        activePlaylist = null
+                                        activeArtist = null
+                                        activeAlbumUri = null
+                                        showAllPlaylists = false
+                                    }
+                                )
+                            }
+                            Spacer(modifier = Modifier.height(6.dp))
                         }
                     }
                 }
