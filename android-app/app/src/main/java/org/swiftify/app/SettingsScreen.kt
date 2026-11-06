@@ -23,7 +23,8 @@ import java.io.File
 @Composable
 fun SettingsScreen(
     connectEnabled: Boolean,
-    onConnectToggle: (Boolean) -> Unit
+    onConnectToggle: (Boolean) -> Unit,
+    onReauthorize: () -> Unit = {}
 ) {
     val context = LocalContext.current
     val prefs = remember { context.getSharedPreferences("swiftify_prefs", Context.MODE_PRIVATE) }
@@ -43,7 +44,7 @@ fun SettingsScreen(
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color(0xFF13100E))
+            .background(Color(0xFF161413))
             .padding(horizontal = 16.dp)
             .verticalScroll(scrollState)
     ) {
@@ -274,6 +275,40 @@ fun SettingsScreen(
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                     Text("Swiftify Core", color = Color(0xFF8E837D), fontSize = 13.sp)
                     Text("2.0-native", color = Color(0xFFF2A385), fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(20.dp))
+
+        // Section: Account & Session
+        Text(
+            text = "SPOTIFY ACCOUNT & PERMISSIONS",
+            color = Color(0xFFF2A385),
+            fontSize = 12.sp,
+            fontWeight = FontWeight.Bold,
+            letterSpacing = 1.sp
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.cardColors(containerColor = Color(0xFF26201E))
+        ) {
+            Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text(
+                    text = "Re-authenticate to grant library & like permissions to sync with PC.",
+                    color = Color(0xFFA59B94),
+                    fontSize = 13.sp
+                )
+                Button(
+                    onClick = onReauthorize,
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFF2A385)),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Text("Re-authorize Spotify Session", color = Color(0xFF251510), fontWeight = FontWeight.Bold)
                 }
             }
         }

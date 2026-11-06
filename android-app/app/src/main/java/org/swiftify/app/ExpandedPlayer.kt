@@ -402,12 +402,30 @@ fun ExpandedPlayer(
                             try {
                                 val urlStr = "https://api.spotify.com/v1/me/tracks?ids=$trackId"
                                 val conn = URL(urlStr).openConnection() as HttpURLConnection
+                                conn.connectTimeout = 8000
+                                conn.readTimeout = 8000
                                 conn.requestMethod = if (newSaved) "PUT" else "DELETE"
                                 conn.setRequestProperty("Authorization", "Bearer $token")
-                                conn.responseCode
+                                conn.setRequestProperty("Content-Length", "0")
+                                val code = conn.responseCode
+                                android.util.Log.d("ExpandedPlayer", "Like toggle: $trackId -> $newSaved returned $code")
+                                if (code !in 200..299) {
+                                    withContext(Dispatchers.Main) {
+                                        isLiked = !newSaved
+                                        val revertSet = (prefs.getStringSet("saved_track_uris", emptySet()) ?: emptySet()).toMutableSet()
+                                        if (newSaved) revertSet.remove(track.uri) else revertSet.add(track.uri)
+                                        prefs.edit().putStringSet("saved_track_uris", revertSet).apply()
+                                    }
+                                }
                                 conn.disconnect()
                             } catch (e: Exception) {
-                                // silent
+                                android.util.Log.e("ExpandedPlayer", "Like toggle failed", e)
+                                withContext(Dispatchers.Main) {
+                                    isLiked = !newSaved
+                                    val revertSet = (prefs.getStringSet("saved_track_uris", emptySet()) ?: emptySet()).toMutableSet()
+                                    if (newSaved) revertSet.remove(track.uri) else revertSet.add(track.uri)
+                                    prefs.edit().putStringSet("saved_track_uris", revertSet).apply()
+                                }
                             }
                         }
                     }

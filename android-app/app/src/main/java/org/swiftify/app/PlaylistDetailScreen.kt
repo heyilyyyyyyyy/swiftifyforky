@@ -84,17 +84,9 @@ fun PlaylistDetailScreen(
                                 playlistTracks.addAll(loaded)
                                 val likedUris = loaded.map { it.uri }.filter { it.isNotEmpty() }.toSet()
                                 val prefs = context.getSharedPreferences("swiftify_prefs", android.content.Context.MODE_PRIVATE)
-                                val currentSet = (prefs.getStringSet("saved_track_uris", emptySet<String>()) ?: emptySet<String>()).toMutableSet()
-                                currentSet.addAll(likedUris)
-                                prefs.edit().putStringSet("saved_track_uris", currentSet).apply()
+                                prefs.edit().putStringSet("saved_track_uris", likedUris).apply()
                             }
-                        } catch (_: Exception) {
-                            playlistTracks.clear()
-                            playlistTracks.addAll(tracks)
-                        }
-                    } else {
-                        playlistTracks.clear()
-                        playlistTracks.addAll(tracks)
+                        } catch (_: Exception) {}
                     }
                 }
             } else {
@@ -139,19 +131,8 @@ fun PlaylistDetailScreen(
                                 }
                                 playlistTracks.clear()
                                 playlistTracks.addAll(loaded)
-                                val likedUris = loaded.map { it.uri }.filter { it.isNotEmpty() }.toSet()
-                                val prefs = context.getSharedPreferences("swiftify_prefs", android.content.Context.MODE_PRIVATE)
-                                val currentSet = (prefs.getStringSet("saved_track_uris", emptySet<String>()) ?: emptySet<String>()).toMutableSet()
-                                currentSet.addAll(likedUris)
-                                prefs.edit().putStringSet("saved_track_uris", currentSet).apply()
                             }
-                        } catch (_: Exception) {
-                            playlistTracks.clear()
-                            playlistTracks.addAll(tracks)
-                        }
-                    } else {
-                        playlistTracks.clear()
-                        playlistTracks.addAll(tracks)
+                        } catch (_: Exception) {}
                     }
                 }
             }

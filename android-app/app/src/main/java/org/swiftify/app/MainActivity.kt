@@ -107,10 +107,12 @@ private fun generateCodeChallenge(verifier: String): String {
 private const val CLIENT_ID = "65b708073fc0480ea92a077233ca87bd"
 private const val REDIRECT_PORT = 8898
 private const val REDIRECT_URI = "http://127.0.0.1:8898/login"
-private const val SCOPES = "streaming"
+private const val SCOPES = "streaming user-read-playback-state user-read-recently-played user-library-read user-library-modify playlist-read-private playlist-read-collaborative playlist-modify-private playlist-modify-public user-follow-read user-read-private"
 private const val PREFS_NAME = "swiftify_prefs"
 private const val KEY_LOGIN_BLOB = "login_blob"
 private const val KEY_ACCESS_TOKEN = "access_token"
+private const val KEY_REFRESH_TOKEN = "refresh_token"
+private const val KEY_TOKEN_EXPIRES_AT = "token_expires_at"
 private const val KEY_CACHED_PLAYLISTS = "cached_playlists_json"
 
 // ─── MainActivity ─────────────────────────────────────────────────────────────
@@ -119,6 +121,7 @@ class MainActivity : ComponentActivity() {
 
     private lateinit var prefs: SharedPreferences
     private var codeVerifier: String = ""
+    private var oauthStateParam: String = ""
     private var authServer: ServerSocket? = null
 
     // Compose states
@@ -150,6 +153,15 @@ class MainActivity : ComponentActivity() {
         }
 
         SpotifyBridge.init()
+
+        // Apply startup audio & connect settings
+        val quality = prefs.getInt("audio_quality_kbps", 320)
+        SpotifyBridge.setStreamQuality(quality)
+        val norm = prefs.getBoolean("volume_norm", true)
+        SpotifyBridge.setVolumeNormalization(norm)
+        val connect = prefs.getBoolean("spotify_connect_enabled", false)
+        connectEnabled.value = connect
+
         setupBridgeCallbacks()
         startPolling()
 
@@ -157,8 +169,8 @@ class MainActivity : ComponentActivity() {
             MaterialTheme(
                 colorScheme = darkColorScheme(
                     primary = Color(0xFFF2A385),
-                    background = Color(0xFF0F0F12),
-                    surface = Color(0xFF18181D)
+                    background = Color(0xFF161413),
+                    surface = Color(0xFF221E1C)
                 )
             ) {
                 Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
@@ -196,6 +208,8 @@ class MainActivity : ComponentActivity() {
         val storedLogin = prefs.getString(KEY_LOGIN_BLOB, null)
         val storedToken = prefs.getString(KEY_ACCESS_TOKEN, null)
         accessTokenState.value = storedToken
+        refreshAccessToken()
+
         if (storedLogin != null) {
             authState.value = AuthState.Connecting
             statusMsg.value = "Reconnecting stored session..."
@@ -210,10 +224,59 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    fun refreshAccessToken(force: Boolean = false, onComplete: ((String?) -> Unit)? = null) {
+        val refreshToken = prefs.getString(KEY_REFRESH_TOKEN, null)
+        if (refreshToken.isNullOrEmpty()) {
+            onComplete?.invoke(accessTokenState.value)
+            return
+        }
+        val expiresAt = prefs.getLong(KEY_TOKEN_EXPIRES_AT, 0L)
+        if (!force && System.currentTimeMillis() < expiresAt) {
+            onComplete?.invoke(accessTokenState.value)
+            return
+        }
+        scope.launch(Dispatchers.IO) {
+            try {
+                val conn = URL("https://accounts.spotify.com/api/token").openConnection() as HttpURLConnection
+                conn.requestMethod = "POST"
+                conn.setRequestProperty("Content-Type", "application/x-www-form-urlencoded")
+                conn.connectTimeout = 10000
+                conn.readTimeout = 10000
+                conn.doOutput = true
+                val body = "grant_type=refresh_token&refresh_token=${Uri.encode(refreshToken)}&client_id=$CLIENT_ID"
+                conn.outputStream.write(body.toByteArray())
+                if (conn.responseCode in 200..299) {
+                    val res = conn.inputStream.bufferedReader().readText()
+                    val json = JSONObject(res)
+                    val newToken = json.getString("access_token")
+                    val newRefresh = json.optString("refresh_token")
+                    val expiresIn = json.optLong("expires_in", 3600L)
+                    val editor = prefs.edit().putString(KEY_ACCESS_TOKEN, newToken)
+                    if (newRefresh.isNotEmpty()) {
+                        editor.putString(KEY_REFRESH_TOKEN, newRefresh)
+                    }
+                    editor.putLong(KEY_TOKEN_EXPIRES_AT, System.currentTimeMillis() + (expiresIn - 60) * 1000)
+                    editor.apply()
+                    withContext(Dispatchers.Main) {
+                        accessTokenState.value = newToken
+                        onComplete?.invoke(newToken)
+                    }
+                } else {
+                    withContext(Dispatchers.Main) { onComplete?.invoke(accessTokenState.value) }
+                }
+                conn.disconnect()
+            } catch (e: Exception) {
+                Log.e("Auth", "Token refresh error", e)
+                withContext(Dispatchers.Main) { onComplete?.invoke(accessTokenState.value) }
+            }
+        }
+    }
+
     private fun startSpotifyLogin() {
         try {
             codeVerifier = generateCodeVerifier()
             val challenge = generateCodeChallenge(codeVerifier)
+            oauthStateParam = java.util.UUID.randomUUID().toString()
 
             // Start loopback HTTP server on 127.0.0.1:8898
             startLocalRedirectServer()
@@ -226,6 +289,7 @@ class MainActivity : ComponentActivity() {
                 .appendQueryParameter("response_type", "code")
                 .appendQueryParameter("redirect_uri", REDIRECT_URI)
                 .appendQueryParameter("scope", SCOPES)
+                .appendQueryParameter("state", oauthStateParam)
                 .appendQueryParameter("code_challenge_method", "S256")
                 .appendQueryParameter("code_challenge", challenge)
                 .build()
@@ -247,6 +311,7 @@ class MainActivity : ComponentActivity() {
         scope.launch(Dispatchers.IO) {
             try {
                 val server = ServerSocket(REDIRECT_PORT, 1, InetAddress.getByName("127.0.0.1"))
+                server.soTimeout = 120_000 // 2 min timeout
                 authServer = server
                 Log.d("AuthServer", "Listening on http://127.0.0.1:$REDIRECT_PORT/login")
 
@@ -264,7 +329,7 @@ class MainActivity : ComponentActivity() {
                 val responseHtml = """
                     <!doctype html><html><head><meta charset="utf-8">
                     <title>Swiftify</title>
-                    <style>body{font-family:sans-serif;background:#0F0F12;color:#fff;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;text-align:center;}h2{color:#1DB954;}</style>
+                    <style>body{font-family:sans-serif;background:#161413;color:#fff;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;text-align:center;}h2{color:#F2A385;}</style>
                     </head><body><div><h2>✓ Signed In to Swiftify!</h2><p>You can return to the Swiftify app now.</p></div></body></html>
                 """.trimIndent()
 
@@ -292,6 +357,12 @@ class MainActivity : ComponentActivity() {
                 }
             } catch (e: Exception) {
                 Log.e("AuthServer", "Server exception", e)
+                withContext(Dispatchers.Main) {
+                    if (authState.value == AuthState.Connecting) {
+                        authState.value = AuthState.LoggedOut
+                        statusMsg.value = "Auth timeout or cancelled"
+                    }
+                }
             }
         }
     }
@@ -303,6 +374,8 @@ class MainActivity : ComponentActivity() {
                     .openConnection() as HttpURLConnection
                 conn.requestMethod = "POST"
                 conn.setRequestProperty("Content-Type", "application/x-www-form-urlencoded")
+                conn.connectTimeout = 10000
+                conn.readTimeout = 10000
                 conn.doOutput = true
                 val body = "grant_type=authorization_code" +
                         "&code=${Uri.encode(code)}" +
@@ -312,12 +385,20 @@ class MainActivity : ComponentActivity() {
                 conn.outputStream.write(body.toByteArray())
                 val response = conn.inputStream.bufferedReader().readText()
                 conn.disconnect()
-                val token = JSONObject(response).getString("access_token")
+                val json = JSONObject(response)
+                val token = json.getString("access_token")
+                val refreshToken = json.optString("refresh_token")
+                val expiresIn = json.optLong("expires_in", 3600L)
+                val editor = prefs.edit().putString(KEY_ACCESS_TOKEN, token)
+                if (refreshToken.isNotEmpty()) {
+                    editor.putString(KEY_REFRESH_TOKEN, refreshToken)
+                }
+                editor.putLong(KEY_TOKEN_EXPIRES_AT, System.currentTimeMillis() + (expiresIn - 60) * 1000)
+                editor.apply()
                 accessTokenState.value = token
                 token
             }
             Log.d("Auth", "Access token acquired (${token.length} chars)")
-            prefs.edit().putString(KEY_ACCESS_TOKEN, token).apply()
             statusMsg.value = "Connecting audio core..."
             SpotifyBridge.connect(token)
         } catch (e: Exception) {
@@ -396,23 +477,41 @@ class MainActivity : ComponentActivity() {
             val tracks = withContext(Dispatchers.IO) {
                 val conn = URL("https://api.spotify.com/v1/me/player/recently-played?limit=20")
                     .openConnection() as HttpURLConnection
+                conn.connectTimeout = 8000
+                conn.readTimeout = 8000
                 conn.setRequestProperty("Authorization", "Bearer $token")
+                val code = conn.responseCode
+                if (code == 401) {
+                    conn.disconnect()
+                    refreshAccessToken(force = true)
+                    return@withContext emptyList<TrackItem>()
+                }
+                if (code !in 200..299) {
+                    conn.disconnect()
+                    return@withContext emptyList<TrackItem>()
+                }
                 val json = JSONObject(conn.inputStream.bufferedReader().readText())
                 conn.disconnect()
-                val items = json.getJSONArray("items")
-                (0 until items.length()).map { i ->
-                    val track = items.getJSONObject(i).getJSONObject("track")
-                    val artists = (0 until track.getJSONArray("artists").length())
-                        .joinToString(", ") { j -> track.getJSONArray("artists").getJSONObject(j).getString("name") }
-                    val images = track.getJSONObject("album").getJSONArray("images")
-                    val artUrl = if (images.length() > 0) images.getJSONObject(0).getString("url") else ""
+                val items = json.optJSONArray("items") ?: return@withContext emptyList<TrackItem>()
+                (0 until items.length()).mapNotNull { i ->
+                    val item = items.optJSONObject(i) ?: return@mapNotNull null
+                    val track = item.optJSONObject("track") ?: return@mapNotNull null
+                    val artistsArr = track.optJSONArray("artists")
+                    val artists = if (artistsArr != null) {
+                        (0 until artistsArr.length()).joinToString(", ") { j ->
+                            artistsArr.optJSONObject(j)?.optString("name") ?: ""
+                        }
+                    } else ""
+                    val alb = track.optJSONObject("album")
+                    val images = alb?.optJSONArray("images")
+                    val artUrl = if (images != null && images.length() > 0) images.optJSONObject(0)?.optString("url") ?: "" else ""
                     TrackItem(
-                        title = track.getString("name"),
+                        title = track.optString("name"),
                         artist = artists,
-                        album = track.getJSONObject("album").getString("name"),
+                        album = alb?.optString("name") ?: "",
                         artworkUrl = artUrl,
-                        durationMs = track.getLong("duration_ms"),
-                        uri = track.getString("uri")
+                        durationMs = track.optLong("duration_ms"),
+                        uri = track.optString("uri")
                     )
                 }
             }
@@ -747,11 +846,11 @@ val openArtistScreen: (String, String) -> Unit = { artName, artUri ->
     }
 
 
-    Box(modifier = Modifier.fillMaxSize().background(Color(0xFF131110))) {
+    Box(modifier = Modifier.fillMaxSize().background(Color(0xFF161413))) {
         Scaffold(
-            containerColor = Color(0xFF131110),
+            containerColor = Color(0xFF161413),
             bottomBar = {
-                Column(modifier = Modifier.background(Color(0xFF131110))) {
+                Column(modifier = Modifier.background(Color(0xFF161413))) {
                     // Floating Mini Player (Material 3 Expressive Pill)
                     if (currentTrack != null) {
                         val miniPalette = rememberTrackPalette(androidx.compose.ui.platform.LocalContext.current, currentTrack.artworkUrl)
@@ -794,8 +893,7 @@ val openArtistScreen: (String, String) -> Unit = { artName, artUri ->
                                             fontSize = 15.sp,
                                             fontWeight = FontWeight.Bold,
                                             maxLines = 1,
-                                            overflow = TextOverflow.Ellipsis,
-                                            modifier = Modifier.clickable { openAlbumByTrack(currentTrack) }
+                                            overflow = TextOverflow.Ellipsis
                                         )
                                         Text(
                                             text = currentTrack.artist,
@@ -803,10 +901,7 @@ val openArtistScreen: (String, String) -> Unit = { artName, artUri ->
                                             fontSize = 13.sp,
                                             fontWeight = FontWeight.Medium,
                                             maxLines = 1,
-                                            overflow = TextOverflow.Ellipsis,
-                                            modifier = Modifier.clickable {
-                                                openArtistScreen(currentTrack.artist, "")
-                                            }
+                                            overflow = TextOverflow.Ellipsis
                                         )
                                     }
                                     IconButton(
@@ -828,7 +923,7 @@ val openArtistScreen: (String, String) -> Unit = { artName, artUri ->
                         }
                     }
                     NavigationBar(
-                        containerColor = Color(0xFF14100E),
+                        containerColor = Color(0xFF1E1A18),
                         contentColor = Color(0xFFF2A385),
                         tonalElevation = 8.dp
                     ) {
@@ -1015,7 +1110,8 @@ val openArtistScreen: (String, String) -> Unit = { artName, artUri ->
                         )
                         2 -> SettingsScreen(
                             connectEnabled = connectEnabled,
-                            onConnectToggle = onConnectToggle
+                            onConnectToggle = onConnectToggle,
+                            onReauthorize = onLoginClick
                         )
                     }
                 }
@@ -1187,17 +1283,20 @@ fun HomeScreen(
 ) {
     val scrollState = rememberScrollState()
     val hour = Calendar.getInstance().get(Calendar.HOUR_OF_DAY)
-    val greetingText = when (hour) {
-        in 5..11 -> "Good morning."
-        in 12..16 -> "Good afternoon."
-        in 17..21 -> "Good evening."
-        else -> "Up late..."
+    val part = when {
+        hour < 5 -> 3
+        hour < 12 -> 0
+        hour < 17 -> 1
+        hour < 21 -> 2
+        else -> 3
     }
-    val greetingEmoji = when (hour) {
-        in 5..11 -> "☀️"
-        in 12..16 -> "🌤"
-        in 17..21 -> "🌅"
-        else -> "🌙"
+    val greetingText = listOf("Good morning.", "Good afternoon.", "Good evening.", "Up late...")[part]
+    val greetingShape = listOf("sunny", "softBurst", "flower", "ghostish")[part]
+    val greetingIcon = when (part) {
+        0 -> Icons.Rounded.WbSunny
+        1 -> Icons.Rounded.LightMode
+        2 -> Icons.Rounded.WbTwilight
+        else -> Icons.Rounded.DarkMode
     }
 
     val spotlightTrack = livePlayingTrack ?: tracks.getOrNull(currentTrackIndex) ?: tracks.firstOrNull()
@@ -1223,15 +1322,15 @@ fun HomeScreen(
                 )
                 Spacer(modifier = Modifier.height(4.dp))
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Box(
-                        modifier = Modifier
-                            .size(26.dp)
-                            .clip(RoundedCornerShape(8.dp))
-                            .background(Color(0xFF2C221F)),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(greetingEmoji, fontSize = 13.sp)
-                    }
+                    ShapeBadge(
+                        shape = greetingShape,
+                        icon = greetingIcon,
+                        size = 28.dp,
+                        iconSize = 16.dp,
+                        shapeAlpha = 0.35f,
+                        glyphAlpha = 0.95f,
+                        tint = Color(0xFFF2A385)
+                    )
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
                         text = greetingText,
@@ -1245,8 +1344,8 @@ fun HomeScreen(
                 modifier = Modifier
                     .size(38.dp)
                     .clip(CircleShape)
-                    .background(Color(0xFF221C1B))
-                    .border(1.dp, Color(0xFF332A26), CircleShape),
+                    .background(Color(0xFF26201E))
+                    .border(1.dp, Color(0xFF382F2C), CircleShape),
                 contentAlignment = Alignment.Center
             ) {
                 Text("⋮", color = Color(0xFFCDC2BB), fontSize = 18.sp, fontWeight = FontWeight.Bold)
@@ -1258,7 +1357,7 @@ fun HomeScreen(
             is AuthState.LoggedOut -> {
                 Card(
                     modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp),
-                    colors = CardDefaults.cardColors(containerColor = Color(0xFF221B19)),
+                    colors = CardDefaults.cardColors(containerColor = Color(0xFF26201E)),
                     shape = RoundedCornerShape(20.dp)
                 ) {
                     Column(modifier = Modifier.padding(18.dp), horizontalAlignment = Alignment.CenterHorizontally) {
@@ -1405,8 +1504,8 @@ fun HomeScreen(
                 modifier = Modifier
                     .weight(1f)
                     .clip(RoundedCornerShape(18.dp))
-                    .background(Color(0xFF201B1A))
-                    .border(1.dp, Color(0xFF312825), RoundedCornerShape(18.dp))
+                    .background(Color(0xFF26201E))
+                    .border(1.dp, Color(0xFF382F2C), RoundedCornerShape(18.dp))
                     .clickable {
                         onPlaylistClick(
                             PlaylistItem(
@@ -1442,8 +1541,8 @@ fun HomeScreen(
                 modifier = Modifier
                     .weight(1f)
                     .clip(RoundedCornerShape(18.dp))
-                    .background(Color(0xFF201B1A))
-                    .border(1.dp, Color(0xFF312825), RoundedCornerShape(18.dp))
+                    .background(Color(0xFF26201E))
+                    .border(1.dp, Color(0xFF382F2C), RoundedCornerShape(18.dp))
                     .clickable { onSeeAllPlaylists() }
                     .padding(12.dp)
             ) {

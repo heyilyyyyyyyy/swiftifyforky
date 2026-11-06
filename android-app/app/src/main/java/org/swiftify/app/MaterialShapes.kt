@@ -103,6 +103,23 @@ fun MaterialExpressiveShape(
                     "bun" -> reach * sampleRadii(bunRadii, effTheta)
                     "clamShell" -> reach * sampleRadii(clamShellRadii, effTheta)
                     "cookie12" -> reach * sampleRadii(cookie12Radii, effTheta)
+                    "sunny" -> {
+                        val lobe = (0.5f + 0.5f * cos(8f * effTheta)).pow(2.2f)
+                        reach * (1f - 0.14f + 0.14f * lobe)
+                    }
+                    "softBurst" -> {
+                        val lobe = (0.5f + 0.5f * cos(10f * effTheta)).pow(1.5f)
+                        reach * (1f - 0.16f + 0.16f * lobe)
+                    }
+                    "flower" -> {
+                        val lobe = (0.5f + 0.5f * cos(8f * effTheta)).pow(0.45f)
+                        reach * (1f - 0.32f + 0.32f * lobe)
+                    }
+                    "ghostish" -> {
+                        val lobe = (0.5f + 0.5f * cos(3f * (effTheta - PI.toFloat() / 2f))).pow(0.7f)
+                        val rScale = if (sin(effTheta) < 0f) 0.95f else (0.78f + 0.22f * lobe)
+                        reach * rScale
+                    }
                     else -> reach
                 }
 
