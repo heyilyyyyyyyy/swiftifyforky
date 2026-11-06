@@ -12,6 +12,10 @@ import com.sun.jna.Pointer
 // ────────────────────────────────────────────────────────────────────────────
 interface SwiftifyCoreLib : Library {
 
+    fun interface CompletionCallback : com.sun.jna.Callback {
+        fun invoke(context: Pointer?)
+    }
+
     // lifecycle
     fun swiftify_core_new(): Pointer?
     fun swiftify_core_free(core: Pointer?)
@@ -22,6 +26,12 @@ interface SwiftifyCoreLib : Library {
 
     // async – playback
     fun swiftify_core_play_track(core: Pointer?, requestId: Long, spotifyUri: String?)
+    fun swiftify_core_crossfade_track(core: Pointer?, requestId: Long, spotifyUri: String?, durationMs: Int)
+
+    // sync – preload & remote control
+    fun swiftify_core_preload_track(core: Pointer?, spotifyUri: String?, preloadStandby: Int): Pointer?
+    fun swiftify_core_skip_remote(core: Pointer?, forward: Boolean): Boolean
+    fun swiftify_core_take_connect_events(core: Pointer?): Pointer?
 
     // async – metadata & library
     fun swiftify_core_album_json(core: Pointer?, requestId: Long, albumUri: String?)
@@ -45,7 +55,9 @@ interface SwiftifyCoreLib : Library {
     // sync – connect toggle
     fun swiftify_core_set_spotify_connect(core: Pointer?, enabled: Boolean, deviceId: String?): Pointer?
 
-    // completion polling
+    // completion polling & callback
+    fun swiftify_core_set_completion_callback(core: Pointer?, callback: CompletionCallback?, context: Pointer?)
+    fun swiftify_core_completion_fd(core: Pointer?): Int
     fun swiftify_core_take_completion(
         core: Pointer?,
         requestId: LongArray?,
@@ -81,22 +93,33 @@ object SpotifyBridge {
     // request IDs for in-flight async calls so we can match completions
     @Volatile var connectRequestId: Long = -1L
     @Volatile var playTrackRequestId: Long = -1L
+    @Volatile var crossfadeRequestId: Long = -1L
     private val pendingCompletions = java.util.concurrent.ConcurrentHashMap<Long, (Boolean, String) -> Unit>()
+
+    // Persistent JNA callback reference to prevent garbage collection
+    private val completionCallback = SwiftifyCoreLib.CompletionCallback { _ ->
+        pollCompletions()
+    }
 
     // callback set by MainActivity to react to completions
     var onConnectSuccess: ((login: String) -> Unit)? = null
     var onConnectError: ((error: String) -> Unit)? = null
     var onPlayTrackError: ((error: String) -> Unit)? = null
 
-    fun init() {
+    fun init(defaultDeviceName: String = "Swiftify") {
         if (coreHandle == null) {
             try {
-                coreHandle = SwiftifyCoreLib.INSTANCE.swiftify_core_new()
-                Log.d(TAG, "SwiftifyCore initialized: $coreHandle")
+                val core = SwiftifyCoreLib.INSTANCE.swiftify_core_new()
+                coreHandle = core
+                Log.d(TAG, "SwiftifyCore initialized: $core")
+
+                // Hook instant reactive completion callback from Rust thread
+                SwiftifyCoreLib.INSTANCE.swiftify_core_set_completion_callback(core, completionCallback, null)
+
                 // Do NOT enable Spotify Connect during initial token auth:
                 // Spirc Connect requires stored credentials, otherwise AP returns BAD_REQUEST.
                 SwiftifyCoreLib.INSTANCE.swiftify_core_set_spotify_connect(
-                    coreHandle, false, "Nothing Phone (1)"
+                    core, false, defaultDeviceName
                 )
             } catch (e: Throwable) {
                 Log.e(TAG, "Failed to initialize SwiftifyCore", e)
@@ -138,6 +161,43 @@ object SpotifyBridge {
         Log.d(TAG, "swiftify_core_play_track($uri) dispatched (request=$id)")
     }
 
+    /** Preloads the next track on standby or active player for gapless playback */
+    fun preloadTrack(uri: String, preloadStandby: Boolean): Boolean {
+        val core = coreHandle ?: return false
+        val errPtr = SwiftifyCoreLib.INSTANCE.swiftify_core_preload_track(core, uri, if (preloadStandby) 1 else 0)
+        return if (errPtr != null) {
+            val msg = errPtr.getString(0, "UTF-8")
+            SwiftifyCoreLib.INSTANCE.swiftify_string_free(errPtr)
+            Log.w(TAG, "swiftify_core_preload_track($uri) error: $msg")
+            false
+        } else {
+            Log.d(TAG, "swiftify_core_preload_track($uri, standby=$preloadStandby) succeeded")
+            true
+        }
+    }
+
+    /** Crossfades into the preloaded next track over durationMs */
+    fun crossfadeTrack(uri: String, durationMs: Long) {
+        val core = coreHandle ?: return
+        val id = nextId()
+        crossfadeRequestId = id
+        SwiftifyCoreLib.INSTANCE.swiftify_core_crossfade_track(core, id, uri, durationMs.toInt())
+        Log.d(TAG, "swiftify_core_crossfade_track($uri, ${durationMs}ms) dispatched (request=$id)")
+    }
+
+    fun skipRemote(forward: Boolean): Boolean {
+        val core = coreHandle ?: return false
+        return SwiftifyCoreLib.INSTANCE.swiftify_core_skip_remote(core, forward)
+    }
+
+    fun takeConnectEvents(): String {
+        val core = coreHandle ?: return "[]"
+        val ptr = SwiftifyCoreLib.INSTANCE.swiftify_core_take_connect_events(core) ?: return "[]"
+        val s = ptr.getString(0, "UTF-8")
+        SwiftifyCoreLib.INSTANCE.swiftify_string_free(ptr)
+        return s
+    }
+
     fun play() {
         coreHandle?.let { h ->
             val err = SwiftifyCoreLib.INSTANCE.swiftify_core_play(h)
@@ -159,10 +219,14 @@ object SpotifyBridge {
         }
     }
 
-    fun setSpotifyConnect(enabled: Boolean) {
+    fun setSpotifyConnect(enabled: Boolean, deviceName: String = "Swiftify") {
         coreHandle?.let { h ->
-            val err = SwiftifyCoreLib.INSTANCE.swiftify_core_set_spotify_connect(h, enabled, "Nothing Phone (1)")
-            if (err != null) SwiftifyCoreLib.INSTANCE.swiftify_string_free(err)
+            val err = SwiftifyCoreLib.INSTANCE.swiftify_core_set_spotify_connect(h, enabled, deviceName)
+            if (err != null) {
+                val msg = err.getString(0, "UTF-8")
+                SwiftifyCoreLib.INSTANCE.swiftify_string_free(err)
+                Log.w(TAG, "setSpotifyConnect error: $msg")
+            }
         }
     }
 
@@ -245,35 +309,37 @@ object SpotifyBridge {
 
     // ── polling ──────────────────────────────────────────────────────────────
 
-    /** Call from a coroutine loop ~200 ms. Dispatches completions to callbacks. */
+    /** Drains completed async requests and notifies waiting handlers */
     fun pollCompletions() {
         val core = coreHandle ?: return
         val reqId = LongArray(1)
         val ok = BooleanArray(1)
         val payload = arrayOfNulls<Pointer>(1)
 
-        while (SwiftifyCoreLib.INSTANCE.swiftify_core_take_completion(core, reqId, ok, payload)) {
-            val id = reqId[0]
-            val success = ok[0]
-            val payloadPtr = payload[0]
-            val text = if (payloadPtr != null) {
-                val s = payloadPtr.getString(0, "UTF-8")
-                SwiftifyCoreLib.INSTANCE.swiftify_string_free(payloadPtr)
-                s
-            } else ""
+        synchronized(this) {
+            while (SwiftifyCoreLib.INSTANCE.swiftify_core_take_completion(core, reqId, ok, payload)) {
+                val id = reqId[0]
+                val success = ok[0]
+                val payloadPtr = payload[0]
+                val text = if (payloadPtr != null) {
+                    val s = payloadPtr.getString(0, "UTF-8")
+                    SwiftifyCoreLib.INSTANCE.swiftify_string_free(payloadPtr)
+                    s
+                } else ""
 
-            Log.d(TAG, "completion id=$id ok=$success payload='$text'")
+                Log.d(TAG, "completion id=$id ok=$success payload='${if (text.length > 60) text.take(60) + "..." else text}'")
 
-            when (id) {
-                connectRequestId -> {
-                    if (success) onConnectSuccess?.invoke(text)
-                    else onConnectError?.invoke(text)
-                }
-                playTrackRequestId -> {
-                    if (!success) onPlayTrackError?.invoke(text)
-                }
-                else -> {
-                    pendingCompletions.remove(id)?.invoke(success, text)
+                when (id) {
+                    connectRequestId -> {
+                        if (success) onConnectSuccess?.invoke(text)
+                        else onConnectError?.invoke(text)
+                    }
+                    playTrackRequestId, crossfadeRequestId -> {
+                        if (!success) onPlayTrackError?.invoke(text)
+                    }
+                    else -> {
+                        pendingCompletions.remove(id)?.invoke(success, text)
+                    }
                 }
             }
         }

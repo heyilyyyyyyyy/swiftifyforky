@@ -3,13 +3,16 @@ package org.swiftify.app
 import android.content.Context
 import android.content.Intent
 import android.content.SharedPreferences
+import android.content.pm.PackageManager
 import android.net.Uri
+import android.os.Build
 import android.os.Bundle
 import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.browser.customtabs.CustomTabsIntent
 import androidx.compose.animation.*
+import androidx.compose.animation.core.*
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -44,12 +47,11 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import kotlinx.coroutines.*
 import org.json.JSONObject
 import java.io.BufferedReader
+import java.io.File
 import java.io.InputStreamReader
 import java.net.HttpURLConnection
 import java.net.InetAddress
@@ -59,6 +61,7 @@ import java.security.MessageDigest
 import java.security.SecureRandom
 import java.util.Base64
 import java.util.Calendar
+import java.util.UUID
 import kotlin.math.PI
 import kotlin.math.sin
 
@@ -115,6 +118,8 @@ private const val KEY_REFRESH_TOKEN = "refresh_token"
 private const val KEY_TOKEN_EXPIRES_AT = "token_expires_at"
 private const val KEY_CACHED_PLAYLISTS = "cached_playlists_json"
 
+private data class PollResult(val pos: Long, val dur: Long, val trackJson: String?, val trackEnded: Boolean)
+
 // ─── MainActivity ─────────────────────────────────────────────────────────────
 
 class MainActivity : ComponentActivity() {
@@ -128,6 +133,9 @@ class MainActivity : ComponentActivity() {
     private val authState = mutableStateOf<AuthState>(AuthState.Loading)
     private val accessTokenState = mutableStateOf<String?>(null)
     private val tracksState = mutableStateListOf<TrackItem>()
+    private val playlistQueue = mutableListOf<TrackItem>()
+    private val customQueue = mutableListOf<TrackItem>()
+    private var currentPlaylistIndex: Int = 0
     private val userPlaylistsState = mutableStateListOf<PlaylistItem>()
     private val currentTrackIndex = mutableIntStateOf(0)
     private val livePlayingTrack = mutableStateOf<TrackItem?>(null)
@@ -138,32 +146,98 @@ class MainActivity : ComponentActivity() {
     private val originalQueueBeforeShuffle = mutableListOf<TrackItem>()
     private val stopAtEndOfQueue = mutableStateOf(false)
     private val connectEnabled = mutableStateOf(false)
+    private val crossfadeEnabled = mutableStateOf(false)
+    private val crossfadeSeconds = mutableIntStateOf(5)
+    private val isCrossfading = mutableStateOf(false)
     private val statusMsg = mutableStateOf("")
 
-    private var pollingJob: Job? = null
+    private var playbackTickerJob: Job? = null
     private val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
+
+    private fun getSpotifyDeviceId(): String {
+        var id = prefs.getString("spotify_device_id", null)
+        if (id == null) {
+            id = UUID.randomUUID().toString()
+            prefs.edit().putString("spotify_device_id", id).apply()
+        }
+        return id
+    }
+
+    private fun getDeviceName(): String {
+        val mfr = Build.MANUFACTURER.replaceFirstChar { it.uppercase() }
+        val model = Build.MODEL
+        return if (model.startsWith(mfr, ignoreCase = true)) model else "$mfr $model"
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+
+        // Request runtime notification permission on Android 13+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            if (checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+                requestPermissions(arrayOf(android.Manifest.permission.POST_NOTIFICATIONS), 101)
+            }
+        }
 
         // Instant playlists from disk cache
         prefs.getString(KEY_CACHED_PLAYLISTS, null)?.let {
             parseAndApplyPlaylists(it)
         }
 
-        SpotifyBridge.init()
+        val devName = getDeviceName()
+        SpotifyBridge.init(devName)
 
-        // Apply startup audio & connect settings
+        // Apply startup audio, cache & connect settings
         val quality = prefs.getInt("audio_quality_kbps", 320)
         SpotifyBridge.setStreamQuality(quality)
         val norm = prefs.getBoolean("volume_norm", true)
         SpotifyBridge.setVolumeNormalization(norm)
         val connect = prefs.getBoolean("spotify_connect_enabled", false)
         connectEnabled.value = connect
+        crossfadeEnabled.value = prefs.getBoolean("crossfade_enabled", false)
+        crossfadeSeconds.intValue = prefs.getInt("crossfade_seconds", 5)
+
+        val audioCacheDir = File(cacheDir, "spotify_audio_cache").apply { mkdirs() }
+        SpotifyBridge.setAudioCache(audioCacheDir.absolutePath, 1024L * 1024 * 1024)
+
+        // Connect media session & hardware Bluetooth events to playback controller
+        PlaybackService.listener = object : PlaybackEventListener {
+            override fun onPlay() {
+                runOnUiThread {
+                    isPlaying.value = true
+                    SpotifyBridge.play()
+                    syncPlaybackServiceNotification()
+                }
+            }
+            override fun onPause() {
+                runOnUiThread {
+                    isPlaying.value = false
+                    SpotifyBridge.pause()
+                    syncPlaybackServiceNotification()
+                }
+            }
+            override fun onNext() {
+                runOnUiThread {
+                    nextTrack(isAutoAdvance = false)
+                }
+            }
+            override fun onPrevious() {
+                runOnUiThread {
+                    prevTrack()
+                }
+            }
+            override fun onSeekTo(positionMs: Long) {
+                runOnUiThread {
+                    progressMs.longValue = positionMs
+                    SpotifyBridge.seek(positionMs)
+                    syncPlaybackServiceNotification(positionMs)
+                }
+            }
+        }
 
         setupBridgeCallbacks()
-        startPolling()
+        startPlaybackTicker()
 
         setContent {
             MaterialTheme(
@@ -190,15 +264,24 @@ class MainActivity : ComponentActivity() {
                         onTrackSelect = { track, contextList -> playTrackItem(track, contextList) },
                         onAddToQueue = { track -> addToQueue(track) },
                         onPlayPause = { togglePlay() },
-                        onNext = { nextTrack() },
+                        onNext = { nextTrack(isAutoAdvance = false) },
                         onPrev = { prevTrack() },
                         onSeek = { ms -> progressMs.longValue = ms; SpotifyBridge.seek(ms) },
-                        onConnectToggle = { v -> connectEnabled.value = v; SpotifyBridge.setSpotifyConnect(v) },
+                        onConnectToggle = { v ->
+                            connectEnabled.value = v
+                            prefs.edit().putBoolean("spotify_connect_enabled", v).apply()
+                            SpotifyBridge.setSpotifyConnect(v, devName)
+                        },
                         onSetStopAtEnd = { stopAtEndOfQueue.value = it },
                         isShuffle = isShuffle.value,
                         repeatMode = repeatMode.intValue,
                         onToggleShuffle = { toggleShuffle() },
-                        onToggleRepeat = { toggleRepeat() }
+                        onToggleRepeat = { toggleRepeat() },
+                        onCrossfadeChanged = { enabled, secs ->
+                            crossfadeEnabled.value = enabled
+                            crossfadeSeconds.intValue = secs
+                            preloadUpcomingTrack()
+                        }
                     )
                 }
             }
@@ -415,8 +498,8 @@ class MainActivity : ComponentActivity() {
             authState.value = AuthState.LoggedIn
             statusMsg.value = "Connected to Spotify ✓"
             // Enable Spotify Connect now that session is authenticated
-            SpotifyBridge.setSpotifyConnect(connectEnabled.value)
-            startPolling()
+            SpotifyBridge.setSpotifyConnect(connectEnabled.value, getDeviceName())
+            startPlaybackTicker()
             scope.launch {
                 loadRecentlyPlayed()
                 loadUserPlaylists()
@@ -434,39 +517,40 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    private fun startPolling() {
-        pollingJob?.cancel()
-        pollingJob = scope.launch {
+    private fun startPlaybackTicker() {
+        playbackTickerJob?.cancel()
+        playbackTickerJob = scope.launch(Dispatchers.IO) {
             while (isActive) {
-                SpotifyBridge.pollCompletions()
-                val pos = SpotifyBridge.playbackPositionMs()
-                val dur = SpotifyBridge.playbackDurationMs()
-                if (dur > 0) progressMs.longValue = pos
-                val trackJson = SpotifyBridge.currentTrackJson()
-                if (!trackJson.isNullOrEmpty()) {
-                    try {
-                        val obj = JSONObject(trackJson)
-                        val uri = obj.optString("uri")
-                        val title = obj.optString("title")
-                        val artist = obj.optString("artist")
-                        val album = obj.optString("album")
-                        val artwork = obj.optString("artwork_url")
-                        val duration = obj.optLong("duration_ms")
-                        if (title.isNotEmpty()) {
-                            livePlayingTrack.value = TrackItem(title, artist, album, artwork, duration, uri)
+                if (isPlaying.value) {
+                    val pos = SpotifyBridge.playbackPositionMs()
+                    val dur = SpotifyBridge.playbackDurationMs()
+                    val trackEnded = SpotifyBridge.takeEndOfTrack()
+
+                    withContext(Dispatchers.Main) {
+                        if (dur > 0) {
+                            progressMs.longValue = pos
                         }
-                    } catch (e: Exception) {
-                        Log.e("Polling", "Failed to parse current track json", e)
+
+                        if (trackEnded) {
+                            Log.d("Playback", "Core signaled end of track -> advancing to next track")
+                            nextTrack(isAutoAdvance = true)
+                        } else if (crossfadeEnabled.value && !isCrossfading.value && dur > 10000L) {
+                            val crossMs = crossfadeSeconds.intValue * 1000L
+                            if (pos >= dur - crossMs && pos < dur) {
+                                val upcoming = getUpcomingTrack()
+                                if (upcoming != null) {
+                                    isCrossfading.value = true
+                                    Log.d("Playback", "Crossfade threshold reached! Overlapping with '${upcoming.title}' (${crossMs}ms)")
+                                    SpotifyBridge.crossfadeTrack(upcoming.uri, crossMs)
+                                    advanceUpcomingState(upcoming)
+                                }
+                            }
+                        }
+
+                        syncPlaybackServiceNotification(pos, dur)
                     }
                 }
-                // Handle end of track auto-advancement in queue
-                if (SpotifyBridge.takeEndOfTrack()) {
-                    Log.d("Playback", "Track ended, auto-advancing to next track in queue")
-                    if (tracksState.isNotEmpty()) {
-                        nextTrack()
-                    }
-                }
-                delay(250)
+                delay(1000)
             }
         }
     }
@@ -590,93 +674,168 @@ class MainActivity : ComponentActivity() {
         return false
     }
 
+    private fun syncVisibleQueue() {
+        val list = mutableListOf<TrackItem>()
+        val curr = livePlayingTrack.value ?: tracksState.getOrNull(0)
+        if (curr != null) {
+            list.add(curr)
+        }
+        // User custom queue ("Play Next")
+        list.addAll(customQueue)
+        // Playlist remainder
+        if (playlistQueue.isNotEmpty() && currentPlaylistIndex in playlistQueue.indices) {
+            val remaining = playlistQueue.subList((currentPlaylistIndex + 1).coerceAtMost(playlistQueue.size), playlistQueue.size)
+            list.addAll(remaining)
+        }
+        val capped = list.take(30)
+        tracksState.clear()
+        tracksState.addAll(capped)
+        currentTrackIndex.intValue = 0
+    }
+
+    private fun getUpcomingTrack(): TrackItem? {
+        if (customQueue.isNotEmpty()) {
+            return customQueue.first()
+        }
+        if (repeatMode.intValue == 2) {
+            return livePlayingTrack.value ?: tracksState.getOrNull(0)
+        }
+        if (currentPlaylistIndex + 1 < playlistQueue.size) {
+            return playlistQueue[currentPlaylistIndex + 1]
+        }
+        if (repeatMode.intValue == 1 && playlistQueue.isNotEmpty()) {
+            return playlistQueue[0]
+        }
+        return null
+    }
+
+    private fun preloadUpcomingTrack() {
+        val upcoming = getUpcomingTrack() ?: return
+        scope.launch(Dispatchers.IO) {
+            val crossfade = crossfadeEnabled.value
+            SpotifyBridge.preloadTrack(upcoming.uri, crossfade)
+        }
+    }
+
+    private fun playTrackInternal(item: TrackItem) {
+        livePlayingTrack.value = item
+        progressMs.longValue = 0L
+        isPlaying.value = true
+        isCrossfading.value = false
+        SpotifyBridge.playTrack(item.uri)
+        syncPlaybackServiceNotification(0L, item.durationMs)
+        syncVisibleQueue()
+        preloadUpcomingTrack()
+    }
+
+    private fun syncPlaybackServiceNotification(pos: Long = progressMs.longValue, dur: Long = 0L) {
+        val active = livePlayingTrack.value ?: tracksState.getOrNull(0) ?: return
+        val totalDur = if (dur > 0) dur else active.durationMs
+        PlaybackService.updateNotification(
+            this,
+            active.title,
+            active.artist,
+            active.album,
+            active.artworkUrl,
+            isPlaying.value,
+            pos,
+            totalDur
+        )
+    }
+
+    private fun advanceUpcomingState(upcoming: TrackItem) {
+        if (customQueue.isNotEmpty() && customQueue.first().uri == upcoming.uri) {
+            customQueue.removeAt(0)
+        } else if (currentPlaylistIndex + 1 < playlistQueue.size && playlistQueue[currentPlaylistIndex + 1].uri == upcoming.uri) {
+            currentPlaylistIndex++
+        } else if (repeatMode.intValue == 1 && playlistQueue.isNotEmpty() && playlistQueue[0].uri == upcoming.uri) {
+            currentPlaylistIndex = 0
+        }
+        livePlayingTrack.value = upcoming
+        progressMs.longValue = 0L
+        syncVisibleQueue()
+        preloadUpcomingTrack()
+    }
+
     private fun addToQueue(item: TrackItem) {
-        val insertPos = (currentTrackIndex.intValue + 1).coerceAtMost(tracksState.size)
-        tracksState.add(insertPos, item)
-        Log.d("Queue", "Added '${item.title}' at position $insertPos in queue")
+        customQueue.add(item)
+        syncVisibleQueue()
+        preloadUpcomingTrack()
+        Log.d("Queue", "Added '${item.title}' to custom queue (total: ${customQueue.size})")
     }
 
     private fun playTrackItem(item: TrackItem, queueContext: List<TrackItem>? = null) {
+        stopAtEndOfQueue.value = false
         if (!queueContext.isNullOrEmpty()) {
-            tracksState.clear()
-            tracksState.addAll(queueContext)
-            val idx = tracksState.indexOfFirst { it.uri == item.uri }
-            currentTrackIndex.intValue = if (idx >= 0) idx else 0
+            playlistQueue.clear()
+            playlistQueue.addAll(queueContext)
+            val idx = playlistQueue.indexOfFirst { it.uri == item.uri }
+            currentPlaylistIndex = if (idx >= 0) idx else 0
+            customQueue.clear()
         } else {
-            val existingIdx = tracksState.indexOfFirst { it.uri == item.uri }
+            val existingIdx = playlistQueue.indexOfFirst { it.uri == item.uri }
             if (existingIdx >= 0) {
-                currentTrackIndex.intValue = existingIdx
+                currentPlaylistIndex = existingIdx
             } else {
-                val insertPos = (currentTrackIndex.intValue + 1).coerceAtMost(tracksState.size)
-                tracksState.add(insertPos, item)
-                currentTrackIndex.intValue = insertPos
+                currentPlaylistIndex = (currentPlaylistIndex + 1).coerceAtMost(playlistQueue.size)
+                playlistQueue.add(currentPlaylistIndex, item)
             }
         }
-        progressMs.longValue = 0L
-        isPlaying.value = true
-        SpotifyBridge.playTrack(item.uri)
-        PlaybackService.updateNotification(
-            this,
-            item.title,
-            item.artist,
-            item.artworkUrl,
-            true
-        )
+        playTrackInternal(item)
     }
 
     private fun onTrackClick(idx: Int) {
-        currentTrackIndex.intValue = idx
-        progressMs.longValue = 0L
-        isPlaying.value = true
-        val item = tracksState.getOrNull(idx) ?: return
-        SpotifyBridge.playTrack(item.uri)
-        PlaybackService.updateNotification(
-            this,
-            item.title,
-            item.artist,
-            item.artworkUrl,
-            true
-        )
+        val clicked = tracksState.getOrNull(idx) ?: return
+        if (idx == 0 && livePlayingTrack.value?.uri == clicked.uri) {
+            return
+        }
+        val customIdx = customQueue.indexOfFirst { it.uri == clicked.uri }
+        if (customIdx >= 0) {
+            for (i in 0..customIdx) {
+                customQueue.removeAt(0)
+            }
+            playTrackInternal(clicked)
+            return
+        }
+        val plIdx = playlistQueue.indexOfFirst { it.uri == clicked.uri }
+        if (plIdx >= 0) {
+            currentPlaylistIndex = plIdx
+            playTrackInternal(clicked)
+            return
+        }
+        playTrackInternal(clicked)
     }
 
     private fun togglePlay() {
         isPlaying.value = !isPlaying.value
         if (isPlaying.value) SpotifyBridge.play() else SpotifyBridge.pause()
-        val active = livePlayingTrack.value ?: tracksState.getOrNull(currentTrackIndex.intValue)
-        if (active != null) {
-            PlaybackService.updateNotification(
-                this,
-                active.title,
-                active.artist,
-                active.artworkUrl,
-                isPlaying.value
-            )
-        }
+        syncPlaybackServiceNotification()
     }
 
-    
     private fun toggleShuffle() {
         isShuffle.value = !isShuffle.value
         if (isShuffle.value) {
-            if (tracksState.isNotEmpty()) {
+            if (playlistQueue.isNotEmpty()) {
                 originalQueueBeforeShuffle.clear()
-                originalQueueBeforeShuffle.addAll(tracksState)
-                val curr = livePlayingTrack.value ?: tracksState.getOrNull(currentTrackIndex.intValue)
-                val rest = tracksState.filter { it.uri != curr?.uri }.shuffled()
-                tracksState.clear()
-                if (curr != null) {
-                    tracksState.add(curr)
-                }
-                tracksState.addAll(rest)
-                currentTrackIndex.intValue = 0
+                originalQueueBeforeShuffle.addAll(playlistQueue)
+                val curr = livePlayingTrack.value ?: playlistQueue.getOrNull(currentPlaylistIndex)
+                val rest = playlistQueue.filter { it.uri != curr?.uri }.shuffled()
+                playlistQueue.clear()
+                if (curr != null) playlistQueue.add(curr)
+                playlistQueue.addAll(rest)
+                currentPlaylistIndex = 0
+                syncVisibleQueue()
+                preloadUpcomingTrack()
             }
         } else {
             if (originalQueueBeforeShuffle.isNotEmpty()) {
-                val curr = livePlayingTrack.value ?: tracksState.getOrNull(currentTrackIndex.intValue)
-                tracksState.clear()
-                tracksState.addAll(originalQueueBeforeShuffle)
-                val idx = tracksState.indexOfFirst { it.uri == curr?.uri }
-                currentTrackIndex.intValue = if (idx >= 0) idx else 0
+                val curr = livePlayingTrack.value ?: playlistQueue.getOrNull(currentPlaylistIndex)
+                playlistQueue.clear()
+                playlistQueue.addAll(originalQueueBeforeShuffle)
+                val idx = playlistQueue.indexOfFirst { it.uri == curr?.uri }
+                currentPlaylistIndex = if (idx >= 0) idx else 0
+                syncVisibleQueue()
+                preloadUpcomingTrack()
             }
         }
     }
@@ -684,47 +843,86 @@ class MainActivity : ComponentActivity() {
     private fun toggleRepeat() {
         // cycle: 0 (off) -> 1 (repeat all) -> 2 (repeat one) -> 0
         repeatMode.intValue = (repeatMode.intValue + 1) % 3
+        preloadUpcomingTrack()
     }
 
-    private fun nextTrack() {
-        if (tracksState.isEmpty()) return
+    private fun nextTrack(isAutoAdvance: Boolean = false) {
         if (repeatMode.intValue == 2) {
             // Repeat one: replay current track from start
-            onTrackClick(currentTrackIndex.intValue)
+            SpotifyBridge.seek(0)
+            SpotifyBridge.play()
+            progressMs.longValue = 0L
+            isPlaying.value = true
+            syncPlaybackServiceNotification(0L)
             return
         }
-        val next = currentTrackIndex.intValue + 1
-        if (next >= tracksState.size) {
-            if (repeatMode.intValue == 1) {
-                // Repeat all: loop back to 0
-                onTrackClick(0)
-            } else if (stopAtEndOfQueue.value) {
-                SpotifyBridge.pause()
-                isPlaying.value = false
-                return
-            } else {
-                onTrackClick(0)
-            }
+
+        // Custom play-next queue takes priority
+        if (customQueue.isNotEmpty()) {
+            val next = customQueue.removeAt(0)
+            Log.d("Queue", "Playing next from custom queue: ${next.title}")
+            playTrackInternal(next)
+            return
+        }
+
+        // Stop at end of queue (e.g. albums)
+        if (stopAtEndOfQueue.value && currentPlaylistIndex + 1 >= playlistQueue.size) {
+            Log.d("Queue", "Reached end of album with stopAtEndOfQueue enabled -> pausing")
+            SpotifyBridge.pause()
+            isPlaying.value = false
+            progressMs.longValue = 0L
+            syncPlaybackServiceNotification(0L)
+            return
+        }
+
+        if (currentPlaylistIndex + 1 < playlistQueue.size) {
+            currentPlaylistIndex++
+            val next = playlistQueue[currentPlaylistIndex]
+            Log.d("Queue", "Advancing playlist queue to index $currentPlaylistIndex: ${next.title}")
+            playTrackInternal(next)
+        } else if (repeatMode.intValue == 1 && playlistQueue.isNotEmpty()) {
+            // Repeat all: loop back to 0
+            currentPlaylistIndex = 0
+            val next = playlistQueue[0]
+            Log.d("Queue", "Repeat All: wrapping back to start: ${next.title}")
+            playTrackInternal(next)
         } else {
-            onTrackClick(next)
+            // Repeat off: STOP PLAYBACK!
+            Log.d("Queue", "End of queue reached with Repeat Off -> stopping playback")
+            SpotifyBridge.pause()
+            isPlaying.value = false
+            progressMs.longValue = 0L
+            syncPlaybackServiceNotification(0L)
         }
     }
 
     private fun prevTrack() {
-        if (tracksState.isEmpty()) return
         if (progressMs.longValue > 3000L || repeatMode.intValue == 2) {
             SpotifyBridge.seek(0)
             progressMs.longValue = 0L
+            syncPlaybackServiceNotification(0L)
             return
         }
-        val prev = if (currentTrackIndex.intValue > 0) currentTrackIndex.intValue - 1 else tracksState.size - 1
-        onTrackClick(prev)
+        if (currentPlaylistIndex > 0 && playlistQueue.isNotEmpty()) {
+            currentPlaylistIndex--
+            val prev = playlistQueue[currentPlaylistIndex]
+            playTrackInternal(prev)
+        } else if (repeatMode.intValue == 1 && playlistQueue.isNotEmpty()) {
+            currentPlaylistIndex = playlistQueue.size - 1
+            val prev = playlistQueue[currentPlaylistIndex]
+            playTrackInternal(prev)
+        } else {
+            SpotifyBridge.seek(0)
+            progressMs.longValue = 0L
+            syncPlaybackServiceNotification(0L)
+        }
     }
 
     override fun onDestroy() {
         super.onDestroy()
+        PlaybackService.listener = null
         authServer?.close()
-        pollingJob?.cancel()
+        playbackTickerJob?.cancel()
         scope.cancel()
     }
 }
@@ -765,7 +963,8 @@ fun SwiftifyApp(
     isShuffle: Boolean = false,
     repeatMode: Int = 0,
     onToggleShuffle: () -> Unit = {},
-    onToggleRepeat: () -> Unit = {}
+    onToggleRepeat: () -> Unit = {},
+    onCrossfadeChanged: ((Boolean, Int) -> Unit)? = null
 ) {
     var selectedTab by remember { mutableIntStateOf(0) }
     var isPlayerExpanded by remember { mutableStateOf(false) }
@@ -1111,7 +1310,8 @@ val openArtistScreen: (String, String) -> Unit = { artName, artUri ->
                         2 -> SettingsScreen(
                             connectEnabled = connectEnabled,
                             onConnectToggle = onConnectToggle,
-                            onReauthorize = onLoginClick
+                            onReauthorize = onLoginClick,
+                            onCrossfadeChanged = onCrossfadeChanged
                         )
                     }
                 }

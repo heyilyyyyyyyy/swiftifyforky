@@ -24,16 +24,29 @@ import java.io.File
 fun SettingsScreen(
     connectEnabled: Boolean,
     onConnectToggle: (Boolean) -> Unit,
-    onReauthorize: () -> Unit = {}
+    onReauthorize: () -> Unit = {},
+    onCrossfadeChanged: ((Boolean, Int) -> Unit)? = null
 ) {
     val context = LocalContext.current
     val prefs = remember { context.getSharedPreferences("swiftify_prefs", Context.MODE_PRIVATE) }
 
+    val deviceName = remember {
+        val m = android.os.Build.MODEL
+        val mf = android.os.Build.MANUFACTURER.replaceFirstChar { it.uppercase() }
+        if (m.startsWith(mf, ignoreCase = true)) m else "$mf $m"
+    }
+
     var selectedQuality by remember {
-        mutableIntStateOf(prefs.getInt("audio_quality_kbps", 160))
+        mutableIntStateOf(prefs.getInt("audio_quality_kbps", 320))
     }
     var normalizationEnabled by remember {
         mutableStateOf(prefs.getBoolean("volume_norm", true))
+    }
+    var crossfadeEnabled by remember {
+        mutableStateOf(prefs.getBoolean("crossfade_enabled", false))
+    }
+    var crossfadeSeconds by remember {
+        mutableIntStateOf(prefs.getInt("crossfade_seconds", 5))
     }
     var cacheSizeMb by remember {
         mutableStateOf(calculateCacheSize(context))
@@ -171,6 +184,60 @@ fun SettingsScreen(
 
                 Divider(color = Color(0x22FFFFFF), thickness = 0.5.dp, modifier = Modifier.padding(vertical = 6.dp))
 
+                // Crossfade
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text("Crossfade Tracks", color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+                        Text(if (crossfadeEnabled) "Seamless overlap: ${crossfadeSeconds}s" else "Gapless native transition", color = Color(0xFF8E837D), fontSize = 12.sp)
+                    }
+                    Switch(
+                        checked = crossfadeEnabled,
+                        onCheckedChange = {
+                            crossfadeEnabled = it
+                            prefs.edit().putBoolean("crossfade_enabled", it).apply()
+                            onCrossfadeChanged?.invoke(it, crossfadeSeconds)
+                        },
+                        colors = SwitchDefaults.colors(
+                            checkedThumbColor = Color(0xFF13100E),
+                            checkedTrackColor = Color(0xFFF2A385)
+                        )
+                    )
+                }
+
+                if (crossfadeEnabled) {
+                    Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 6.dp)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text("Overlap duration", color = Color(0xFF8E837D), fontSize = 12.sp)
+                            Text("${crossfadeSeconds}s", color = Color(0xFFF2A385), fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        }
+                        Slider(
+                            value = crossfadeSeconds.toFloat(),
+                            onValueChange = {
+                                val s = it.toInt()
+                                crossfadeSeconds = s
+                                prefs.edit().putInt("crossfade_seconds", s).apply()
+                                onCrossfadeChanged?.invoke(crossfadeEnabled, s)
+                            },
+                            valueRange = 1f..12f,
+                            steps = 10,
+                            colors = SliderDefaults.colors(
+                                thumbColor = Color(0xFFF2A385),
+                                activeTrackColor = Color(0xFFF2A385),
+                                inactiveTrackColor = Color(0x33F2A385)
+                            )
+                        )
+                    }
+                }
+
+                Divider(color = Color(0x22FFFFFF), thickness = 0.5.dp, modifier = Modifier.padding(vertical = 6.dp))
+
                 // Spotify Connect
                 Row(
                     modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp),
@@ -179,7 +246,7 @@ fun SettingsScreen(
                 ) {
                     Column(modifier = Modifier.weight(1f)) {
                         Text("Spotify Connect", color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
-                        Text("Broadcast Nothing Phone (1) as speaker", color = Color(0xFF8E837D), fontSize = 12.sp)
+                        Text("Broadcast $deviceName as speaker", color = Color(0xFF8E837D), fontSize = 12.sp)
                     }
                     Switch(
                         checked = connectEnabled,
@@ -266,11 +333,11 @@ fun SettingsScreen(
                 }
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                     Text("Target Device", color = Color(0xFF8E837D), fontSize = 13.sp)
-                    Text("Nothing Phone (1) (A063)", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Medium)
+                    Text("$deviceName (API ${android.os.Build.VERSION.SDK_INT})", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Medium)
                 }
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                     Text("Architecture", color = Color(0xFF8E837D), fontSize = 13.sp)
-                    Text("arm64-v8a (API 34)", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Medium)
+                    Text("${android.os.Build.SUPPORTED_ABIS.firstOrNull() ?: "arm64-v8a"}", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Medium)
                 }
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                     Text("Swiftify Core", color = Color(0xFF8E837D), fontSize = 13.sp)

@@ -6,6 +6,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.launch
 import android.content.Context
+import android.net.Uri
 
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
@@ -74,11 +75,12 @@ fun ExpandedPlayer(
     // Check live saved status on Spotify Web API
     LaunchedEffect(track.uri) {
         val token = prefs.getString("access_token", null)
-        val trackId = track.uri.substringAfterLast(":")
-        if (!token.isNullOrEmpty() && trackId.isNotEmpty() && track.uri.startsWith("spotify:track:")) {
+        if (!token.isNullOrEmpty() && track.uri.startsWith("spotify:track:")) {
             withContext(Dispatchers.IO) {
                 try {
-                    val conn = URL("https://api.spotify.com/v1/me/tracks/contains?ids=$trackId").openConnection() as HttpURLConnection
+                    val conn = URL("https://api.spotify.com/v1/me/library/contains?uris=${Uri.encode(track.uri)}").openConnection() as HttpURLConnection
+                    conn.connectTimeout = 5000
+                    conn.readTimeout = 5000
                     conn.setRequestProperty("Authorization", "Bearer $token")
                     if (conn.responseCode in 200..299) {
                         val text = conn.inputStream.bufferedReader().readText()
@@ -94,9 +96,7 @@ fun ExpandedPlayer(
                         }
                     }
                     conn.disconnect()
-                } catch (e: Exception) {
-                    // ignore network errors
-                }
+                } catch (_: Exception) {}
             }
         }
     }
@@ -396,11 +396,10 @@ fun ExpandedPlayer(
                     prefs.edit().putStringSet("saved_track_uris", currentSet).apply()
 
                     val token = prefs.getString("access_token", null)
-                    val trackId = track.uri.substringAfterLast(":")
-                    if (!token.isNullOrEmpty() && trackId.isNotEmpty() && track.uri.startsWith("spotify:track:")) {
+                    if (!token.isNullOrEmpty() && track.uri.startsWith("spotify:track:")) {
                         coroutineScope.launch(Dispatchers.IO) {
                             try {
-                                val urlStr = "https://api.spotify.com/v1/me/tracks?ids=$trackId"
+                                val urlStr = "https://api.spotify.com/v1/me/library?uris=${Uri.encode(track.uri)}"
                                 val conn = URL(urlStr).openConnection() as HttpURLConnection
                                 conn.connectTimeout = 8000
                                 conn.readTimeout = 8000
@@ -408,8 +407,10 @@ fun ExpandedPlayer(
                                 conn.setRequestProperty("Authorization", "Bearer $token")
                                 conn.setRequestProperty("Content-Length", "0")
                                 val code = conn.responseCode
-                                android.util.Log.d("ExpandedPlayer", "Like toggle: $trackId -> $newSaved returned $code")
+                                android.util.Log.d("ExpandedPlayer", "Library toggle: ${track.uri} -> $newSaved returned $code")
                                 if (code !in 200..299) {
+                                    val err = conn.errorStream?.bufferedReader()?.readText() ?: ""
+                                    android.util.Log.w("ExpandedPlayer", "Library toggle failed code=$code: $err")
                                     withContext(Dispatchers.Main) {
                                         isLiked = !newSaved
                                         val revertSet = (prefs.getStringSet("saved_track_uris", emptySet()) ?: emptySet()).toMutableSet()
@@ -419,7 +420,7 @@ fun ExpandedPlayer(
                                 }
                                 conn.disconnect()
                             } catch (e: Exception) {
-                                android.util.Log.e("ExpandedPlayer", "Like toggle failed", e)
+                                android.util.Log.e("ExpandedPlayer", "Library toggle network error", e)
                                 withContext(Dispatchers.Main) {
                                     isLiked = !newSaved
                                     val revertSet = (prefs.getStringSet("saved_track_uris", emptySet()) ?: emptySet()).toMutableSet()
