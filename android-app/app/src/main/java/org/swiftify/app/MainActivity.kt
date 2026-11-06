@@ -92,6 +92,22 @@ data class ArtistItem(
     val uri: String = ""
 )
 
+fun getBestArtworkUrl(images: org.json.JSONArray?): String {
+    if (images == null || images.length() == 0) return ""
+    var bestUrl = ""
+    var bestWidth = -1
+    for (i in 0 until images.length()) {
+        val obj = images.optJSONObject(i) ?: continue
+        val url = obj.optString("url")
+        val width = obj.optInt("width", 0)
+        if (width > bestWidth && url.isNotEmpty()) {
+            bestWidth = width
+            bestUrl = url
+        }
+    }
+    return if (bestUrl.isNotEmpty()) bestUrl else images.optJSONObject(0)?.optString("url") ?: ""
+}
+
 // ─── PKCE helpers ─────────────────────────────────────────────────────────────
 
 private fun generateCodeVerifier(): String {
@@ -521,10 +537,16 @@ class MainActivity : ComponentActivity() {
         playbackTickerJob?.cancel()
         playbackTickerJob = scope.launch(Dispatchers.IO) {
             while (isActive) {
+                var pollDelay = 250L
                 if (isPlaying.value) {
                     val pos = SpotifyBridge.playbackPositionMs()
                     val dur = SpotifyBridge.playbackDurationMs()
                     val trackEnded = SpotifyBridge.takeEndOfTrack()
+
+                    // When near the end of track (< 5 seconds), poll fast at 60ms for zero-latency gapless transition
+                    if (dur > 0 && dur - pos <= 5000L) {
+                        pollDelay = 60L
+                    }
 
                     withContext(Dispatchers.Main) {
                         if (dur > 0) {
@@ -532,7 +554,7 @@ class MainActivity : ComponentActivity() {
                         }
 
                         if (trackEnded) {
-                            Log.d("Playback", "Core signaled end of track -> advancing to next track")
+                            Log.d("Playback", "Core signaled end of track -> advancing to next track immediately")
                             nextTrack(isAutoAdvance = true)
                         } else if (crossfadeEnabled.value && !isCrossfading.value && dur > 10000L) {
                             val crossMs = crossfadeSeconds.intValue * 1000L
@@ -550,7 +572,7 @@ class MainActivity : ComponentActivity() {
                         syncPlaybackServiceNotification(pos, dur)
                     }
                 }
-                delay(1000)
+                delay(pollDelay)
             }
         }
     }
@@ -588,7 +610,7 @@ class MainActivity : ComponentActivity() {
                     } else ""
                     val alb = track.optJSONObject("album")
                     val images = alb?.optJSONArray("images")
-                    val artUrl = if (images != null && images.length() > 0) images.optJSONObject(0)?.optString("url") ?: "" else ""
+                    val artUrl = getBestArtworkUrl(images)
                     TrackItem(
                         title = track.optString("name"),
                         artist = artists,
@@ -712,8 +734,12 @@ class MainActivity : ComponentActivity() {
     private fun preloadUpcomingTrack() {
         val upcoming = getUpcomingTrack() ?: return
         scope.launch(Dispatchers.IO) {
-            val crossfade = crossfadeEnabled.value
-            SpotifyBridge.preloadTrack(upcoming.uri, crossfade)
+            delay(1000) // Allow current track to enter Playing state first so standby slot is ready
+            if (isActive && isPlaying.value) {
+                val crossfade = crossfadeEnabled.value
+                val ok = SpotifyBridge.preloadTrack(upcoming.uri, crossfade)
+                Log.d("Playback", "Preloaded next track '${upcoming.title}' (crossfade=$crossfade, ok=$ok)")
+            }
         }
     }
 
@@ -997,8 +1023,9 @@ fun SwiftifyApp(
                                 if (uri.isNotEmpty()) {
                                     albUri = uri
                                     val imgs = albObj.optJSONArray("images")
-                                    if (imgs != null && imgs.length() > 0) {
-                                        albArt = imgs.getJSONObject(0).optString("url")
+                                    val best = getBestArtworkUrl(imgs)
+                                    if (best.isNotEmpty()) {
+                                        albArt = best
                                     }
                                     break
                                 }
@@ -1008,6 +1035,9 @@ fun SwiftifyApp(
                 } catch (_: Exception) {}
             }
             if (albUri.isNotEmpty()) {
+                activePlaylist = null
+                activeArtist = null
+                showAllPlaylists = false
                 activeAlbumUri = albUri
                 activeAlbumTitle = albTitle
                 activeAlbumArtwork = albArt
@@ -1127,11 +1157,12 @@ val openArtistScreen: (String, String) -> Unit = { artName, artUri ->
                         tonalElevation = 8.dp
                     ) {
                         NavigationBarItem(
-                            selected = selectedTab == 0 && activePlaylist == null && activeArtist == null,
+                            selected = selectedTab == 0 && activePlaylist == null && activeArtist == null && activeAlbumUri == null && !showAllPlaylists,
                             onClick = {
                                 selectedTab = 0
                                 activePlaylist = null
                                 activeArtist = null
+                                activeAlbumUri = null
                                 showAllPlaylists = false
                             },
                             colors = NavigationBarItemDefaults.colors(
@@ -1151,11 +1182,12 @@ val openArtistScreen: (String, String) -> Unit = { artName, artUri ->
                             }
                         )
                         NavigationBarItem(
-                            selected = selectedTab == 1 && activePlaylist == null && activeArtist == null,
+                            selected = selectedTab == 1 && activePlaylist == null && activeArtist == null && activeAlbumUri == null && !showAllPlaylists,
                             onClick = {
                                 selectedTab = 1
                                 activePlaylist = null
                                 activeArtist = null
+                                activeAlbumUri = null
                                 showAllPlaylists = false
                             },
                             colors = NavigationBarItemDefaults.colors(
@@ -1175,11 +1207,12 @@ val openArtistScreen: (String, String) -> Unit = { artName, artUri ->
                             }
                         )
                         NavigationBarItem(
-                            selected = selectedTab == 2 && activePlaylist == null && activeArtist == null,
+                            selected = selectedTab == 2 && activePlaylist == null && activeArtist == null && activeAlbumUri == null && !showAllPlaylists,
                             onClick = {
                                 selectedTab = 2
                                 activePlaylist = null
                                 activeArtist = null
+                                activeAlbumUri = null
                                 showAllPlaylists = false
                             },
                             colors = NavigationBarItemDefaults.colors(

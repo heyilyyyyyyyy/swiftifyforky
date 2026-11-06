@@ -69,7 +69,16 @@ pub async fn album_json(session: &Session, album_uri: &str) -> Result<String, St
         _ => &album.cover,
     };
     let mut artwork_url = String::new();
-    if let Some(img) = covers.first() {
+    let best_img = covers.iter().max_by_key(|img| {
+        let size_score = match img.size() {
+            librespot::protocol::metadata::image::Size::XLARGE => 1280,
+            librespot::protocol::metadata::image::Size::LARGE => 640,
+            librespot::protocol::metadata::image::Size::DEFAULT => 300,
+            librespot::protocol::metadata::image::Size::SMALL => 64,
+        };
+        img.width().max(size_score)
+    });
+    if let Some(img) = best_img {
         let file_id = img.file_id();
         if !file_id.is_empty() {
             let hex: String = file_id.iter().map(|b| format!("{b:02x}")).collect();

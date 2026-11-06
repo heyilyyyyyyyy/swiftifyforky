@@ -146,7 +146,16 @@ pub async fn search_artists_json(session: &Session, query: &str) -> Result<Strin
                         Some(group) if !group.image.is_empty() => &group.image,
                         _ => &artist.portrait,
                     };
-                    if let Some(img) = portraits.first() {
+                    let best_img = portraits.iter().max_by_key(|img| {
+                        let size_score = match img.size() {
+                            librespot::protocol::metadata::image::Size::XLARGE => 1280,
+                            librespot::protocol::metadata::image::Size::LARGE => 640,
+                            librespot::protocol::metadata::image::Size::DEFAULT => 300,
+                            librespot::protocol::metadata::image::Size::SMALL => 64,
+                        };
+                        img.width().max(size_score)
+                    });
+                    if let Some(img) = best_img {
                         let file_id = img.file_id();
                         if !file_id.is_empty() {
                             let hex: String = file_id.iter().map(|b| format!("{b:02x}")).collect();
@@ -214,18 +223,26 @@ pub async fn user_playlists_json(session: &Session) -> Result<String, String> {
                         if let Some(n) = attrs.name.as_ref() {
                             final_name = n.clone();
                         }
-                        // Check picture bytes
-                        if let Some(pic_bytes) = attrs.picture.as_ref() {
-                            if !pic_bytes.is_empty() {
-                                let hex: String = pic_bytes.iter().map(|b| format!("{b:02x}")).collect();
-                                artwork_url = format!("https://i.scdn.co/image/{hex}");
-                            }
-                        }
                         // Check picture_size urls
                         if artwork_url.is_empty() {
-                            if let Some(ps) = attrs.picture_size.first() {
+                            if let Some(ps) = attrs.picture_size.iter().max_by_key(|p| match p.target_name.as_deref() {
+                                Some("xlarge") => 1280,
+                                Some("large") => 640,
+                                Some("standard") => 300,
+                                Some("small") => 64,
+                                _ => 100,
+                            }) {
                                 if let Some(u) = ps.url.as_ref() {
                                     artwork_url = u.clone();
+                                }
+                            }
+                        }
+                        // Check picture bytes
+                        if artwork_url.is_empty() {
+                            if let Some(pic_bytes) = attrs.picture.as_ref() {
+                                if !pic_bytes.is_empty() {
+                                    let hex: String = pic_bytes.iter().map(|b| format!("{b:02x}")).collect();
+                                    artwork_url = format!("https://i.scdn.co/image/{hex}");
                                 }
                             }
                         }

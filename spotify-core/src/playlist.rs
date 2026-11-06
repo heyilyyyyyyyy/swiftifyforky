@@ -82,16 +82,22 @@ async fn item_uris_and_cover(session: &Session, id: &SpotifyId) -> Result<(Vec<S
 
         if cover_url.is_empty() {
             if let Some(attrs) = list.attributes.as_ref() {
-                if let Some(pic_bytes) = attrs.picture.as_ref() {
-                    if !pic_bytes.is_empty() {
-                        let hex: String = pic_bytes.iter().map(|b| format!("{b:02x}")).collect();
-                        cover_url = format!("https://i.scdn.co/image/{hex}");
+                if let Some(ps) = attrs.picture_size.iter().max_by_key(|p| match p.target_name.as_deref() {
+                    Some("xlarge") => 1280,
+                    Some("large") => 640,
+                    Some("standard") => 300,
+                    Some("small") => 64,
+                    _ => 100,
+                }) {
+                    if let Some(u) = ps.url.as_ref() {
+                        cover_url = u.clone();
                     }
                 }
                 if cover_url.is_empty() {
-                    if let Some(ps) = attrs.picture_size.first() {
-                        if let Some(u) = ps.url.as_ref() {
-                            cover_url = u.clone();
+                    if let Some(pic_bytes) = attrs.picture.as_ref() {
+                        if !pic_bytes.is_empty() {
+                            let hex: String = pic_bytes.iter().map(|b| format!("{b:02x}")).collect();
+                            cover_url = format!("https://i.scdn.co/image/{hex}");
                         }
                     }
                 }
@@ -303,12 +309,14 @@ impl AlbumPayload {
             Some(group) if !group.image.is_empty() => &group.image,
             _ => &album.cover,
         };
+        let mut images: Vec<ImagePayload> = covers.iter().filter_map(ImagePayload::new).collect();
+        images.sort_by_key(|img| std::cmp::Reverse(img.width));
         Some(Self {
             id: uri.to_id().ok()?,
             uri: uri.to_uri().ok()?,
             name: album.name().to_owned(),
             artists: album.artist.iter().filter_map(ArtistPayload::new).collect(),
-            images: covers.iter().filter_map(ImagePayload::new).collect(),
+            images,
         })
     }
 }

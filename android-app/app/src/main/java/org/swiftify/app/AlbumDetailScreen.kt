@@ -85,7 +85,7 @@ fun AlbumDetailScreen(
                             val albObj = t.optJSONObject("album")
                             val itemArt = if (artworkUrl.isNotEmpty()) artworkUrl else {
                                 val imgs = albObj?.optJSONArray("images")
-                                if (imgs != null && imgs.length() > 0) imgs.getJSONObject(0).optString("url") else ""
+                                getBestArtworkUrl(imgs)
                             }
                             val artArr = t.optJSONArray("artists")
                             val artNames = if (artArr != null && artArr.length() > 0) {
@@ -363,7 +363,7 @@ fun AlbumDetailScreen(
         }
 
         item {
-            Spacer(modifier = Modifier.height(100.dp))
+            Spacer(modifier = Modifier.height(130.dp))
         }
     }
 }

@@ -72,7 +72,16 @@ pub async fn artist_top_tracks_json(session: &Session, artist_uri: &str) -> Resu
         Some(group) if !group.image.is_empty() => &group.image,
         _ => &artist.portrait,
     };
-    if let Some(img) = portraits.first() {
+    let best_img = portraits.iter().max_by_key(|img| {
+        let size_score = match img.size() {
+            librespot::protocol::metadata::image::Size::XLARGE => 1280,
+            librespot::protocol::metadata::image::Size::LARGE => 640,
+            librespot::protocol::metadata::image::Size::DEFAULT => 300,
+            librespot::protocol::metadata::image::Size::SMALL => 64,
+        };
+        img.width().max(size_score)
+    });
+    if let Some(img) = best_img {
         let file_id = img.file_id();
         if !file_id.is_empty() {
             let hex: String = file_id.iter().map(|b| format!("{b:02x}")).collect();

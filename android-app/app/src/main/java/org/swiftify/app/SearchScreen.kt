@@ -113,9 +113,7 @@ fun SearchScreen(
                                 val albumObj = item.optJSONObject("album")
                                 val albumName = albumObj?.optString("name") ?: ""
                                 val images = albumObj?.optJSONArray("images")
-                                val artUrl = if (images != null && images.length() > 0) {
-                                    images.getJSONObject(0).optString("url")
-                                } else ""
+                                val artUrl = getBestArtworkUrl(images)
                                 val artistsArr = item.optJSONArray("artists")
                                 val artistName = if (artistsArr != null && artistsArr.length() > 0) {
                                     (0 until artistsArr.length()).joinToString(", ") { j ->

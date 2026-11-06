@@ -87,9 +87,7 @@ fun ArtistDetailScreen(
                     val albumObj = t.optJSONObject("album")
                     val albumName = albumObj?.optString("name") ?: ""
                     val images = albumObj?.optJSONArray("images")
-                    val artworkUrl = if (images != null && images.length() > 0) {
-                        images.getJSONObject(0).optString("url")
-                    } else artistAvatar
+                    val artworkUrl = getBestArtworkUrl(images).ifEmpty { artistAvatar }
 
                     val artistsArr = t.optJSONArray("artists")
                     val artistNames = if (artistsArr != null && artistsArr.length() > 0) {

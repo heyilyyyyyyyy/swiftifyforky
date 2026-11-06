@@ -71,9 +71,7 @@ fun PlaylistDetailScreen(
                                     val albumObj = item.optJSONObject("album")
                                     val albumName = albumObj?.optString("name") ?: ""
                                     val images = albumObj?.optJSONArray("images")
-                                    val artUrl = if (images != null && images.length() > 0) {
-                                        images.getJSONObject(0).optString("url")
-                                    } else ""
+                                    val artUrl = getBestArtworkUrl(images)
                                     val artistsArr = item.optJSONArray("artists")
                                     val artistName = if (artistsArr != null && artistsArr.length() > 0) {
                                         artistsArr.getJSONObject(0).optString("name")
@@ -102,7 +100,7 @@ fun PlaylistDetailScreen(
                                 val trackObj = firstItem?.optJSONObject("item") ?: firstItem
                                 val alb = trackObj?.optJSONObject("album")
                                 val imgs = alb?.optJSONArray("images")
-                                if (imgs != null && imgs.length() > 0) imgs.getJSONObject(0).optString("url") else ""
+                                getBestArtworkUrl(imgs)
                             } else ""
 
                             val finalFoundCover = if (resolvedCover.isNotEmpty()) resolvedCover else fallbackCoverFromFirstTrack
@@ -120,9 +118,7 @@ fun PlaylistDetailScreen(
                                     val albumObj = item.optJSONObject("album")
                                     val albumName = albumObj?.optString("name") ?: ""
                                     val images = albumObj?.optJSONArray("images")
-                                    val artUrl = if (images != null && images.length() > 0) {
-                                        images.getJSONObject(0).optString("url")
-                                    } else ""
+                                    val artUrl = getBestArtworkUrl(images)
                                     val artistsArr = item.optJSONArray("artists")
                                     val artistName = if (artistsArr != null && artistsArr.length() > 0) {
                                         artistsArr.getJSONObject(0).optString("name")
@@ -400,8 +396,7 @@ fun PlaylistDetailScreen(
                             fontSize = 15.sp,
                             fontWeight = FontWeight.SemiBold,
                             maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                            modifier = Modifier.clickable { onTrackTitleClick?.invoke(track) }
+                            overflow = TextOverflow.Ellipsis
                         )
                         Text(
                             text = track.artist,
