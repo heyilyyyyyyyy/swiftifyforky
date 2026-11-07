@@ -32,6 +32,26 @@ import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import org.json.JSONObject
 import kotlinx.coroutines.launch
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.text.TextStyle
+import android.content.Intent
+import android.content.ClipboardManager
+import android.content.ClipData
+
+enum class PlaylistSortMode(val label: String) {
+    DEFAULT("Default order"),
+    TITLE("Title (A-Z)"),
+    ARTIST("Artist (A-Z)"),
+    DURATION("Duration")
+}
+
+fun formatPlaylistDuration(ms: Long): String {
+    val totalSeconds = ms / 1000L
+    val hours = totalSeconds / 3600L
+    val minutes = (totalSeconds % 3600L) / 60L
+    return if (hours > 0) "${hours} hr ${minutes} min" else "${minutes} min"
+}
 
 @Composable
 fun PlaylistDetailScreen(
@@ -184,9 +204,32 @@ fun PlaylistDetailScreen(
         }
     }
 
-    val displayTracks = remember(isShuffle, playlistTracks.size) {
-        val base = playlistTracks.toList()
-        if (isShuffle) base.shuffled() else base
+    var searchQuery by remember { mutableStateOf("") }
+    var sortMode by remember { mutableStateOf(PlaylistSortMode.DEFAULT) }
+    var isSortMenuOpen by remember { mutableStateOf(false) }
+    var isMoreMenuOpen by remember { mutableStateOf(false) }
+
+    val totalDurationMs = remember(playlistTracks.size) {
+        playlistTracks.sumOf { it.durationMs }
+    }
+
+    val displayTracks = remember(isShuffle, playlistTracks.size, sortMode, searchQuery) {
+        var list = playlistTracks.toList()
+        if (searchQuery.isNotBlank()) {
+            val q = searchQuery.trim()
+            list = list.filter {
+                it.title.contains(q, ignoreCase = true) ||
+                it.artist.contains(q, ignoreCase = true) ||
+                it.album.contains(q, ignoreCase = true)
+            }
+        }
+        when (sortMode) {
+            PlaylistSortMode.TITLE -> list = list.sortedBy { it.title.lowercase() }
+            PlaylistSortMode.ARTIST -> list = list.sortedBy { it.artist.lowercase() }
+            PlaylistSortMode.DURATION -> list = list.sortedBy { it.durationMs }
+            PlaylistSortMode.DEFAULT -> {}
+        }
+        if (isShuffle) list.shuffled() else list
     }
 
     Column(
@@ -194,32 +237,176 @@ fun PlaylistDetailScreen(
             .fillMaxSize()
             .background(Color(0xFF13100E))
     ) {
-        // Top Bar
+        // Top Bar matching Swiftify Desktop:
+        // [ StyledBackButton ] [ 🔍 Find in Playlist (Search Pill) ] [ Share ] [ Sort ] [ More ]
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 12.dp),
+                .padding(horizontal = 14.dp, vertical = 10.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            IconButton(
-                onClick = onBack,
+            StyledBackButton(onBack = onBack)
+
+            Spacer(modifier = Modifier.width(10.dp))
+
+            // Search pill: "Find in Playlist"
+            Box(
                 modifier = Modifier
-                    .size(38.dp)
-                    .clip(CircleShape)
+                    .weight(1f)
+                    .height(38.dp)
+                    .clip(RoundedCornerShape(19.dp))
                     .background(Color(0xFF221C1A))
+                    .padding(horizontal = 12.dp),
+                contentAlignment = Alignment.CenterStart
             ) {
-                Text("←", color = Color.White, fontSize = 20.sp)
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector = Icons.Rounded.Search,
+                        contentDescription = "Search",
+                        tint = Color(0xFF8E847E),
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Box(modifier = Modifier.weight(1f)) {
+                        if (searchQuery.isEmpty()) {
+                            Text(
+                                text = "Find in Playlist",
+                                color = Color(0xFF8E847E),
+                                fontSize = 13.sp
+                            )
+                        }
+                        BasicTextField(
+                            value = searchQuery,
+                            onValueChange = { searchQuery = it },
+                            textStyle = TextStyle(color = Color.White, fontSize = 13.sp),
+                            singleLine = true,
+                            cursorBrush = SolidColor(Color(0xFFF2A385)),
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
+                    if (searchQuery.isNotEmpty()) {
+                        IconButton(
+                            onClick = { searchQuery = "" },
+                            modifier = Modifier.size(24.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Rounded.Close,
+                                contentDescription = "Clear",
+                                tint = Color(0xFFA59B94),
+                                modifier = Modifier.size(16.dp)
+                            )
+                        }
+                    }
+                }
             }
-            Spacer(modifier = Modifier.width(12.dp))
-            Text(
-                text = playlist.name,
-                color = Color.White,
-                fontSize = 18.sp,
-                fontWeight = FontWeight.Bold,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.weight(1f)
-            )
+
+            Spacer(modifier = Modifier.width(6.dp))
+
+            // Share Action
+            IconButton(
+                onClick = {
+                    val cleanId = playlist.uri.removePrefix("spotify:playlist:").removePrefix("spotify:user:").trim()
+                    val shareUrl = if (playlist.uri.startsWith("spotify:playlist:")) {
+                        "https://open.spotify.com/playlist/$cleanId"
+                    } else {
+                        "https://open.spotify.com"
+                    }
+                    val sendIntent = Intent().apply {
+                        action = Intent.ACTION_SEND
+                        putExtra(Intent.EXTRA_TEXT, "Listen to ${playlist.name} on Spotify: $shareUrl")
+                        type = "text/plain"
+                    }
+                    context.startActivity(Intent.createChooser(sendIntent, "Share Playlist"))
+                },
+                modifier = Modifier.size(36.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Rounded.Share,
+                    contentDescription = "Share",
+                    tint = Color(0xFFD6CBC5),
+                    modifier = Modifier.size(20.dp)
+                )
+            }
+
+            // Sort Menu Action
+            Box {
+                IconButton(
+                    onClick = { isSortMenuOpen = true },
+                    modifier = Modifier.size(36.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Rounded.Sort,
+                        contentDescription = "Sort",
+                        tint = if (sortMode != PlaylistSortMode.DEFAULT) Color(0xFFF2A385) else Color(0xFFD6CBC5),
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
+
+                DropdownMenu(
+                    expanded = isSortMenuOpen,
+                    onDismissRequest = { isSortMenuOpen = false },
+                    modifier = Modifier.background(Color(0xFF221C1A))
+                ) {
+                    PlaylistSortMode.values().forEach { mode ->
+                        DropdownMenuItem(
+                            text = {
+                                Text(
+                                    text = mode.label,
+                                    color = if (sortMode == mode) Color(0xFFF2A385) else Color.White,
+                                    fontSize = 13.sp,
+                                    fontWeight = if (sortMode == mode) FontWeight.Bold else FontWeight.Normal
+                                )
+                            },
+                            onClick = {
+                                sortMode = mode
+                                isSortMenuOpen = false
+                            }
+                        )
+                    }
+                }
+            }
+
+            // More Options Action
+            Box {
+                IconButton(
+                    onClick = { isMoreMenuOpen = true },
+                    modifier = Modifier.size(36.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Rounded.MoreVert,
+                        contentDescription = "More",
+                        tint = Color(0xFFD6CBC5),
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
+
+                DropdownMenu(
+                    expanded = isMoreMenuOpen,
+                    onDismissRequest = { isMoreMenuOpen = false },
+                    modifier = Modifier.background(Color(0xFF221C1A))
+                ) {
+                    DropdownMenuItem(
+                        text = { Text("Copy Spotify URI", color = Color.White, fontSize = 13.sp) },
+                        onClick = {
+                            isMoreMenuOpen = false
+                            val cm = context.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as? ClipboardManager
+                            val clip = ClipData.newPlainText("Spotify URI", playlist.uri)
+                            cm?.setPrimaryClip(clip)
+                            Toast.makeText(context, "Copied Spotify URI", Toast.LENGTH_SHORT).show()
+                        }
+                    )
+                    DropdownMenuItem(
+                        text = { Text("Refresh Playlist", color = Color.White, fontSize = 13.sp) },
+                        onClick = {
+                            isMoreMenuOpen = false
+                            reloadTrigger++
+                        }
+                    )
+                }
+            }
         }
 
         LazyColumn(
@@ -228,17 +415,17 @@ fun PlaylistDetailScreen(
                 .padding(horizontal = 16.dp),
             contentPadding = PaddingValues(bottom = 110.dp)
         ) {
-            // Header
+            // Header matching Swiftify Desktop
             item {
                 Column(
-                    modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp),
+                    modifier = Modifier.fillMaxWidth().padding(top = 8.dp, bottom = 16.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     Box(
                         modifier = Modifier
-                            .size(200.dp)
-                            .shadow(20.dp, RoundedCornerShape(24.dp), spotColor = Color(0x66F2A385))
-                            .clip(RoundedCornerShape(24.dp))
+                            .size(190.dp)
+                            .shadow(24.dp, RoundedCornerShape(26.dp), spotColor = Color(0x66F2A385))
+                            .clip(RoundedCornerShape(26.dp))
                             .background(Color(0xFF201B19)),
                         contentAlignment = Alignment.Center
                     ) {
@@ -260,86 +447,91 @@ fun PlaylistDetailScreen(
                         }
                     }
 
-                    Spacer(modifier = Modifier.height(18.dp))
+                    Spacer(modifier = Modifier.height(14.dp))
+
+                    // Pill Badge: ≡ PLAYLIST
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(Color(0x33F2A385))
+                            .padding(horizontal = 10.dp, vertical = 4.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = Icons.Rounded.QueueMusic,
+                                contentDescription = null,
+                                tint = Color(0xFFF2A385),
+                                modifier = Modifier.size(13.dp)
+                            )
+                            Spacer(modifier = Modifier.width(5.dp))
+                            Text(
+                                text = "PLAYLIST",
+                                color = Color(0xFFF2A385),
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Bold,
+                                letterSpacing = 1.sp
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(8.dp))
 
                     Text(
                         text = playlist.name,
                         color = Color.White,
                         fontSize = 24.sp,
                         fontWeight = FontWeight.Bold,
-                        maxLines = 2
+                        maxLines = 2,
+                        textAlign = TextAlign.Center
                     )
 
-                    Spacer(modifier = Modifier.height(4.dp))
+                    Spacer(modifier = Modifier.height(6.dp))
+
+                    val ownerName = playlist.owner.ifEmpty { playlist.subtitle.ifEmpty { "Swiftify" } }
+                    val durationStr = formatPlaylistDuration(totalDurationMs)
+                    val factsStr = "$ownerName  •  ${playlistTracks.size} songs  •  $durationStr"
 
                     Text(
-                        text = if (playlistTracks.isNotEmpty()) "${playlist.subtitle} • ${playlistTracks.size} tracks" else playlist.subtitle.ifEmpty { "Swiftify Collection" },
+                        text = factsStr,
                         color = Color(0xFF9E948E),
-                        fontSize = 14.sp
+                        fontSize = 13.sp,
+                        textAlign = TextAlign.Center
                     )
 
-                    Spacer(modifier = Modifier.height(16.dp))
+                    Spacer(modifier = Modifier.height(18.dp))
 
-                    // Action Controls
+                    // Wavy Scalloped Play & Shuffle Buttons (Swiftify Desktop Style, No Heart Icon)
                     Row(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
+                        horizontalArrangement = Arrangement.Center,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            // Play All Pill
-                            Button(
-                                onClick = { onPlayAll(displayTracks) },
-                                colors = ButtonDefaults.buttonColors(
-                                    containerColor = Color(0xFFF2A385),
-                                    contentColor = Color(0xFF13100E)
-                                ),
-                                shape = RoundedCornerShape(24.dp),
-                                contentPadding = PaddingValues(horizontal = 20.dp, vertical = 10.dp)
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Rounded.PlayArrow,
-                                    contentDescription = null,
-                                    modifier = Modifier.size(20.dp)
-                                )
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Text("Play All", fontWeight = FontWeight.Bold, fontSize = 15.sp)
-                            }
-                            Spacer(modifier = Modifier.width(10.dp))
-                            // Shuffle Toggle
-                            IconButton(
-                                onClick = { isShuffle = !isShuffle },
-                                modifier = Modifier
-                                    .size(44.dp)
-                                    .clip(CircleShape)
-                                    .background(if (isShuffle) Color(0x33F2A385) else Color(0xFF221C1A))
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Rounded.Shuffle,
-                                    contentDescription = "Shuffle",
-                                    tint = if (isShuffle) Color(0xFFF2A385) else Color(0x88FFFFFF),
-                                    modifier = Modifier.size(22.dp)
-                                )
-                            }
-                        }
+                        WavyPillButton(
+                            text = "Play",
+                            icon = Icons.Rounded.PlayArrow,
+                            backgroundColor = Color(0xFFF2A385),
+                            contentColor = Color(0xFF13100E),
+                            enabled = displayTracks.isNotEmpty(),
+                            onClick = { onPlayAll(displayTracks) }
+                        )
 
-                        IconButton(
-                            onClick = {},
-                            modifier = Modifier
-                                .size(44.dp)
-                                .clip(CircleShape)
-                                .background(Color(0xFF221C1A))
-                        ) {
-                            Icon(
-                                imageVector = Icons.Rounded.FavoriteBorder,
-                                contentDescription = "Favorite",
-                                tint = Color(0xFFF2A385),
-                                modifier = Modifier.size(22.dp)
-                            )
-                        }
+                        Spacer(modifier = Modifier.width(14.dp))
+
+                        WavyPillButton(
+                            text = "Shuffle",
+                            icon = Icons.Rounded.Shuffle,
+                            backgroundColor = Color(0xFF332722),
+                            contentColor = Color(0xFFF2A385),
+                            enabled = displayTracks.isNotEmpty(),
+                            onClick = {
+                                isShuffle = true
+                                onPlayAll(displayTracks.shuffled())
+                            }
+                        )
                     }
 
-                    Spacer(modifier = Modifier.height(16.dp))
+                    Spacer(modifier = Modifier.height(18.dp))
 
                     WavyLine(
                         modifier = Modifier.fillMaxWidth(),
@@ -401,7 +593,7 @@ fun PlaylistDetailScreen(
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
-                            text = "This playlist is empty",
+                            text = if (searchQuery.isNotBlank()) "No results found for “$searchQuery”" else "This playlist is empty",
                             color = Color(0xFF8A807A),
                             fontSize = 14.sp,
                             textAlign = TextAlign.Center

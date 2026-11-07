@@ -1002,6 +1002,7 @@ fun SwiftifyApp(
     var activePlaylist by remember { mutableStateOf<PlaylistItem?>(null) }
     var activeArtist by remember { mutableStateOf<ArtistItem?>(null) }
     var showAllPlaylists by remember { mutableStateOf(false) }
+    var openedFromAllPlaylists by remember { mutableStateOf(false) }
     var activeAlbumUri by remember { mutableStateOf<String?>(null) }
     var activeAlbumTitle by remember { mutableStateOf("Album") }
     var activeAlbumArtwork by remember { mutableStateOf("") }
@@ -1080,10 +1081,14 @@ val openArtistScreen: (String, String) -> Unit = { artName, artUri ->
             activeAlbumUri = null
         } else if (activePlaylist != null) {
             activePlaylist = null
+            if (!openedFromAllPlaylists) {
+                showAllPlaylists = false
+            }
         } else if (activeArtist != null) {
             activeArtist = null
         } else if (showAllPlaylists) {
             showAllPlaylists = false
+            openedFromAllPlaylists = false
         }
     }
 
@@ -1227,6 +1232,7 @@ val openArtistScreen: (String, String) -> Unit = { artName, artUri ->
                                         activeArtist = null
                                         activeAlbumUri = null
                                         showAllPlaylists = false
+                                        openedFromAllPlaylists = false
                                     }
                                 )
                                 CompactNavItem(
@@ -1239,6 +1245,7 @@ val openArtistScreen: (String, String) -> Unit = { artName, artUri ->
                                         activeArtist = null
                                         activeAlbumUri = null
                                         showAllPlaylists = false
+                                        openedFromAllPlaylists = false
                                     }
                                 )
                                 CompactNavItem(
@@ -1251,6 +1258,7 @@ val openArtistScreen: (String, String) -> Unit = { artName, artUri ->
                                         activeArtist = null
                                         activeAlbumUri = null
                                         showAllPlaylists = false
+                                        openedFromAllPlaylists = false
                                     }
                                 )
                             }
@@ -1261,16 +1269,7 @@ val openArtistScreen: (String, String) -> Unit = { artName, artUri ->
             }
         ) { padding ->
             Box(modifier = Modifier.fillMaxSize().padding(top = padding.calculateTopPadding())) {
-                if (showAllPlaylists) {
-                    AllPlaylistsScreen(
-                        playlists = if (userPlaylists.isNotEmpty()) userPlaylists else samplePlaylists,
-                        onBack = { showAllPlaylists = false },
-                        onPlaylistClick = {
-                            showAllPlaylists = false
-                            activePlaylist = it
-                        }
-                    )
-                } else if (activeArtist != null) {
+                if (activeArtist != null) {
                     ArtistDetailScreen(
                         artist = activeArtist!!,
                         livePlayingTrack = livePlayingTrack,
@@ -1319,7 +1318,12 @@ val openArtistScreen: (String, String) -> Unit = { artName, artUri ->
                         tracks = tracks,
                         livePlayingTrack = livePlayingTrack,
                         isPlaying = isPlaying,
-                        onBack = { activePlaylist = null },
+                        onBack = {
+                            activePlaylist = null
+                            if (!openedFromAllPlaylists) {
+                                showAllPlaylists = false
+                            }
+                        },
                         onTrackSelect = { selectedTrack, playlistTracks ->
                             onTrackSelect(selectedTrack, playlistTracks)
                         },
@@ -1331,6 +1335,18 @@ val openArtistScreen: (String, String) -> Unit = { artName, artUri ->
                         onAddToQueue = onAddToQueue,
                         onTrackTitleClick = { track -> openAlbumByTrack(track) },
                         onArtistClick = { artistName -> openArtistScreen(artistName, "") }
+                    )
+                } else if (showAllPlaylists) {
+                    AllPlaylistsScreen(
+                        playlists = if (userPlaylists.isNotEmpty()) userPlaylists else samplePlaylists,
+                        onBack = {
+                            showAllPlaylists = false
+                            openedFromAllPlaylists = false
+                        },
+                        onPlaylistClick = {
+                            openedFromAllPlaylists = true
+                            activePlaylist = it
+                        }
                     )
                 } else {
                     when (selectedTab) {

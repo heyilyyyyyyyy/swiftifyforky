@@ -40,15 +40,7 @@ fun AllPlaylistsScreen(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            IconButton(
-                onClick = onBack,
-                modifier = Modifier
-                    .size(42.dp)
-                    .clip(CircleShape)
-                    .background(Color(0xFF221C1A))
-            ) {
-                Text("←", color = Color(0xFFF5EFEA), fontSize = 20.sp, fontWeight = FontWeight.Bold)
-            }
+            StyledBackButton(onBack = onBack)
             Spacer(modifier = Modifier.width(14.dp))
             Text(
                 text = "Your Playlists",

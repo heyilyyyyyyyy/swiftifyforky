@@ -1,24 +1,33 @@
 package org.swiftify.app
 
 import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.layout.*
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material3.Icon
-import androidx.compose.runtime.Composable
+import androidx.compose.material3.Text
+import androidx.compose.runtime.*
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.*
 import androidx.compose.ui.graphics.drawscope.Fill
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import kotlin.math.*
 
@@ -319,6 +328,203 @@ fun ShapeBadge(
             contentDescription = null,
             tint = tint.copy(alpha = glyphAlpha),
             modifier = Modifier.size(iconSize)
+        )
+    }
+}
+
+/**
+ * Builds a wavy scalloped pill path matching Swiftify Desktop's `wavy_pill.frag`.
+ */
+fun buildWavyPillPath(
+    width: Float,
+    height: Float,
+    amplitude: Float = 2.5f,
+    wavelength: Float = 16f,
+    phase: Float = 0f
+): Path {
+    val path = Path()
+    val r = height / 2f
+    val straightW = (width - 2f * r).coerceAtLeast(0f)
+    val halfCircleArc = PI.toFloat() * r
+    val perimeter = 2f * straightW + 2f * halfCircleArc
+    if (perimeter <= 0f) return path
+
+    val scallops = maxOf(1f, kotlin.math.round(perimeter / maxOf(wavelength, 1f)))
+    val steps = 240
+    var first = true
+
+    for (i in 0..steps) {
+        val s = (i.toFloat() / steps) * perimeter
+        val wave = amplitude * sin(2f * PI.toFloat() * scallops * (s / perimeter) - phase)
+
+        val x: Float
+        val y: Float
+        val nx: Float
+        val ny: Float
+
+        when {
+            // Top straight edge (left to right)
+            s <= straightW -> {
+                x = r + s
+                y = 0f
+                nx = 0f
+                ny = -1f
+            }
+            // Right semi-circle (top to bottom)
+            s <= straightW + halfCircleArc -> {
+                val arcS = s - straightW
+                val angle = -PI.toFloat() / 2f + (arcS / r)
+                nx = cos(angle)
+                ny = sin(angle)
+                x = width - r + r * nx
+                y = r + r * ny
+            }
+            // Bottom straight edge (right to left)
+            s <= 2f * straightW + halfCircleArc -> {
+                val lineS = s - (straightW + halfCircleArc)
+                x = (width - r) - lineS
+                y = height
+                nx = 0f
+                ny = 1f
+            }
+            // Left semi-circle (bottom to top)
+            else -> {
+                val arcS = s - (2f * straightW + halfCircleArc)
+                val angle = PI.toFloat() / 2f + (arcS / r)
+                nx = cos(angle)
+                ny = sin(angle)
+                x = r + r * nx
+                y = r + r * ny
+            }
+        }
+
+        val px = x + nx * wave
+        val py = y + ny * wave
+
+        if (first) {
+            path.moveTo(px, py)
+            first = false
+        } else {
+            path.lineTo(px, py)
+        }
+    }
+    path.close()
+    return path
+}
+
+class WavyPillShape(
+    private val amplitudeDp: Float = 2.4f,
+    private val wavelengthDp: Float = 16f,
+    private val phase: Float = 0f
+) : Shape {
+    override fun createOutline(
+        size: Size,
+        layoutDirection: LayoutDirection,
+        density: Density
+    ): Outline {
+        val ampPx = with(density) { amplitudeDp.dp.toPx() }
+        val wavePx = with(density) { wavelengthDp.dp.toPx() }
+        val path = buildWavyPillPath(size.width, size.height, ampPx, wavePx, phase)
+        return Outline.Generic(path)
+    }
+}
+
+@Composable
+fun WavyPillButton(
+    text: String,
+    icon: ImageVector,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    backgroundColor: Color = Color(0xFFF2A385),
+    contentColor: Color = Color(0xFF13100E),
+    enabled: Boolean = true,
+    amplitudeDp: Float = 2.4f
+) {
+    var isPressed by remember { mutableStateOf(false) }
+    val scale by animateFloatAsState(
+        targetValue = if (isPressed) 0.90f else 1.0f,
+        animationSpec = spring(dampingRatio = 0.5f, stiffness = 400f),
+        label = "wavyButtonScale"
+    )
+
+    Box(
+        modifier = modifier
+            .scale(scale)
+            .pointerInput(enabled) {
+                if (enabled) {
+                    detectTapGestures(
+                        onPress = {
+                            isPressed = true
+                            tryAwaitRelease()
+                            isPressed = false
+                            onClick()
+                        }
+                    )
+                }
+            }
+            .clip(WavyPillShape(amplitudeDp = if (isPressed) amplitudeDp * 1.5f else amplitudeDp))
+            .background(if (enabled) backgroundColor else backgroundColor.copy(alpha = 0.4f))
+            .padding(horizontal = 20.dp, vertical = 11.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.Center
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                tint = if (enabled) contentColor else contentColor.copy(alpha = 0.5f),
+                modifier = Modifier.size(19.dp)
+            )
+            Spacer(modifier = Modifier.width(7.dp))
+            Text(
+                text = text,
+                color = if (enabled) contentColor else contentColor.copy(alpha = 0.5f),
+                fontSize = 15.sp,
+                fontWeight = FontWeight.Bold
+            )
+        }
+    }
+}
+
+@Composable
+fun StyledBackButton(
+    onBack: () -> Unit = {},
+    onClick: () -> Unit = onBack,
+    modifier: Modifier = Modifier
+) {
+    val actualClick = if (onBack != {}) onBack else onClick
+    var isPressed by remember { mutableStateOf(false) }
+    val scale by animateFloatAsState(
+        targetValue = if (isPressed) 0.88f else 1.0f,
+        animationSpec = spring(dampingRatio = 0.5f, stiffness = 400f),
+        label = "styledBackScale"
+    )
+
+    Box(
+        modifier = modifier
+            .size(38.dp)
+            .scale(scale)
+            .pointerInput(Unit) {
+                detectTapGestures(
+                    onPress = {
+                        isPressed = true
+                        tryAwaitRelease()
+                        isPressed = false
+                        actualClick()
+                    }
+                )
+            }
+            .clip(androidx.compose.foundation.shape.RoundedCornerShape(14.dp))
+            .background(Color(0xFF261F1C)),
+        contentAlignment = Alignment.Center
+    ) {
+        Icon(
+            imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
+            contentDescription = "Back",
+            tint = Color.White,
+            modifier = Modifier.size(20.dp)
         )
     }
 }

@@ -189,15 +189,7 @@ fun ArtistDetailScreen(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                IconButton(
-                    onClick = onBack,
-                    modifier = Modifier
-                        .size(42.dp)
-                        .clip(CircleShape)
-                        .background(Color(0xFF221C1A))
-                ) {
-                    Text("←", color = Color(0xFFF5EFEA), fontSize = 20.sp, fontWeight = FontWeight.Bold)
-                }
+                StyledBackButton(onBack = onBack)
                 Spacer(modifier = Modifier.width(12.dp))
                 Text(
                     text = "Artist",
@@ -255,30 +247,18 @@ fun ArtistDetailScreen(
 
                 Spacer(modifier = Modifier.height(18.dp))
 
-                Button(
+                WavyPillButton(
+                    text = "Play Top Songs",
+                    icon = Icons.Rounded.PlayArrow,
+                    backgroundColor = Color(0xFFF2A385),
+                    contentColor = Color(0xFF13100E),
+                    enabled = topTracks.isNotEmpty(),
                     onClick = {
                         if (topTracks.isNotEmpty()) {
                             onPlayAll(topTracks)
                         }
-                    },
-                    enabled = topTracks.isNotEmpty(),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = Color(0xFFF2A385),
-                        contentColor = Color(0xFF221612),
-                        disabledContainerColor = Color(0xFF382F2B),
-                        disabledContentColor = Color(0xFF6B605A)
-                    ),
-                    shape = RoundedCornerShape(24.dp),
-                    modifier = Modifier.fillMaxWidth(0.6f).height(48.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.Rounded.PlayArrow,
-                        contentDescription = null,
-                        modifier = Modifier.size(20.dp)
-                    )
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text("Play Top Songs", fontWeight = FontWeight.Bold, fontSize = 15.sp)
-                }
+                    }
+                )
             }
 
             Spacer(modifier = Modifier.height(28.dp))
