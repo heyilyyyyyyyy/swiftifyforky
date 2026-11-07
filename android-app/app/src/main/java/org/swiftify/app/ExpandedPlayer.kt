@@ -418,25 +418,11 @@ fun ExpandedPlayer(
                                     lastLineIdx = activeLineIdx
                                     rippleTrigger++
                                     if (isLineSynced) {
-                                        val visible = lyricsListState.layoutInfo.visibleItemsInfo.find { it.index == activeLineIdx }
-                                        if (visible != null) {
-                                            val vCenter = (lyricsListState.layoutInfo.viewportEndOffset - lyricsListState.layoutInfo.viewportStartOffset) / 2
-                                            val itemCenter = visible.offset + visible.size / 2
-                                            val delta = itemCenter - vCenter
-                                            if (abs(delta) > 2) {
-                                                lyricsListState.animateScrollBy(
-                                                    value = delta.toFloat(),
-                                                    animationSpec = tween(durationMillis = 400, easing = FastOutSlowInEasing)
-                                                )
-                                            }
-                                        } else {
-                                            val viewportHeight = (lyricsListState.layoutInfo.viewportEndOffset - lyricsListState.layoutInfo.viewportStartOffset)
-                                            val approxOffset = -(viewportHeight / 2 - 30)
-                                            lyricsListState.animateScrollToItem(
-                                                index = activeLineIdx,
-                                                scrollOffset = approxOffset
-                                            )
-                                        }
+                                        // Keep active line at the top, past lines scroll up and away
+                                        lyricsListState.animateScrollToItem(
+                                            index = activeLineIdx,
+                                            scrollOffset = 0
+                                        )
                                     }
                                 }
                             }
@@ -444,8 +430,6 @@ fun ExpandedPlayer(
                             BoxWithConstraints(
                                 modifier = Modifier.fillMaxSize()
                             ) {
-                                val halfHeight = maxHeight / 2
-
                                 LazyColumn(
                                     state = lyricsListState,
                                     modifier = Modifier
@@ -458,16 +442,16 @@ fun ExpandedPlayer(
                                             drawRect(
                                                 brush = Brush.verticalGradient(
                                                     0.0f to Color.Transparent,
-                                                    0.09f to Color.Black,
-                                                    0.91f to Color.Black,
+                                                    0.08f to Color.Black,
+                                                    0.92f to Color.Black,
                                                     1.0f to Color.Transparent
                                                 ),
                                                 blendMode = BlendMode.DstIn
                                             )
                                         },
                                     contentPadding = PaddingValues(
-                                        top = (halfHeight - 32.dp).coerceAtLeast(0.dp),
-                                        bottom = halfHeight
+                                        top = 24.dp,
+                                        bottom = (maxHeight - 64.dp).coerceAtLeast(120.dp)
                                     ),
                                     verticalArrangement = Arrangement.spacedBy(16.dp),
                                     horizontalAlignment = Alignment.CenterHorizontally
