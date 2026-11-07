@@ -5,6 +5,7 @@ import androidx.compose.foundation.gestures.Orientation
 import androidx.compose.foundation.gestures.draggable
 import androidx.compose.foundation.gestures.rememberDraggableState
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import android.widget.Toast
 import androidx.compose.ui.unit.IntOffset
 import kotlin.math.roundToInt
@@ -671,10 +672,13 @@ fun PlaylistDetailScreen(
                 ) { index, item ->
                 val track = item.track
                 val isCurrent = (livePlayingTrack != null && livePlayingTrack.uri == track.uri)
-                var offsetX by remember { mutableFloatStateOf(0f) }
-                val showSwipeHint by remember { derivedStateOf { offsetX > 10f } }
-                val swipeArmed by remember { derivedStateOf { offsetX > 110f } }
+                var dragDistance by remember(item.key) { mutableFloatStateOf(0f) }
+                var offsetX by remember(item.key) { mutableFloatStateOf(0f) }
+                val showSwipeHint by remember { derivedStateOf { offsetX > 15f } }
+                val swipeArmed by remember { derivedStateOf { offsetX > 100f } }
                 val isTrackSaved = savedTrackUris.value.contains(track.uri)
+                val density = LocalDensity.current
+                val swipeThresholdPx = remember(density) { with(density) { 28.dp.toPx() } }
 
                 Box(
                     modifier = Modifier.fillMaxWidth()
@@ -727,19 +731,27 @@ fun PlaylistDetailScreen(
                             .draggable(
                                 orientation = Orientation.Horizontal,
                                 state = rememberDraggableState { delta ->
-                                    offsetX = (offsetX + delta).coerceIn(0f, 240f)
+                                    dragDistance = (dragDistance + delta).coerceAtLeast(0f)
+                                    offsetX = if (dragDistance > swipeThresholdPx) {
+                                        (dragDistance - swipeThresholdPx).coerceIn(0f, 220f)
+                                    } else {
+                                        0f
+                                    }
                                 },
                                 onDragStopped = {
                                     if (swipeArmed) {
                                         onAddToQueue?.invoke(track)
                                         Toast.makeText(context, "Added '${track.title}' to queue", Toast.LENGTH_SHORT).show()
                                     }
+                                    dragDistance = 0f
                                     coroutineScope.launch {
-                                        animate(
-                                            initialValue = offsetX,
-                                            targetValue = 0f,
-                                            animationSpec = spring(dampingRatio = 0.7f, stiffness = 600f)
-                                        ) { value, _ -> offsetX = value }
+                                        if (offsetX > 0f) {
+                                            animate(
+                                                initialValue = offsetX,
+                                                targetValue = 0f,
+                                                animationSpec = spring(dampingRatio = 0.8f, stiffness = 800f)
+                                            ) { value, _ -> offsetX = value }
+                                        }
                                     }
                                 }
                             )
@@ -805,11 +817,10 @@ fun PlaylistDetailScreen(
 
                     // Star button (Save / Liked Track)
                     Box(
-                        modifier = Modifier.size(36.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        IconButton(
-                            onClick = {
+                        modifier = Modifier
+                            .size(36.dp)
+                            .clip(CircleShape)
+                            .clickable {
                                 val next = !isTrackSaved
                                 savedTrackUris.value = if (next) {
                                     savedTrackUris.value + track.uri
@@ -828,34 +839,31 @@ fun PlaylistDetailScreen(
                                     }
                                 }
                             },
-                            modifier = Modifier.size(36.dp)
-                        ) {
-                            Icon(
-                                imageVector = if (isTrackSaved) Icons.Rounded.Star else Icons.Rounded.StarBorder,
-                                contentDescription = "Save",
-                                tint = if (isTrackSaved) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.size(18.dp)
-                            )
-                        }
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = if (isTrackSaved) Icons.Rounded.Star else Icons.Rounded.StarBorder,
+                            contentDescription = "Save",
+                            tint = if (isTrackSaved) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(20.dp)
+                        )
                     }
 
                     // Track more options dropdown
+                    var isTrackMenuOpen by remember { mutableStateOf(false) }
                     Box(
-                        modifier = Modifier.size(36.dp),
+                        modifier = Modifier
+                            .size(36.dp)
+                            .clip(CircleShape)
+                            .clickable { isTrackMenuOpen = true },
                         contentAlignment = Alignment.Center
                     ) {
-                        var isTrackMenuOpen by remember { mutableStateOf(false) }
-                        IconButton(
-                            onClick = { isTrackMenuOpen = true },
-                            modifier = Modifier.size(36.dp)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Rounded.MoreVert,
-                                contentDescription = "Track options",
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.size(20.dp)
-                            )
-                        }
+                        Icon(
+                            imageVector = Icons.Rounded.MoreVert,
+                            contentDescription = "Track options",
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(20.dp)
+                        )
 
                         DropdownMenu(
                             expanded = isTrackMenuOpen,

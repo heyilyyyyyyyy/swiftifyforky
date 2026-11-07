@@ -27,6 +27,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -283,13 +284,16 @@ fun AlbumDetailScreen(
             ) { idx, indexed ->
                 val track = indexed.track
                 val isCurrent = livePlayingTrack?.uri == track.uri
-                var offsetX by remember { mutableFloatStateOf(0f) }
-                val swipeArmed by remember { derivedStateOf { offsetX > 110f } }
+                var dragDistance by remember(indexed.key) { mutableFloatStateOf(0f) }
+                var offsetX by remember(indexed.key) { mutableFloatStateOf(0f) }
+                val swipeArmed by remember { derivedStateOf { offsetX > 100f } }
+                val density = LocalDensity.current
+                val swipeThresholdPx = remember(density) { with(density) { 28.dp.toPx() } }
 
                 Box(
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    if (offsetX > 10f) {
+                    if (offsetX > 15f) {
                         Row(
                             modifier = Modifier
                                 .matchParentSize()
@@ -323,7 +327,7 @@ fun AlbumDetailScreen(
                             .background(
                                 when {
                                     isCurrent -> MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)
-                                    offsetX > 10f -> MaterialTheme.colorScheme.background
+                                    offsetX > 15f -> MaterialTheme.colorScheme.background
                                     else -> Color.Transparent
                                 }
                             )
@@ -335,19 +339,27 @@ fun AlbumDetailScreen(
                             .draggable(
                                 orientation = Orientation.Horizontal,
                                 state = rememberDraggableState { delta ->
-                                    offsetX = (offsetX + delta).coerceIn(0f, 240f)
+                                    dragDistance = (dragDistance + delta).coerceAtLeast(0f)
+                                    offsetX = if (dragDistance > swipeThresholdPx) {
+                                        (dragDistance - swipeThresholdPx).coerceIn(0f, 220f)
+                                    } else {
+                                        0f
+                                    }
                                 },
                                 onDragStopped = {
                                     if (swipeArmed) {
                                         onAddToQueue?.invoke(track)
                                         Toast.makeText(context, "Added '${track.title}' to queue", Toast.LENGTH_SHORT).show()
                                     }
+                                    dragDistance = 0f
                                     coroutineScope.launch {
-                                        animate(
-                                            initialValue = offsetX,
-                                            targetValue = 0f,
-                                            animationSpec = spring(dampingRatio = 0.7f, stiffness = 600f)
-                                        ) { value, _ -> offsetX = value }
+                                        if (offsetX > 0f) {
+                                            animate(
+                                                initialValue = offsetX,
+                                                targetValue = 0f,
+                                                animationSpec = spring(dampingRatio = 0.8f, stiffness = 800f)
+                                            ) { value, _ -> offsetX = value }
+                                        }
                                     }
                                 }
                             )
