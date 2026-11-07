@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Swiftify</string>
+    <string name="nav_home">Home</string>
+    <string name="nav_search">Search</string>
+    <string name="nav_settings">Settings</string>
+
+    <string name="good_morning">Good morning.</string>
+    <string name="good_afternoon">Good afternoon.</string>
+    <string name="good_evening">Good evening.</string>
+    <string name="up_late">Up late...</string>
+
+    <string name="fav_songs">Favourite Songs</string>
+    <string name="your_playlists">Your Playlists</string>
+    <string name="recently_played">Recently Played</string>
+    <string name="artists_in_rotation">Artists in Your Rotation</string>
+
+    <string name="play_all">Play All</string>
+    <string name="resume">Resume</string>
+    <string name="see_all">See All</string>
+
+    <string name="search_placeholder">Artists, songs, or playlists...</string>
+    <string name="search_category_all">All</string>
+    <string name="search_category_songs">Songs</string>
+    <string name="search_category_artists">Artists</string>
+    <string name="search_category_playlists">Playlists</string>
+
+    <string name="settings_title">Settings</string>
+    <string name="settings_audio_quality">AUDIO QUALITY</string>
+    <string name="settings_playback_networking">PLAYBACK &amp; NETWORKING</string>
+    <string name="settings_storage_cache">STORAGE &amp; CACHE</string>
+
+    <string name="connect_spotify">Connect Spotify</string>
+    <string name="spotify_premium_required">Spotify Premium required for full playback</string>
+    <string name="login_with_spotify">Log in with Spotify</string>
+</resources>

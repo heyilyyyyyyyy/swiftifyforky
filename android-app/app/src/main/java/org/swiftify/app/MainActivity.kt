@@ -30,6 +30,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.draw.shadow
@@ -1214,7 +1215,7 @@ val openArtistScreen: (String, String) -> Unit = { artName, artUri ->
                             ) {
                                 CompactNavItem(
                                     icon = Icons.Rounded.Home,
-                                    label = "Home",
+                                    label = stringResource(R.string.nav_home),
                                     selected = selectedTab == 0 && activePlaylist == null && activeArtist == null && activeAlbumUri == null && !showAllPlaylists,
                                     onClick = {
                                         selectedTab = 0
@@ -1226,7 +1227,7 @@ val openArtistScreen: (String, String) -> Unit = { artName, artUri ->
                                 )
                                 CompactNavItem(
                                     icon = Icons.Rounded.Search,
-                                    label = "Search",
+                                    label = stringResource(R.string.nav_search),
                                     selected = selectedTab == 1 && activePlaylist == null && activeArtist == null && activeAlbumUri == null && !showAllPlaylists,
                                     onClick = {
                                         selectedTab = 1
@@ -1238,7 +1239,7 @@ val openArtistScreen: (String, String) -> Unit = { artName, artUri ->
                                 )
                                 CompactNavItem(
                                     icon = Icons.Rounded.Settings,
-                                    label = "Settings",
+                                    label = stringResource(R.string.nav_settings),
                                     selected = selectedTab == 2 && activePlaylist == null && activeArtist == null && activeAlbumUri == null && !showAllPlaylists,
                                     onClick = {
                                         selectedTab = 2
@@ -1543,7 +1544,12 @@ fun HomeScreen(
         hour < 21 -> 2
         else -> 3
     }
-    val greetingText = listOf("Good morning.", "Good afternoon.", "Good evening.", "Up late...")[part]
+    val greetingText = listOf(
+        stringResource(R.string.good_morning),
+        stringResource(R.string.good_afternoon),
+        stringResource(R.string.good_evening),
+        stringResource(R.string.up_late)
+    )[part]
     val greetingShape = listOf("sunny", "softBurst", "flower", "ghostish")[part]
     val greetingIcon = when (part) {
         0 -> Icons.Rounded.WbSunny
@@ -1730,7 +1736,7 @@ fun HomeScreen(
                                     )
                                     Spacer(modifier = Modifier.width(6.dp))
                                     Text(
-                                        text = if (isPlaying) "Pause" else "Resume",
+                                        text = if (isPlaying) "Pause" else stringResource(R.string.resume),
                                         color = heroPalette.onAccent,
                                         fontSize = 13.sp,
                                         fontWeight = FontWeight.Bold
@@ -1784,7 +1790,7 @@ fun HomeScreen(
                     )
                     Spacer(modifier = Modifier.width(10.dp))
                     Column(modifier = Modifier.weight(1f)) {
-                        Text("Favourite Songs", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold, maxLines = 1)
+                        Text(stringResource(R.string.fav_songs), color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold, maxLines = 1)
                         Text("Favourited: 3495", color = Color(0xFF9E948E), fontSize = 11.sp, maxLines = 1)
                     }
                     Text("›", color = Color(0xFF8F8580), fontSize = 18.sp, fontWeight = FontWeight.Bold)
@@ -1811,7 +1817,7 @@ fun HomeScreen(
                     )
                     Spacer(modifier = Modifier.width(10.dp))
                     Column(modifier = Modifier.weight(1f)) {
-                        Text("Your Playlists", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold, maxLines = 1)
+                        Text(stringResource(R.string.your_playlists), color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold, maxLines = 1)
                         val count = if (userPlaylists.isNotEmpty()) userPlaylists.size else 5
                         Text("Collections: $count", color = Color(0xFF9E948E), fontSize = 11.sp, maxLines = 1)
                     }
@@ -1836,7 +1842,7 @@ fun HomeScreen(
                 glyphAlpha = 0.90f
             )
             Spacer(modifier = Modifier.width(10.dp))
-            Text("Your Playlists", color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+            Text(stringResource(R.string.your_playlists), color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold)
             WavyLine(
                 modifier = Modifier.weight(1f).padding(horizontal = 12.dp),
                 color = Color(0x33F2A385)
@@ -1848,7 +1854,7 @@ fun HomeScreen(
                     .clickable { onSeeAllPlaylists() }
                     .padding(horizontal = 12.dp, vertical = 6.dp)
             ) {
-                Text("→ See All", color = Color(0xFFD8CDC7), fontSize = 12.sp, fontWeight = FontWeight.Medium)
+                Text("→ ${stringResource(R.string.see_all)}", color = Color(0xFFD8CDC7), fontSize = 12.sp, fontWeight = FontWeight.Medium)
             }
         }
 
@@ -1902,7 +1908,7 @@ fun HomeScreen(
                 glyphAlpha = 0.90f
             )
             Spacer(modifier = Modifier.width(10.dp))
-            Text("Recently Played", color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+            Text(stringResource(R.string.recently_played), color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold)
             WavyLine(
                 modifier = Modifier.weight(1f).padding(start = 12.dp),
                 color = Color(0x33F2A385)
@@ -1983,7 +1989,7 @@ fun HomeScreen(
                 glyphAlpha = 0.90f
             )
             Spacer(modifier = Modifier.width(10.dp))
-            Text("Artists in Your Rotation", color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+            Text(stringResource(R.string.artists_in_rotation), color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold)
             WavyLine(
                 modifier = Modifier.weight(1f).padding(start = 12.dp),
                 color = Color(0x33F2A385)

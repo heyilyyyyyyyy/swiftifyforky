@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Swiftify</string>
+    <string name="nav_home">Главная</string>
+    <string name="nav_search">Поиск</string>
+    <string name="nav_settings">Настройки</string>
+
+    <string name="good_morning">Доброе утро.</string>
+    <string name="good_afternoon">Добрый день.</string>
+    <string name="good_evening">Добрый вечер.</string>
+    <string name="up_late">Не спится...</string>
+
+    <string name="fav_songs">Любимые треки</string>
+    <string name="your_playlists">Ваши плейлисты</string>
+    <string name="recently_played">Недавно играло</string>
+    <string name="artists_in_rotation">Исполнители в ротации</string>
+
+    <string name="play_all">Слушать всё</string>
+    <string name="resume">Продолжить</string>
+    <string name="see_all">Все</string>
+
+    <string name="search_placeholder">Исполнители, треки или плейлисты...</string>
+    <string name="search_category_all">Все</string>
+    <string name="search_category_songs">Треки</string>
+    <string name="search_category_artists">Исполнители</string>
+    <string name="search_category_playlists">Плейлисты</string>
+
+    <string name="settings_title">Настройки</string>
+    <string name="settings_audio_quality">КАЧЕСТВО ЗВУКА</string>
+    <string name="settings_playback_networking">ВОСПРОИЗВЕДЕНИЕ И СЕТЬ</string>
+    <string name="settings_storage_cache">ХРАНИЛИЩЕ И КЭШ</string>
+
+    <string name="connect_spotify">Подключить Spotify</string>
+    <string name="spotify_premium_required">Для воспроизведения требуется Spotify Premium</string>
+    <string name="login_with_spotify">Войти через Spotify</string>
+</resources>
