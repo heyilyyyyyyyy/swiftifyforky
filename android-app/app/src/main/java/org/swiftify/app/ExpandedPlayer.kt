@@ -15,6 +15,7 @@ import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.animateScrollBy
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
@@ -33,10 +34,14 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
 import org.swiftify.app.design.SwiftifyMotion
@@ -385,10 +390,7 @@ fun ExpandedPlayer(
                         // Lyrics View (Synced & Plain with auto-scroll and seek)
                         if (isLoadingLyrics) {
                             Box(
-                                modifier = Modifier
-                                    .fillMaxSize()
-                                    .clip(RoundedCornerShape(26.dp))
-                                    .background(Color(0x3B000000)),
+                                modifier = Modifier.fillMaxSize(),
                                 contentAlignment = Alignment.Center
                             ) {
                                 CircularProgressIndicator(color = palette.accent, strokeWidth = 3.dp)
@@ -410,125 +412,165 @@ fun ExpandedPlayer(
                             var rippleTrigger by remember { mutableIntStateOf(0) }
                             var scrollDeltaSign by remember { mutableFloatStateOf(1f) }
 
-                            LaunchedEffect(activeLineIdx) {
-                                if (activeLineIdx >= 0 && activeLineIdx != lastLineIdx) {
+                            LaunchedEffect(activeLineIdx, lyricLines.size) {
+                                if (activeLineIdx in lyricLines.indices) {
                                     scrollDeltaSign = if (activeLineIdx > lastLineIdx) 1f else -1f
                                     lastLineIdx = activeLineIdx
                                     rippleTrigger++
                                     if (isLineSynced) {
-                                        // Desktop follow: smoothly autoscroll keeping active line centered
-                                        lyricsListState.animateScrollToItem(
-                                            index = (activeLineIdx + 1).coerceAtLeast(0),
-                                            scrollOffset = -160
-                                        )
+                                        val visible = lyricsListState.layoutInfo.visibleItemsInfo.find { it.index == activeLineIdx }
+                                        if (visible != null) {
+                                            val vCenter = (lyricsListState.layoutInfo.viewportEndOffset - lyricsListState.layoutInfo.viewportStartOffset) / 2
+                                            val itemCenter = visible.offset + visible.size / 2
+                                            val delta = itemCenter - vCenter
+                                            if (abs(delta) > 2) {
+                                                lyricsListState.animateScrollBy(
+                                                    value = delta.toFloat(),
+                                                    animationSpec = tween(durationMillis = 400, easing = FastOutSlowInEasing)
+                                                )
+                                            }
+                                        } else {
+                                            val viewportHeight = (lyricsListState.layoutInfo.viewportEndOffset - lyricsListState.layoutInfo.viewportStartOffset)
+                                            val approxOffset = -(viewportHeight / 2 - 30)
+                                            lyricsListState.animateScrollToItem(
+                                                index = activeLineIdx,
+                                                scrollOffset = approxOffset
+                                            )
+                                        }
                                     }
                                 }
                             }
 
-                            LazyColumn(
-                                state = lyricsListState,
-                                modifier = Modifier
-                                    .fillMaxSize()
-                                    .clip(RoundedCornerShape(26.dp))
-                                    .background(Color(0x3B000000))
-                                    .padding(horizontal = 20.dp),
-                                contentPadding = PaddingValues(top = 120.dp, bottom = 160.dp),
-                                verticalArrangement = Arrangement.spacedBy(14.dp)
+                            BoxWithConstraints(
+                                modifier = Modifier.fillMaxSize()
                             ) {
-                                item(key = "lyrics_header") {
-                                    Row(
-                                        modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
-                                        horizontalArrangement = Arrangement.SpaceBetween,
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        Text(
-                                            text = if (isLineSynced) "SYNCED LYRICS" else "LYRICS",
-                                            color = palette.accent,
-                                            fontSize = 12.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            letterSpacing = 1.2.sp
-                                        )
-                                        if (isLineSynced) {
-                                            Text(
-                                                text = "Tap line to seek",
-                                                color = Color(0x88FFFFFF),
-                                                fontSize = 11.sp
-                                            )
+                                val halfHeight = maxHeight / 2
+
+                                LazyColumn(
+                                    state = lyricsListState,
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .graphicsLayer {
+                                            compositingStrategy = CompositingStrategy.Offscreen
                                         }
-                                    }
-                                }
-                                itemsIndexed(lyricLines, key = { index, line -> "$index-${line.startTimeMs}" }) { index, line ->
-                                    val isCurrent = isLineSynced && (index == activeLineIdx)
-                                    val isPast = isLineSynced && (index < activeLineIdx)
-
-                                    // Desktop wave ripple stagger: lines near active line move first
-                                    val dist = abs(index - activeLineIdx).coerceAtMost(8)
-                                    val staggerDelayMs = dist * 16
-
-                                    val lineLag = remember { Animatable(0f) }
-                                    LaunchedEffect(rippleTrigger) {
-                                        if (rippleTrigger > 0 && isLineSynced) {
-                                            lineLag.snapTo(12f * scrollDeltaSign)
-                                            kotlinx.coroutines.delay(staggerDelayMs.toLong())
-                                            lineLag.animateTo(
-                                                targetValue = 0f,
-                                                animationSpec = spring(
-                                                    dampingRatio = 0.62f,
-                                                    stiffness = 340f
-                                                )
+                                        .drawWithContent {
+                                            drawContent()
+                                            drawRect(
+                                                brush = Brush.verticalGradient(
+                                                    0.0f to Color.Transparent,
+                                                    0.09f to Color.Black,
+                                                    0.91f to Color.Black,
+                                                    1.0f to Color.Transparent
+                                                ),
+                                                blendMode = BlendMode.DstIn
                                             )
-                                        }
-                                    }
-
-                                    // Active line spring growth (matches Desktop: the sung line grows on a spring)
-                                    val lineScale by animateFloatAsState(
-                                        targetValue = if (isCurrent) 1.10f else 1.0f,
-                                        animationSpec = spring(dampingRatio = 0.55f, stiffness = 320f),
-                                        label = "lyricScale"
-                                    )
-                                    val pillBg by animateColorAsState(
-                                        targetValue = if (isCurrent) palette.accent.copy(alpha = 0.16f) else Color.Transparent,
-                                        animationSpec = tween(durationMillis = 240, easing = SwiftifyMotion.EmphasizedDecel),
-                                        label = "lyricPillBg"
-                                    )
-                                    val textColor by animateColorAsState(
-                                        targetValue = when {
-                                            !isLineSynced -> Color.White
-                                            isCurrent -> Color.White
-                                            isPast -> Color(0x4DFFFFFF)
-                                            else -> Color(0x73FFFFFF)
                                         },
-                                        animationSpec = tween(durationMillis = 240),
-                                        label = "lyricTextColor"
-                                    )
+                                    contentPadding = PaddingValues(
+                                        top = (halfHeight - 32.dp).coerceAtLeast(0.dp),
+                                        bottom = halfHeight
+                                    ),
+                                    verticalArrangement = Arrangement.spacedBy(16.dp),
+                                    horizontalAlignment = Alignment.CenterHorizontally
+                                ) {
+                                    itemsIndexed(lyricLines, key = { index, line -> "$index-${line.startTimeMs}" }) { index, line ->
+                                        val isCurrent = isLineSynced && (index == activeLineIdx)
+                                        val isPast = isLineSynced && (index < activeLineIdx)
 
-                                    Box(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .graphicsLayer {
-                                                scaleX = lineScale
-                                                scaleY = lineScale
-                                                translationY = lineLag.value
-                                                transformOrigin = TransformOrigin(0f, 0.5f)
+                                        // Desktop wave ripple stagger: lines near active line move first
+                                        val dist = abs(index - activeLineIdx).coerceAtMost(8)
+                                        val staggerDelayMs = dist * 16
+
+                                        val lineLag = remember { Animatable(0f) }
+                                        LaunchedEffect(rippleTrigger) {
+                                            if (rippleTrigger > 0 && isLineSynced) {
+                                                lineLag.snapTo(12f * scrollDeltaSign)
+                                                kotlinx.coroutines.delay(staggerDelayMs.toLong())
+                                                lineLag.animateTo(
+                                                    targetValue = 0f,
+                                                    animationSpec = spring(
+                                                        dampingRatio = 0.62f,
+                                                        stiffness = 340f
+                                                    )
+                                                )
                                             }
-                                            .clip(RoundedCornerShape(20.dp))
-                                            .background(pillBg)
-                                            .clickable {
-                                                if (line.startTimeMs > 0L) {
-                                                    onSeek(line.startTimeMs)
-                                                }
-                                            }
-                                            .padding(horizontal = 14.dp, vertical = 8.dp)
-                                    ) {
-                                        Text(
-                                            text = if (line.words.isNotEmpty()) line.words else "♪",
-                                            color = textColor,
-                                            fontSize = if (isCurrent) 23.sp else 18.sp,
-                                            fontWeight = if (isCurrent) FontWeight.Bold else FontWeight.SemiBold,
-                                            lineHeight = if (isCurrent) 31.sp else 26.sp,
-                                            textAlign = TextAlign.Start,
-                                            modifier = Modifier.fillMaxWidth()
+                                        }
+
+                                        // Active line spring growth (matches Desktop: the sung line grows on a spring, centered)
+                                        val lineScale by animateFloatAsState(
+                                            targetValue = if (isCurrent) 1.04f else 0.96f,
+                                            animationSpec = spring(dampingRatio = 0.55f, stiffness = 320f),
+                                            label = "lyricScale"
                                         )
+                                        val pillBg by animateColorAsState(
+                                            targetValue = if (isCurrent) palette.accent.copy(alpha = 0.24f) else Color.Transparent,
+                                            animationSpec = tween(durationMillis = 280, easing = SwiftifyMotion.EmphasizedDecel),
+                                            label = "lyricPillBg"
+                                        )
+                                        val textColor by animateColorAsState(
+                                            targetValue = when {
+                                                !isLineSynced -> Color.White
+                                                isCurrent -> Color.White
+                                                isPast -> Color(0x4DFFFFFF)
+                                                else -> Color(0x73FFFFFF)
+                                            },
+                                            animationSpec = tween(durationMillis = 240),
+                                            label = "lyricTextColor"
+                                        )
+
+                                        Box(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .graphicsLayer {
+                                                    scaleX = lineScale
+                                                    scaleY = lineScale
+                                                    translationY = lineLag.value
+                                                    transformOrigin = TransformOrigin.Center
+                                                }
+                                                .clickable(
+                                                    interactionSource = remember { MutableInteractionSource() },
+                                                    indication = null
+                                                ) {
+                                                    if (line.startTimeMs > 0L) {
+                                                        onSeek(line.startTimeMs)
+                                                    }
+                                                },
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            // Desktop WavyPill scalloped bubble around the active line
+                                            Box(
+                                                modifier = Modifier
+                                                    .wrapContentSize()
+                                                    .padding(horizontal = 20.dp)
+                                                    .drawBehind {
+                                                        if (isCurrent && isLineSynced) {
+                                                            val ampPx = 3.2.dp.toPx()
+                                                            val wavePx = 14.dp.toPx()
+                                                            val path = buildWavyPillPath(
+                                                                width = size.width,
+                                                                height = size.height,
+                                                                amplitude = ampPx,
+                                                                wavelength = wavePx,
+                                                                phase = 0f,
+                                                                cornerRadius = 32.dp.toPx()
+                                                            )
+                                                            drawPath(
+                                                                path = path,
+                                                                color = pillBg
+                                                            )
+                                                        }
+                                                    }
+                                                    .padding(horizontal = 24.dp, vertical = 10.dp)
+                                            ) {
+                                                Text(
+                                                    text = if (line.words.isNotEmpty()) line.words else "♪",
+                                                    color = textColor,
+                                                    fontSize = if (isCurrent) 22.sp else 18.sp,
+                                                    fontWeight = if (isCurrent) FontWeight.Bold else FontWeight.SemiBold,
+                                                    lineHeight = if (isCurrent) 30.sp else 25.sp,
+                                                    textAlign = TextAlign.Center
+                                                )
+                                            }
+                                        }
                                     }
                                 }
                             }
@@ -536,8 +578,6 @@ fun ExpandedPlayer(
                             Box(
                                 modifier = Modifier
                                     .fillMaxSize()
-                                    .clip(RoundedCornerShape(26.dp))
-                                    .background(Color(0x3B000000))
                                     .padding(24.dp),
                                 contentAlignment = Alignment.Center
                             ) {

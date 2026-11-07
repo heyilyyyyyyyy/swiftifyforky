@@ -654,32 +654,39 @@ fun buildWavyPillPath(
     height: Float,
     amplitude: Float = 3.0f,
     wavelength: Float = 14f,
-    phase: Float = 0f
+    phase: Float = 0f,
+    cornerRadius: Float = Float.MAX_VALUE
 ): Path {
     val path = Path()
     if (width <= 0f || height <= 0f) return path
 
     val margin = amplitude + 1.5f
-    val availH = (height - 2f * margin).coerceAtLeast(0f)
-    val r = availH / 2f
-    val availW = (width - 2f * margin).coerceAtLeast(0f)
-    val straightW = (availW - 2f * r).coerceAtLeast(0f)
+    val halfW = width / 2f - margin
+    val halfH = height / 2f - margin
+    if (halfW <= 0f || halfH <= 0f) return path
 
-    if (availH <= 0f || availW <= 0f) return path
+    val maxR = min(halfW, halfH)
+    val radius = min(maxR, max(0f, cornerRadius - margin))
+    val sx = halfW - radius
+    val sy = halfH - radius
 
-    val leftCenterX = margin + r
-    val rightCenterX = margin + r + straightW
-    val centerY = margin + r
+    val quarter = 0.5f * PI.toFloat() * radius
+    val perimeter = 4f * (sx + sy) + 4f * quarter
+    if (perimeter <= 0f) return path
 
-    // Perimeter of the base pill
-    val quarter = 0.5f * PI.toFloat() * r
-    val perimeter = 2f * straightW + 4f * quarter
-
-    // Continuous scallop wave count matching desktop Swiftify wavy_pill.frag
     val scallops = max(1f, kotlin.math.round(perimeter / max(wavelength, 1f)))
+    val totalSteps = (perimeter / 2f).toInt().coerceIn(160, 480)
 
-    // Sampling steps proportionally to perimeter (1 step per ~1.5px for silky smooth curves)
-    val totalSteps = (perimeter / 1.5f).toInt().coerceIn(120, 360)
+    val cx = width / 2f
+    val cy = height / 2f
+
+    val s1 = 2f * sx
+    val s2 = s1 + quarter
+    val s3 = s2 + 2f * sy
+    val s4 = s3 + quarter
+    val s5 = s4 + 2f * sx
+    val s6 = s5 + quarter
+    val s7 = s6 + 2f * sy
 
     for (step in 0..totalSteps) {
         val s = (step.toFloat() / totalSteps) * perimeter
@@ -688,28 +695,38 @@ fun buildWavyPillPath(
         val px: Float
         val py: Float
 
-        if (s <= straightW) {
-            // 1. Top straight edge: left to right (y = margin, outward normal is (0, -1))
-            val u = s / straightW
-            px = leftCenterX + u * straightW
-            py = margin - wave
-        } else if (s <= straightW + 2f * quarter) {
-            // 2. Right cap: top to bottom (angle sweeps from -PI/2 to +PI/2)
-            val capDist = s - straightW
-            val theta = -0.5f * PI.toFloat() + (capDist / (2f * quarter)) * PI.toFloat()
-            px = rightCenterX + (r + wave) * cos(theta)
-            py = centerY + (r + wave) * sin(theta)
-        } else if (s <= 2f * straightW + 2f * quarter) {
-            // 3. Bottom straight edge: right to left (y = height - margin, outward normal is (0, 1))
-            val u = (s - straightW - 2f * quarter) / straightW
-            px = rightCenterX - u * straightW
-            py = (height - margin) + wave
+        if (s <= s1 && sx > 0f) {
+            val u = s / (2f * sx)
+            px = cx - sx + u * 2f * sx
+            py = cy - sy - radius - wave
+        } else if (s <= s2 && quarter > 0f) {
+            val th = -0.5f * PI.toFloat() + ((s - s1) / quarter) * (0.5f * PI.toFloat())
+            px = cx + sx + (radius + wave) * cos(th)
+            py = cy - sy + (radius + wave) * sin(th)
+        } else if (s <= s3 && sy > 0f) {
+            val u = (s - s2) / (2f * sy)
+            px = cx + sx + radius + wave
+            py = cy - sy + u * 2f * sy
+        } else if (s <= s4 && quarter > 0f) {
+            val th = 0f + ((s - s3) / quarter) * (0.5f * PI.toFloat())
+            px = cx + sx + (radius + wave) * cos(th)
+            py = cy + sy + (radius + wave) * sin(th)
+        } else if (s <= s5 && sx > 0f) {
+            val u = (s - s4) / (2f * sx)
+            px = cx + sx - u * 2f * sx
+            py = cy + sy + radius + wave
+        } else if (s <= s6 && quarter > 0f) {
+            val th = 0.5f * PI.toFloat() + ((s - s5) / quarter) * (0.5f * PI.toFloat())
+            px = cx - sx + (radius + wave) * cos(th)
+            py = cy + sy + (radius + wave) * sin(th)
+        } else if (s <= s7 && sy > 0f) {
+            val u = (s - s6) / (2f * sy)
+            px = cx - sx - radius - wave
+            py = cy + sy - u * 2f * sy
         } else {
-            // 4. Left cap: bottom to top (angle sweeps from +PI/2 to +3*PI/2)
-            val capDist = s - 2f * straightW - 2f * quarter
-            val theta = 0.5f * PI.toFloat() + (capDist / (2f * quarter)) * PI.toFloat()
-            px = leftCenterX + (r + wave) * cos(theta)
-            py = centerY + (r + wave) * sin(theta)
+            val th = PI.toFloat() + ((s - s7) / max(quarter, 0.001f)) * (0.5f * PI.toFloat())
+            px = cx - sx + (radius + wave) * cos(th)
+            py = cy - sy + (radius + wave) * sin(th)
         }
 
         if (step == 0) {
@@ -726,7 +743,8 @@ fun buildWavyPillPath(
 class WavyPillShape(
     private val amplitudeDp: Float = 2.8f,
     private val wavelengthDp: Float = 14f,
-    private val phase: Float = 0f
+    private val phase: Float = 0f,
+    private val cornerRadiusDp: Float = 32f
 ) : Shape {
     override fun createOutline(
         size: Size,
@@ -735,7 +753,8 @@ class WavyPillShape(
     ): Outline {
         val ampPx = with(density) { amplitudeDp.dp.toPx() }
         val wavePx = with(density) { wavelengthDp.dp.toPx() }
-        val path = buildWavyPillPath(size.width, size.height, ampPx, wavePx, phase)
+        val crPx = with(density) { cornerRadiusDp.dp.toPx() }
+        val path = buildWavyPillPath(size.width, size.height, ampPx, wavePx, phase, crPx)
         return Outline.Generic(path)
     }
 }
