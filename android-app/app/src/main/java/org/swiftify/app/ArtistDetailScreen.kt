@@ -241,13 +241,8 @@ fun ArtistDetailScreen(
                     .padding(24.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                val avatarAlpha by animateFloatAsState(
-                    targetValue = if (isHeroFlying) 0f else 1f,
-                    animationSpec = tween(durationMillis = 150),
-                    label = "avatarAlpha"
-                )
                 SquiggleAvatar(
-                    imageUrl = artistAvatar,
+                    imageUrl = artistAvatar.ifEmpty { artist.artworkUrl },
                     contentDescription = artist.name,
                     modifier = Modifier
                         .size(150.dp)
@@ -258,9 +253,6 @@ fun ArtistDetailScreen(
                                     Rect(pos.x, pos.y, pos.x + coords.size.width, pos.y + coords.size.height)
                                 )
                             }
-                        }
-                        .graphicsLayer {
-                            alpha = avatarAlpha
                         },
                     ringColor = MaterialTheme.colorScheme.primary,
                     waves = 20,

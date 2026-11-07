@@ -15,6 +15,12 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -228,9 +234,27 @@ fun SquiggleAvatarRing(
     waves: Int = 20,
     amplitude: Dp = 2.2.dp,
     strokeWidth: Dp = 2.5.dp,
-    phase: Float = 0f
+    phase: Float = 0f,
+    continuousRotation: Boolean = true
 ) {
-    Canvas(modifier = modifier) {
+    val infiniteTransition = rememberInfiniteTransition(label = "squiggleRingSpin")
+    val ringAngle by infiniteTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = 360f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 20000, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "ringAngle"
+    )
+
+    Canvas(
+        modifier = modifier.graphicsLayer {
+            if (continuousRotation) {
+                rotationZ = ringAngle
+            }
+        }
+    ) {
         val strokePx = strokeWidth.toPx()
         val ampPx = amplitude.toPx()
         val path = buildSquigglePath(
@@ -294,7 +318,8 @@ fun SquiggleAvatar(
     amplitude: Dp = 2.0.dp,
     strokeWidth: Dp = 2.4.dp,
     gap: Dp = 3.2.dp,
-    phase: Float = 0f
+    phase: Float = 0f,
+    continuousRotation: Boolean = true
 ) {
     Box(
         modifier = modifier,
@@ -307,7 +332,8 @@ fun SquiggleAvatar(
             waves = waves,
             amplitude = amplitude,
             strokeWidth = strokeWidth,
-            phase = phase
+            phase = phase,
+            continuousRotation = continuousRotation
         )
 
         // Inner Avatar image clipped to the exact wavy cloud outline

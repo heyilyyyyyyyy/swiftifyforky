@@ -1288,7 +1288,7 @@ fun HeroFlightOverlay(
     }
 
     val currentProgress = progress.value
-    if (currentProgress < 1f) {
+    if (currentProgress <= 1f) {
         val density = androidx.compose.ui.platform.LocalDensity.current
         val config = androidx.compose.ui.platform.LocalConfiguration.current
         val screenWidthPx = with(density) { config.screenWidthDp.dp.toPx() }
