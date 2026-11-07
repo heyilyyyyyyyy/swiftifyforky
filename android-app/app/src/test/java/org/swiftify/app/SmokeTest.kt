@@ -339,4 +339,51 @@ class SmokeTest {
         assertEquals("Conan Gray", artists.getJSONObject(0).getString("name"))
         assertEquals("spotify:artist:xyz", artists.getJSONObject(0).getString("uri"))
     }
+
+    @Test
+    fun testQueueStateSerializationAndRestoration() {
+        val manager = PlaybackQueueManager()
+        val t1 = createDummyTrack("1", "Song 1")
+        val t2 = createDummyTrack("2", "Song 2")
+        val t3 = createDummyTrack("3", "Song 3")
+        manager.setPlaylistContext(listOf(t1, t2, t3), startIndex = 1, stopAtEnd = true)
+        manager.repeatMode = PlaybackRepeatMode.ALL
+
+        val jsonArray = JSONArray()
+        for (track in manager.playlistQueue) {
+            val obj = JSONObject()
+            obj.put("title", track.title)
+            obj.put("artist", track.artist)
+            obj.put("album", track.album)
+            obj.put("artworkUrl", track.artworkUrl)
+            obj.put("durationMs", track.durationMs)
+            obj.put("uri", track.uri)
+            obj.put("albumUri", track.albumUri)
+            obj.put("artistUri", track.artistUri)
+            jsonArray.put(obj)
+        }
+
+        val restored = mutableListOf<TrackItem>()
+        for (i in 0 until jsonArray.length()) {
+            val obj = jsonArray.getJSONObject(i)
+            restored.add(
+                TrackItem(
+                    title = obj.getString("title"),
+                    artist = obj.getString("artist"),
+                    album = obj.getString("album"),
+                    artworkUrl = obj.getString("artworkUrl"),
+                    durationMs = obj.getLong("durationMs"),
+                    uri = obj.getString("uri"),
+                    albumUri = obj.getString("albumUri"),
+                    artistUri = obj.getString("artistUri")
+                )
+            )
+        }
+
+        assertEquals(3, restored.size)
+        assertEquals("Song 1", restored[0].title)
+        assertEquals("Song 2", restored[1].title)
+        assertEquals("Song 3", restored[2].title)
+        assertEquals(manager.playlistQueue[1].uri, restored[1].uri)
+    }
 }

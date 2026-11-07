@@ -380,6 +380,19 @@ class MainActivity : ComponentActivity() {
         }
         refreshAccessToken()
 
+        // Restore playback queue state if recreating after process death or configuration change
+        if (playlistQueue.isEmpty()) {
+            if (PlaybackQueueManager.shared.restoreState(this)) {
+                playlistQueue.clear()
+                playlistQueue.addAll(PlaybackQueueManager.shared.playlistQueue)
+                currentPlaylistIndex = PlaybackQueueManager.shared.currentPlaylistIndex
+                livePlayingTrack.value = PlaybackQueueManager.shared.currentTrack
+                repeatMode.intValue = PlaybackQueueManager.shared.repeatMode.value
+                isShuffle.value = PlaybackQueueManager.shared.isShuffle
+                stopAtEndOfQueue.value = PlaybackQueueManager.shared.stopAtEndOfQueue
+            }
+        }
+
         if (storedLogin != null) {
             authState.value = AuthState.Connecting
             statusMsg.value = "Reconnecting stored session (EncryptedSharedPreferences)..."
@@ -985,6 +998,7 @@ class MainActivity : ComponentActivity() {
             startIndex = currentPlaylistIndex,
             stopAtEnd = stopAtEndOfQueue.value
         )
+        PlaybackQueueManager.shared.saveState(this)
         playTrackInternal(item)
     }
 
@@ -1209,7 +1223,13 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    override fun onSaveInstanceState(outState: android.os.Bundle) {
+        super.onSaveInstanceState(outState)
+        PlaybackQueueManager.shared.saveState(this)
+    }
+
     override fun onDestroy() {
+        PlaybackQueueManager.shared.saveState(this)
         super.onDestroy()
         PlaybackService.listener = null
         authServer?.close()

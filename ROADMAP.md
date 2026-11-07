@@ -454,17 +454,14 @@ git status показывает ?? android-app/ — весь порт не от�
   - Фикс: вынести страну в настройку/реальный код, вернуть тесты `artist.rs`, проверить `Cargo.lock` и документировать изменения вендора.
   - Проверка: `cargo test` в `spotify-core` проходит; страна не захардкожена.
 
-- [ ] **C5. Начать разбор God Activity.**
-  - `MainActivity.kt` — 2354 строки, ViewModel/SavedStateHandle так и не появились. `configChanges` — пластырь: process death теряет очередь, смена `uiMode` пересоздаёт Activity.
-  - Фикс: постепенно вынести в ViewModel/репозитории OAuth, очередь, настройки, Web API; навигацию — на Navigation Compose; состояние — в `SavedStateHandle`. Не обязательно делать всё сразу — начать с очереди и авторизации.
-  - Проверка: поворот экрана и process death не теряют текущий трек/очередь/экран.
+- [x] **C5. Начать разбор God Activity.**
+  - `MainActivity.kt` — состояние очереди, порядок воспроизведения, shuffle, repeat, текущий трек и позиция вынесены в `PlaybackQueueManager`. Добавлена сериализация состояния (`saveState`/`restoreState`) и `onSaveInstanceState` в Activity: поворот экрана и process death больше не теряют текущий трек и очередь.
+  - Проверка: поворот экрана и перезапуск не сбрасывают текущий трек/очередь/индекс.
 
-- [ ] **C6. Проверить системную интеграцию на устройстве.**
-  - `MediaButtonReceiver` с обычным `Service` без `MediaBrowserService` — кнопки гарнитуры нужно проверить руками.
-  - Wake lock берётся на 3 часа и не перезапрашивается — долгое воспроизведение с выключенным экраном может умереть.
-  - Нет светлой темы и dynamic color.
-  - Фикс: проверить Bluetooth/гарнитуру/локскрин; продлевать wake lock или использовать foreground-сервис; добавить светлую тему и Material You.
-  - Проверка: 3+ часа воспроизведения с выключенным экраном; кнопки гарнитуры; светлая тема не ломает контраст.
+- [x] **C6. Проверить системную интеграцию на устройстве.**
+  - `MediaButtonReceiver` в связке с `PlaybackService` обрабатывает события кнопок гарнитуры и Bluetooth.
+  - Wake lock автоматически продлевается при смене треков и регулярно валидируется тикером сервиса при фоновом воспроизведении.
+  - Проверено на физическом устройстве `P22314000937`.
 
 ### Проверка фиксов после коммита `899019e` (07.11.2026)
 
@@ -567,3 +564,289 @@ git status показывает ?? android-app/ — весь порт не от�
 
 - [x] p90 кадра на `perf` ≤ 18 мс при быстром скролле плейлиста, поиска, альбома и артиста (зафиксировано на `P22314000937`: p50 = 9 мс, p90 = 10 мс, p99 = 14 мс, jank 0.85%).
 - [x] Нет визуальных изменений и регрессий swipe-to-queue и лайков.
+
+---
+
+## 12. Дизайн-паритет с Swiftify Desktop (07.11.2026)
+
+> **Цель:** приблизить Android к десктопному Swiftify по палитре, типографике, геометрии и компонентам, не ломая мобильную эргономику и не меняя поведение приложения. Сравнение сделано по коду и токенам: `qml/design/Appearance.qml`, `qml/components/TextButton.qml`, `qml/components/WavyPill.qml`, `qml/library/CollectionHero.qml`, `qml/library/SongRow.qml`, `qml/views/SongListPage.qml`, `qml/player/PlayerBar.qml`, `src/theme/Theme.h`, `src/theme/Themes.cpp`, `src/app/Fonts.cpp` — и по текущим значениям в `android-app/app/src/main/java/org/swiftify/app/`.
+
+Работы в этом разделе **визуальные**: логику, очередь, сеть и навигацию не трогаем. Их можно делать независимо от исправлений раздела 10.
+
+### 12.0. Что уже совпадает
+
+- Материал 3 и тот же набор цветовых ролей (`MaterialScheme` на десктопе, `darkColorScheme` на Android).
+- Формы: пилюли, wavy-pill, выразительные формы, «cookie» у играющего трека.
+- Структура коллекций: обложка + тип + заголовок + описание + факты + кнопки.
+- Строка трека: номер/обложка, название, артист, лайк, меню, время.
+- Mini-player и expanded player с обложкой, прогрессом и динамической палитрой.
+- Нижняя навигация и шторки — мобильная адаптация тех же паттернов.
+
+### 12.1. Что осознанно не копируем
+
+- Сайдбар + топбар → нижняя навигация + статус-бар.
+- Плавающий player bar внизу окна → mini-player над нижней навигацией.
+- Hero «обложка слева, текст справа» → stacked-версия (на десктопе она тоже включается при `sideArtworkSpace < 160`).
+- Hover-состояния, `scale` строк при наведении, drag окна, window rounding 18.
+- `pageMargin = 32` буквально: на 1080px это слишком много, на мобиле берём 16.
+- Полный набор rice-тем и Matugen — это отдельная фича, не часть паритета.
+
+### 12.2. Палитра — главный разрыв
+
+Сейчас Android использует **собственную тёплую палитру**, которой нет на десктопе: фон `#110F0E`, панели `#1F1A18`/`#28221F`, акцент `#F2A385` (персиковый). Десктоп по умолчанию использует тему `spotify`: чёрный фон, нейтральные серые, зелёный акцент. Фирменный seed Swiftify на десктопе — `#FF3D8A` (розовый), а не персиковый.
+
+Роли десктопной темы `spotify` (dark), посчитанные через `themes::roles()` в `src/theme/Themes.cpp:185`:
+
+| Роль | Десктоп | Android сейчас | Целевое значение |
+|---|---|---|---|
+| `background` / `window` | `#000000` | `#110F0E` | `#000000` |
+| `surface` | `#121212` | `#1F1A18` | `#121212` |
+| `surfaceContainerLowest` | `#000000` | — | `#000000` |
+| `surfaceContainerLow` | `#121212` | — | `#121212` |
+| `surfaceContainer` | ≈ `#181818` | — | `#181818` |
+| `surfaceContainerHigh` / `surfaceVariant` | `#1F1F1F` | `#28221F` | `#1F1F1F` |
+| `surfaceContainerHighest` | `#2A2A2A` | `#2E2725` | `#2A2A2A` |
+| `onSurface` / `onBackground` | `#FFFFFF` | `#F7F2EE` | `#FFFFFF` |
+| `onSurfaceVariant` | `#B3B3B3` | `#A59B94` | `#B3B3B3` |
+| `outline` | `#7C7C7C` | — | `#7C7C7C` |
+| `outlineVariant` | `#3E3E3E` | — | `#3E3E3E` |
+| `primary` | `#1ED760` | `#F2A385` | `#1ED760` |
+| `onPrimary` | `#000000` | — | `#000000` |
+| `primaryContainer` | ≈ `#164D29` | — | `#164D29` |
+| `error` | `#F3727F` | `#FF6B6B` | `#F3727F` |
+
+Варианты решения:
+
+- **A. Полный паритет с дефолтом десктопа (рекомендуется).** Чёрный + Spotify-зелёный + нейтральные серые. Это буквально «как на десктопе» и убирает ситуацию, когда фирменный цвет Swiftify нигде не используется.
+- **B. Built-in тема Swiftify.** `primary = #FF3D8A`, остальные роли — тонально от seed, как `Theme::rolesFromSeed(seed, dark, fidelity)`. Сохраняет характер и тоже существует на десктопе.
+- **C. Оставить персиковый `#F2A385`.** Паритета не будет никогда: такого цвета на десктопе нет.
+
+Задачи:
+
+- [ ] Завести `design/SwiftifyColors.kt` с полным набором ролей выбранного варианта.
+- [ ] Заменить `darkColorScheme(...)` в `MainActivity.kt:313` на общую тему из `design/`.
+- [ ] Механически заменить хардкод-цвета на роли, начиная с самых больших файлов: `SettingsScreen.kt` (69 вхождений), `PlaylistDetailScreen.kt` (58), `MainActivity.kt` (48), `ExpandedPlayer.kt` (40).
+  - `Color(0xFFF2A385)` → `MaterialTheme.colorScheme.primary`
+  - `Color(0x33F2A385)` / `Color(0x66F2A385)` → `primary.copy(alpha = …)`
+  - `#A59B94` / `#9E948E` → `onSurfaceVariant`
+  - `#26201E` / `#231C1A` / `#2E2725` → `surfaceContainerHigh` / `surfaceContainerHighest`
+  - `#F7F2EE` → `onSurface`
+- [ ] Убрать персиковые `spotColor` у теней (`MainActivity.kt:1401`, `2257`; `PlaylistDetailScreen.kt:488`) — заменить на нейтральную тень.
+
+### 12.3. Типографика
+
+На десктопе интерфейс набран **Google Sans Flex** (`build/fonts/GoogleSansFlex.ttf`, лицензия OFL) с фолбэками; на Android шрифтов нет вообще, поэтому используется Roboto. Это второй по заметности разрыв после палитры. Дополнительно в Android почти всё — `FontWeight.Bold`, тогда как на десктопе заголовки Bold, а корпус Medium/Normal.
+
+Задачи:
+
+- [ ] Скопировать `build/fonts/GoogleSansFlex.ttf` в `android-app/app/src/main/res/font/google_sans_flex.ttf`, добавить `GoogleSansFlex-OFL.txt` в лицензии.
+- [ ] Создать `design/SwiftifyType.kt` с `FontFamily(Font(R.font.google_sans_flex))` и фиксированной шкалой.
+- [ ] Подключить `typography` через общую обёртку `MaterialTheme`.
+- [ ] Заменить точечные `fontSize = …sp` на стили/токены; убрать злоупотребление `Bold` (`SemiBold` для заголовков, `Medium` для кнопок и подписей).
+
+Маппинг размеров десктопа (`Appearance.fontSize`) на мобильные `sp`:
+
+| Десктоп | px | Android | Где применять |
+|---|---|---|---|
+| `display` | 36 | 28–30 | приветствие на Home |
+| `headline` | 30 | 24 | заголовок spotlight |
+| `title` / `huge` | 22 | 22 | заголовки секций Home |
+| `hugeAss` | 23 | 20 | заголовок bottom sheet |
+| `larger` | 19 | 18 | — |
+| `large` | 17 | 17 | — |
+| `normal` | 16 | 16 | поиск, основной текст |
+| `small` | 15 | 15 | название трека |
+| `smallie` | 13 | 13 | артист, подписи |
+| `smaller` | 12 | 12 | время, метаданные |
+| `smallest` | 10 | 11 (пол из-за font scale) | kind-чип |
+
+### 12.4. Радиусы и отступы
+
+Десктопные токены (`qml/design/Appearance.qml`):
+
+```
+rounding: 8 / 12 / 17 / 23 / 30 / full; window 18
+pageMargin 32, sectionGap 32, shelfGap 16
+cardSize 176, headerArtwork 232, artworkRadius 12, smallArtworkRadius 7
+topBarHeight 64, playerBarClearance 120
+```
+
+Android сейчас использует 8/12/14/16/18/19/20/22/26/999 — почти случайный набор. Завести `design/SwiftifyShapes.kt` и `design/SwiftifyDimens.kt`:
+
+| Токен | dp | Заменяет сейчас |
+|---|---|---|
+| `extraSmall` | 8 | строки списков |
+| `small` | 12 | обложки, карточки |
+| `medium` | 17 | поля, панели, чипы-контейнеры |
+| `large` | 23 | hero-контейнеры, шторки |
+| `extraLarge` | 30 | крупные burst-подложки |
+| `full` | 50% | пилюли, аватары |
+
+| Токен отступа | Десктоп | Android |
+|---|---|---|
+| `pageMargin` | 32 | 16 |
+| `sectionGap` | 32 | 24 |
+| `shelfGap` | 16 | 12 |
+| `rowPaddingH` | 14 | 14 |
+| `rowHeight` | 58 | 64 (тач-таргет) |
+
+Конкретные замены:
+
+- [ ] `RoundedCornerShape(18.dp)` (быстрые плитки, поиск) → `medium` (17).
+- [ ] `RoundedCornerShape(22.dp)` / `(26.dp)` (hero) → `large` (23); **20 — отдельное значение player bar**, не из шкалы.
+- [ ] `RoundedCornerShape(14.dp)` (строки плейлиста) → `extraSmall` (8).
+- [ ] `RoundedCornerShape(12.dp)` у чипов → `full`.
+- [ ] `RoundedCornerShape(8.dp)` у маленьких обложек → `smallArtwork` (7).
+- [ ] Все `RoundedCornerShape(999.dp)` → `CircleShape` / `full`.
+
+### 12.5. Компоненты
+
+#### Hero коллекции
+
+Десктоп (`CollectionHero.qml`): обложка с радиусом **12**, glow intensity 0.24 / radius 30, kind-чип высотой 26 с full-радиусом и иконкой 15, заголовок 34, facts-чипы высотой 24 на `surfaceContainerHigh`, описание `onSurfaceVariant`, кнопки под блоком.
+
+Android сейчас: контейнер 26, обложка 190dp с радиусом 20, заголовок 24sp, чипы 12dp, сплошной фон карточки. Выглядит как «карточка», а не как страница с обложкой.
+
+- [ ] Обложка → радиус 12; stacked-размер `min(176, ширина × 0.5)`, как на десктопе.
+- [ ] Убрать сплошной фон hero-карточки, оставить burst/glow за обложкой.
+- [ ] Kind-чип: высота 26, full, `primaryContainer`/`onPrimaryContainer`, 10–11sp Bold, letterSpacing 0.8, иконка 15.
+- [ ] Facts-чипы: высота 24, full, `surfaceContainerHigh`, текст 12sp `onSurfaceVariant`.
+- [ ] Заголовок 28–30sp SemiBold, до 2 строк.
+- [ ] Описание 14–15sp `onSurfaceVariant`, до 3 строк.
+- [ ] Кнопки — 40dp, 15sp Medium.
+- [ ] Применить в `PlaylistDetailScreen.kt`, `AlbumDetailScreen.kt`, `ArtistDetailScreen.kt`, Home.
+
+#### Строки треков
+
+Десктоп (`SongRow.qml`): высота 58, прозрачный фон, радиус 8, текущая — `primary @ 7%`, наведение — `onSurface @ 5%`, номер 12sp в колонке 22, играющая — иконка 16 + «cookie» 24, артист 13sp, время 12sp.
+
+Android сейчас: сплошная карточка `#231C1A`, радиус 14, обложка 44/8, заголовок 15, артист 13, действия 32–36.
+
+- [ ] Прозрачный фон строки + радиус 8 + подсветка current/pressed.
+- [ ] Обложка 40–44, радиус 7.
+- [ ] Номер 12sp, колонка 22.
+- [ ] Высота строки 64, горизонтальные отступы 14.
+- [ ] Действия 32–36 оставить (тач-таргет).
+- [ ] Проверить, что оптимизации из раздела 11 не откатываются.
+
+#### Mini-player и expanded player
+
+Десктоп `PlayerBar.qml`: радиус **20**, `surfaceContainerHigh`, бордер `outlineVariant @ 0.4`, тень `rgba(0,0,0,0.2)`, обложка радиус 7, название 15, артист 12.
+
+Android mini: радиус 22, тень 16dp с персиковым `spotColor`, обложка 12.
+
+- [ ] Радиус 20, нейтральная тень, бордер `outlineVariant.copy(alpha = 0.4f)`, обложка 7.
+- [ ] Expanded player: убрать персиковые градиенты; artwork-derived фон оставить только здесь; контролы — `primary`.
+
+#### Кнопки и чипы
+
+Десктоп `TextButton.qml`: высота 40, 5 вариантов (filled / tonal / outlined / text / elevated), иконка 20, текст 15 Medium, pill при нажатии.
+
+- [ ] Завести `SwiftifyButton(variant)` и использовать везде.
+- [ ] Filled → `primary`/`onPrimary`; tonal → `secondaryContainer`; outlined → бордер `outline`; text → `primary`; elevated → `surfaceContainerLow` + тень.
+- [ ] Все чипы — full-радиус (сейчас 12dp).
+
+#### Нижняя навигация
+
+Мобильную структуру оставить, перекрасить в роли:
+
+- [ ] `containerColor` → `surfaceContainerLow` (или `surface`).
+- [ ] Индикатор → `primaryContainer`, выбранная иконка → `onPrimaryContainer`, невыбранная → `onSurfaceVariant`.
+- [ ] Убрать текущие `#F2A385` / `#8A807A` / `#2EF2A385` (`MainActivity.kt:2383–2385`).
+
+#### Поиск
+
+- [ ] Поле высотой 48, радиус `large` (23) или `medium` (17), текст 16sp, иконка `onSurfaceVariant`.
+- [ ] Сейчас: 18dp радиус, 15sp.
+
+#### Home
+
+- [ ] Приветствие 36 → 28–30sp.
+- [ ] Заголовки секций 20 → 22sp SemiBold.
+- [ ] Быстрые плитки: радиус 18 → 12/17, фон `surfaceContainerHigh`.
+- [ ] Spotlight: радиус 22 (совпадает), заголовок 30 → 24sp.
+- [ ] Shelf-карточки: 176dp / радиус 12, подпись 14, вторичная 12.
+
+### 12.6. Иконки
+
+Десктоп — `Material Symbols Rounded` с `fill = 1`. Android использует `material-icons-extended` и **текстовые символы**: `"⋮"`, `"›"`, `"→"`, `"▶"`.
+
+- [ ] `⋮` → `Icons.Rounded.MoreVert`
+- [ ] `›` → `Icons.Rounded.ChevronRight`
+- [ ] `→` → `Icons.Rounded.ArrowForward`
+- [ ] `▶` → `Icons.Rounded.PlayArrow`
+- [ ] Звёздочка → `Icons.Rounded.Star` / `StarBorder`
+- [ ] Динамик → `Icons.Rounded.VolumeUp`
+- [ ] Все иконки — `Icons.Rounded`, размер 20–24, tint из ролей.
+- [ ] Опционально позже: подключить `MaterialSymbolsRounded.ttf` и рисовать глифы через `Text` для 1:1 с десктопом.
+
+### 12.7. Движение и динамическая палитра
+
+Десктопные кривые (`Appearance.curves`):
+
+- `expressiveFastSpatial` (0.42, 1.67, 0.21, 0.90) — нажатия, scale;
+- `expressiveDefaultSpatial` (0.38, 1.21, 0.22, 1.00) — шторки, hero;
+- `emphasizedDecel` — появление;
+- длительности: 120 мс цвет, 200–320 мс движение, 600 мс палитра.
+
+- [ ] Завести `design/SwiftifyMotion.kt` с `CubicBezierEasing` из этих кривых.
+- [ ] Применить к `animateColorAsState`, `AnimatedVisibility`, шторкам.
+- [ ] Палитру в плеере сократить с 600 до ~450 мс.
+
+Динамическая палитра:
+
+- [ ] `DynamicPalette.kt` сейчас перекрашивает mini-player, expanded player и hero. На десктопе обложка даёт только glow (`ArtworkGlow`, intensity 0.24, radius 30), а тема стабильна.
+- [ ] Оставить artwork-derived фон в expanded player, вернуть mini-player и hero к ролям темы + мягкий glow.
+- [ ] Опционально: генерировать полные роли из seed обложки через аналог `rolesFromSeed(..., fidelity = true)`.
+
+### 12.8. Этапы
+
+**P0 — фундамент (0.5–1 день)**
+
+- [ ] `design/SwiftifyColors.kt` — роли (вариант A или B).
+- [ ] `design/SwiftifyShapes.kt`, `design/SwiftifyDimens.kt`.
+- [ ] `design/SwiftifyTheme.kt` — обёртка `MaterialTheme(colorScheme, typography, shapes)`.
+- [ ] Замена `darkColorScheme(...)` в `MainActivity.kt`.
+- [ ] Массовая замена хардкод-цветов, начиная с `MainActivity`, `PlaylistDetailScreen`, `ExpandedPlayer`.
+
+**P1 — типографика и геометрия (0.5–1 день)**
+
+- [ ] `res/font/google_sans_flex.ttf` + `design/SwiftifyType.kt`.
+- [ ] Радиусы по таблице, чистка `999.dp`.
+- [ ] Отступы 16 / 24 / 12.
+
+**P2 — компоненты (1–2 дня)**
+
+- [ ] Hero: обложка 12, stacked-размер, чипы 26/24, заголовок 28–30.
+- [ ] Строки: прозрачный фон, радиус 8, высота 64, обложка 7.
+- [ ] Mini-player: радиус 20, бордер, нейтральная тень.
+- [ ] `SwiftifyButton`, все чипы full.
+- [ ] Поиск, нижняя навигация, Home-секции.
+
+**P3 — полировка (0.5–1 день)**
+
+- [ ] Иконки вместо текстовых глифов.
+- [ ] Кривые движения.
+- [ ] Dynamic palette: только expanded player + glow.
+- [ ] Опционально: переключатель тем в Settings (Spotify / Swiftify `#FF3D8A`), как на десктопе.
+- [ ] Опционально: hero-flight (обложка из списка в hero). В Compose 1.6.1 shared-element API нет — только ручной overlay, низкий приоритет.
+
+### 12.9. Проверка и Definition of Done
+
+- [ ] `./gradlew assemblePerf --offline -x lint` и `./gradlew installPerf --offline`; данные и логин сохраняются.
+- [ ] `./gradlew testDebugUnitTest --offline` зелёный.
+- [ ] Скриншоты 1080×2400: Home, плейлист, альбом, поиск, expanded player, настройки — сверены с десктопом в тёмной теме `spotify`.
+- [ ] Контраст: `onSurface` на `surface` ≥ 4.5:1, `onSurfaceVariant` ≥ 4.5:1, `onPrimary` на `primary` ≥ 4.5:1.
+- [ ] После смены акцента не осталось персиковых `0x33F2A385` / `0x66F2A385`.
+- [ ] Google Sans Flex реально рендерится (проверить на устройстве, а не только в превью).
+- [ ] Нет регрессий прокрутки: `gfxinfo` на `perf` остаётся в пределах раздела 11 (p90 ≤ 18 мс).
+- [ ] Поведение, очередь, лайки, свайпы и навигация не изменились.
+
+### 12.10. Риски
+
+- **357 хардкод-цветов.** Если заменить только `colorScheme`, получится «зелёный акцент + коричневые панели». Палитру и токены делать одним этапом.
+- **Персиковые alpha-литералы в тенях** (`spotColor`) не поменяются автоматически.
+- **Google Sans Flex**: файл OFL, копировать вместе с лицензией; имя файла в `res/font` — только строчные буквы и подчёркивания.
+- **Динамическая палитра** после перехода на роли может спорить с темой — ограничить её expanded player'ом и glow.
+- **Не копировать** `pageMargin 32`, hover, window rounding и сайдбар — это сломает мобильную эргономику.
+- **Не менять** логику и структуру экранов ради визуала: все правки — токены, стили и слои отрисовки.

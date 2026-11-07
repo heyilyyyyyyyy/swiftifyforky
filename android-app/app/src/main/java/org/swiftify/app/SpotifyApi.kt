@@ -276,7 +276,7 @@ object SpotifyApi {
         return@withContext emptyList()
     }
 
-    suspend fun fetchAllSavedTracks(context: Context, maxTracks: Int = 300): List<TrackItem> = withContext(Dispatchers.IO) {
+    suspend fun fetchAllSavedTracks(context: Context, maxTracks: Int = 1000): List<TrackItem> = withContext(Dispatchers.IO) {
         val all = mutableListOf<TrackItem>()
         var offset = 0
         val pageSize = 50
@@ -290,7 +290,7 @@ object SpotifyApi {
         all
     }
 
-    suspend fun fetchAllPlaylistTracks(context: Context, playlistId: String, maxTracks: Int = 300): List<TrackItem> = withContext(Dispatchers.IO) {
+    suspend fun fetchAllPlaylistTracks(context: Context, playlistId: String, maxTracks: Int = 1000): List<TrackItem> = withContext(Dispatchers.IO) {
         val all = mutableListOf<TrackItem>()
         var offset = 0
         val pageSize = 50

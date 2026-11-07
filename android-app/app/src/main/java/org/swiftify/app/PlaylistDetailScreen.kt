@@ -126,24 +126,24 @@ fun PlaylistDetailScreen(
                                     val likedUris = loaded.map { it.uri }.filter { it.isNotEmpty() }.toSet()
                                     savedTrackUris.value = likedUris
                                     prefs.edit().putStringSet("saved_track_uris", likedUris).apply()
+                                    isLoading = false
                                 }
                             }
                         } catch (_: Exception) {}
                     }
-                    if (parsedCount == 0) {
-                        // Web API fallback with structured coroutineScope and pagination
-                        coroutineScope.launch {
-                            val webTracks = SpotifyApi.fetchAllSavedTracks(context)
-                            isLoading = false
-                            if (webTracks.isNotEmpty()) {
-                                playlistTracks.clear()
-                                playlistTracks.addAll(webTracks)
-                                errorMessage = null
-                            } else if (!ok) {
-                                errorMessage = "Unable to load Favourite Songs"
-                            }
+                    // Fetch full list via Web API pagination if core returned empty or partial
+                    coroutineScope.launch {
+                        val webTracks = SpotifyApi.fetchAllSavedTracks(context, maxTracks = 1000)
+                        if (webTracks.isNotEmpty() && (parsedCount == 0 || webTracks.size > playlistTracks.size)) {
+                            playlistTracks.clear()
+                            playlistTracks.addAll(webTracks)
+                            val likedUris = webTracks.map { it.uri }.filter { it.isNotEmpty() }.toSet()
+                            savedTrackUris.value = likedUris
+                            prefs.edit().putStringSet("saved_track_uris", likedUris).apply()
+                            errorMessage = null
+                        } else if (parsedCount == 0 && !ok) {
+                            errorMessage = "Unable to load Favourite Songs"
                         }
-                    } else {
                         isLoading = false
                     }
                 }
@@ -191,24 +191,23 @@ fun PlaylistDetailScreen(
                                     parsedCount = loaded.size
                                     playlistTracks.clear()
                                     playlistTracks.addAll(loaded)
+                                    isLoading = false
                                 }
                             }
                         } catch (_: Exception) {}
                     }
-                    if (parsedCount == 0) {
-                        // Web API fallback with structured coroutineScope and pagination
-                        coroutineScope.launch {
-                            val webTracks = SpotifyApi.fetchAllPlaylistTracks(context, playlist.uri)
-                            isLoading = false
-                            if (webTracks.isNotEmpty()) {
+                    // Fetch full list via Web API pagination if core returned empty or partial
+                    coroutineScope.launch {
+                        if (parsedCount == 0 || (parsedCount in 50..100)) {
+                            val webTracks = SpotifyApi.fetchAllPlaylistTracks(context, playlist.uri, maxTracks = 1000)
+                            if (webTracks.isNotEmpty() && (parsedCount == 0 || webTracks.size > playlistTracks.size)) {
                                 playlistTracks.clear()
                                 playlistTracks.addAll(webTracks)
                                 errorMessage = null
-                            } else if (!ok) {
+                            } else if (parsedCount == 0 && !ok) {
                                 errorMessage = "Unable to load playlist tracks"
                             }
                         }
-                    } else {
                         isLoading = false
                     }
                 }

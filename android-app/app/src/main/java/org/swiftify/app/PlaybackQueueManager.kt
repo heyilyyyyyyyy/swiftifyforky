@@ -1,5 +1,9 @@
 package org.swiftify.app
 
+import android.content.Context
+import org.json.JSONArray
+import org.json.JSONObject
+
 enum class PlaybackRepeatMode(val value: Int) {
     OFF(0),
     ALL(1),
@@ -176,5 +180,67 @@ class PlaybackQueueManager {
                 currentPlaylistIndex = if (idx >= 0) idx else 0
             }
         }
+    }
+
+    fun saveState(context: Context) {
+        try {
+            val prefs = context.getSharedPreferences("swiftify_queue_state", Context.MODE_PRIVATE)
+            val jsonArray = JSONArray()
+            for (track in playlistQueue) {
+                val obj = JSONObject()
+                obj.put("title", track.title)
+                obj.put("artist", track.artist)
+                obj.put("album", track.album)
+                obj.put("artworkUrl", track.artworkUrl)
+                obj.put("durationMs", track.durationMs)
+                obj.put("uri", track.uri)
+                obj.put("albumUri", track.albumUri)
+                obj.put("artistUri", track.artistUri)
+                jsonArray.put(obj)
+            }
+            prefs.edit()
+                .putString("queue_json", jsonArray.toString())
+                .putInt("current_index", currentPlaylistIndex)
+                .putInt("repeat_mode", repeatMode.value)
+                .putBoolean("is_shuffle", isShuffle)
+                .putBoolean("stop_at_end", stopAtEndOfQueue)
+                .apply()
+        } catch (_: Exception) {}
+    }
+
+    fun restoreState(context: Context): Boolean {
+        try {
+            val prefs = context.getSharedPreferences("swiftify_queue_state", Context.MODE_PRIVATE)
+            val jsonStr = prefs.getString("queue_json", null) ?: return false
+            val jsonArray = JSONArray(jsonStr)
+            val restored = mutableListOf<TrackItem>()
+            for (i in 0 until jsonArray.length()) {
+                val obj = jsonArray.getJSONObject(i)
+                restored.add(
+                    TrackItem(
+                        title = obj.optString("title"),
+                        artist = obj.optString("artist"),
+                        album = obj.optString("album"),
+                        artworkUrl = obj.optString("artworkUrl"),
+                        durationMs = obj.optLong("durationMs"),
+                        uri = obj.optString("uri"),
+                        albumUri = obj.optString("albumUri"),
+                        artistUri = obj.optString("artistUri")
+                    )
+                )
+            }
+            if (restored.isNotEmpty()) {
+                playlistQueue.clear()
+                playlistQueue.addAll(restored)
+                val idx = prefs.getInt("current_index", 0)
+                currentPlaylistIndex = if (idx in restored.indices) idx else 0
+                currentTrack = playlistQueue.getOrNull(currentPlaylistIndex)
+                repeatMode = PlaybackRepeatMode.fromInt(prefs.getInt("repeat_mode", 0))
+                isShuffle = prefs.getBoolean("is_shuffle", false)
+                stopAtEndOfQueue = prefs.getBoolean("stop_at_end", false)
+                return true
+            }
+        } catch (_: Exception) {}
+        return false
     }
 }

@@ -204,6 +204,9 @@ class PlaybackService : Service(), AudioManager.OnAudioFocusChangeListener {
         standaloneTickerJob = scope.launch {
             while (isActive && isPlaying) {
                 delay(500)
+                if (isPlaying && wakeLock?.isHeld != true) {
+                    acquireWakeLock()
+                }
                 if (listener == null && isPlaying) {
                     val pos = SpotifyBridge.playbackPositionMs()
                     val dur = SpotifyBridge.playbackDurationMs()
@@ -397,9 +400,10 @@ class PlaybackService : Service(), AudioManager.OnAudioFocusChangeListener {
 
     private fun acquireWakeLock() {
         try {
-            if (wakeLock?.isHeld == false) {
-                wakeLock?.acquire(3 * 3600 * 1000L) // 3 hours max safe timeout
+            if (wakeLock?.isHeld == true) {
+                wakeLock?.release()
             }
+            wakeLock?.acquire(3 * 3600 * 1000L) // 3 hours timeout, safely refreshed periodically and on track switches
         } catch (_: Exception) {}
     }
 

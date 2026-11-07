@@ -45,7 +45,7 @@ crate-type = ["staticlib", "cdylib"]
 [profile.release]
 codegen-units = 1
 lto = "thin"
-strip = "debuginfo"
+strip = true
 
 [patch.crates-io]
 librespot-core = { path = "vendor/librespot-core" }
