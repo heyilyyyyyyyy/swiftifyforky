@@ -26,10 +26,12 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import org.json.JSONObject
+import kotlinx.coroutines.launch
 
 @Composable
 fun PlaylistDetailScreen(
@@ -48,15 +50,18 @@ fun PlaylistDetailScreen(
     val playlistTracks = remember { mutableStateListOf<TrackItem>() }
     var playlistCoverUrl by remember(playlist.uri) { mutableStateOf(playlist.coverUrl) }
     var isLoading by remember { mutableStateOf(true) }
+    var errorMessage by remember { mutableStateOf<String?>(null) }
+    var reloadTrigger by remember { mutableIntStateOf(0) }
     val context = androidx.compose.ui.platform.LocalContext.current
 
-    // Fetch playlist tracks from SpotifyBridge or use fallback tracks
-    LaunchedEffect(playlist.uri) {
+    // Fetch playlist tracks from SpotifyBridge or Web API fallback
+    LaunchedEffect(playlist.uri, reloadTrigger) {
         if (playlist.uri.isNotEmpty()) {
             isLoading = true
+            errorMessage = null
             if (playlist.name == "Favourite Songs" || playlist.uri == "spotify:collection") {
                 SpotifyBridge.fetchCollectionTracks { ok, json ->
-                    isLoading = false
+                    var parsedCount = 0
                     if (ok && json.isNotEmpty()) {
                         try {
                             val obj = JSONObject(json)
@@ -80,18 +85,37 @@ fun PlaylistDetailScreen(
                                     val artistUri = if (artistsArr != null && artistsArr.length() > 0) artistsArr.getJSONObject(0).optString("uri") else ""
                                     loaded.add(TrackItem(name, artistName, albumName, artUrl, duration, uri, albumUri, artistUri))
                                 }
-                                playlistTracks.clear()
-                                playlistTracks.addAll(loaded)
-                                val likedUris = loaded.map { it.uri }.filter { it.isNotEmpty() }.toSet()
-                                val prefs = context.getSharedPreferences("swiftify_prefs", android.content.Context.MODE_PRIVATE)
-                                prefs.edit().putStringSet("saved_track_uris", likedUris).apply()
+                                if (loaded.isNotEmpty()) {
+                                    parsedCount = loaded.size
+                                    playlistTracks.clear()
+                                    playlistTracks.addAll(loaded)
+                                    val likedUris = loaded.map { it.uri }.filter { it.isNotEmpty() }.toSet()
+                                    val prefs = context.getSharedPreferences("swiftify_prefs", android.content.Context.MODE_PRIVATE)
+                                    prefs.edit().putStringSet("saved_track_uris", likedUris).apply()
+                                }
                             }
                         } catch (_: Exception) {}
+                    }
+                    if (parsedCount == 0) {
+                        // Web API fallback with auto-token refresh
+                        kotlinx.coroutines.MainScope().launch {
+                            val webTracks = SpotifyApi.fetchSavedTracks(context, offset = 0, limit = 50)
+                            isLoading = false
+                            if (webTracks.isNotEmpty()) {
+                                playlistTracks.clear()
+                                playlistTracks.addAll(webTracks)
+                                errorMessage = null
+                            } else if (!ok) {
+                                errorMessage = "Unable to load Favourite Songs"
+                            }
+                        }
+                    } else {
+                        isLoading = false
                     }
                 }
             } else {
                 SpotifyBridge.fetchPlaylist(playlist.uri) { ok, json ->
-                    isLoading = false
+                    var parsedCount = 0
                     if (ok && json.isNotEmpty()) {
                         try {
                             val obj = JSONObject(json)
@@ -129,22 +153,39 @@ fun PlaylistDetailScreen(
                                     val artistUri = if (artistsArr != null && artistsArr.length() > 0) artistsArr.getJSONObject(0).optString("uri") else ""
                                     loaded.add(TrackItem(name, artistName, albumName, artUrl, duration, uri, albumUri, artistUri))
                                 }
-                                playlistTracks.clear()
-                                playlistTracks.addAll(loaded)
+                                if (loaded.isNotEmpty()) {
+                                    parsedCount = loaded.size
+                                    playlistTracks.clear()
+                                    playlistTracks.addAll(loaded)
+                                }
                             }
                         } catch (_: Exception) {}
+                    }
+                    if (parsedCount == 0) {
+                        // Web API fallback
+                        kotlinx.coroutines.MainScope().launch {
+                            val webTracks = SpotifyApi.fetchPlaylistTracks(context, playlist.uri, offset = 0, limit = 50)
+                            isLoading = false
+                            if (webTracks.isNotEmpty()) {
+                                playlistTracks.clear()
+                                playlistTracks.addAll(webTracks)
+                                errorMessage = null
+                            } else if (!ok) {
+                                errorMessage = "Unable to load playlist tracks"
+                            }
+                        }
+                    } else {
+                        isLoading = false
                     }
                 }
             }
         } else {
             isLoading = false
-            playlistTracks.clear()
-            playlistTracks.addAll(tracks)
         }
     }
 
     val displayTracks = remember(isShuffle, playlistTracks.size) {
-        val base = if (playlistTracks.isNotEmpty()) playlistTracks.toList() else tracks
+        val base = playlistTracks.toList()
         if (isShuffle) base.shuffled() else base
     }
 
@@ -319,8 +360,56 @@ fun PlaylistDetailScreen(
                 }
             }
 
-            // Track list
-            itemsIndexed(displayTracks) { index, track ->
+            // Track list, loading, or empty/error states
+            if (isLoading && displayTracks.isEmpty()) {
+                item {
+                    Box(
+                        modifier = Modifier.fillMaxWidth().padding(48.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        CircularProgressIndicator(color = Color(0xFFF2A385), strokeWidth = 3.dp)
+                    }
+                }
+            } else if (errorMessage != null && displayTracks.isEmpty()) {
+                item {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(40.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Text(
+                            text = errorMessage ?: "Failed to load tracks",
+                            color = Color(0xFFA59B94),
+                            fontSize = 14.sp,
+                            textAlign = TextAlign.Center
+                        )
+                        Spacer(modifier = Modifier.height(14.dp))
+                        Button(
+                            onClick = { reloadTrigger++ },
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2C221E)),
+                            shape = RoundedCornerShape(18.dp)
+                        ) {
+                            Text("Retry", color = Color(0xFFF2A385), fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
+            } else if (!isLoading && displayTracks.isEmpty()) {
+                item {
+                    Box(
+                        modifier = Modifier.fillMaxWidth().padding(48.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = "This playlist is empty",
+                            color = Color(0xFF8A807A),
+                            fontSize = 14.sp,
+                            textAlign = TextAlign.Center
+                        )
+                    }
+                }
+            } else {
+                itemsIndexed(displayTracks) { index, track ->
                 val isCurrent = (livePlayingTrack != null && livePlayingTrack.uri == track.uri)
                 val context = LocalContext.current
                 var offsetX by remember { mutableStateOf(0f) }
@@ -426,5 +515,5 @@ fun PlaylistDetailScreen(
         }
     }
 }
-
+}
 }

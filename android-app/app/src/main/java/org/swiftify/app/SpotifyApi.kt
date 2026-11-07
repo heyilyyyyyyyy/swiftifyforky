@@ -192,4 +192,101 @@ object SpotifyApi {
         }
         return@withContext emptyList()
     }
+
+    suspend fun fetchSavedTracks(context: Context, offset: Int = 0, limit: Int = 50): List<TrackItem> = withContext(Dispatchers.IO) {
+        var token = getValidToken(context)
+        if (token.isNullOrEmpty()) return@withContext emptyList()
+
+        for (attempt in 0..1) {
+            try {
+                val url = URL("https://api.spotify.com/v1/me/tracks?offset=$offset&limit=$limit")
+                val conn = url.openConnection() as HttpURLConnection
+                conn.connectTimeout = 8000
+                conn.readTimeout = 8000
+                conn.setRequestProperty("Authorization", "Bearer $token")
+                val code = conn.responseCode
+                if (code in 200..299) {
+                    val text = conn.inputStream.bufferedReader().readText()
+                    conn.disconnect()
+                    return@withContext parseTracksResponse(text)
+                } else if (code == 401 && attempt == 0) {
+                    conn.disconnect()
+                    token = getValidToken(context, forceRefresh = true)
+                    continue
+                }
+                conn.disconnect()
+            } catch (e: Exception) {
+                Log.e(TAG, "fetchSavedTracks error: ${e.message}")
+            }
+            break
+        }
+        return@withContext emptyList()
+    }
+
+    suspend fun fetchPlaylistTracks(context: Context, playlistId: String, offset: Int = 0, limit: Int = 50): List<TrackItem> = withContext(Dispatchers.IO) {
+        var token = getValidToken(context)
+        if (token.isNullOrEmpty()) return@withContext emptyList()
+
+        val cleanId = playlistId.removePrefix("spotify:playlist:").trim()
+        if (cleanId.isEmpty()) return@withContext emptyList()
+
+        for (attempt in 0..1) {
+            try {
+                val url = URL("https://api.spotify.com/v1/playlists/$cleanId/tracks?offset=$offset&limit=$limit")
+                val conn = url.openConnection() as HttpURLConnection
+                conn.connectTimeout = 8000
+                conn.readTimeout = 8000
+                conn.setRequestProperty("Authorization", "Bearer $token")
+                val code = conn.responseCode
+                if (code in 200..299) {
+                    val text = conn.inputStream.bufferedReader().readText()
+                    conn.disconnect()
+                    return@withContext parseTracksResponse(text)
+                } else if (code == 401 && attempt == 0) {
+                    conn.disconnect()
+                    token = getValidToken(context, forceRefresh = true)
+                    continue
+                }
+                conn.disconnect()
+            } catch (e: Exception) {
+                Log.e(TAG, "fetchPlaylistTracks error: ${e.message}")
+            }
+            break
+        }
+        return@withContext emptyList()
+    }
+
+    private fun parseTracksResponse(jsonStr: String): List<TrackItem> {
+        val list = mutableListOf<TrackItem>()
+        try {
+            val root = JSONObject(jsonStr)
+            val items = root.optJSONArray("items") ?: return list
+            for (i in 0 until items.length()) {
+                val itemObj = items.optJSONObject(i) ?: continue
+                val track = itemObj.optJSONObject("track") ?: itemObj
+                val name = track.optString("name")
+                val uri = track.optString("uri")
+                val durationMs = track.optLong("duration_ms", 0L)
+                val albumObj = track.optJSONObject("album")
+                val albumName = albumObj?.optString("name") ?: ""
+                val albumUri = albumObj?.optString("uri") ?: ""
+                val images = albumObj?.optJSONArray("images")
+                val artUrl = getBestArtworkUrl(images)
+                val artistsArr = track.optJSONArray("artists")
+                val artistName = if (artistsArr != null && artistsArr.length() > 0) {
+                    artistsArr.getJSONObject(0).optString("name")
+                } else "Unknown"
+                val artistUri = if (artistsArr != null && artistsArr.length() > 0) {
+                    artistsArr.getJSONObject(0).optString("uri")
+                } else ""
+
+                if (name.isNotEmpty() && uri.isNotEmpty()) {
+                    list.add(TrackItem(name, artistName, albumName, artUrl, durationMs, uri, albumUri, artistUri))
+                }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "parseTracksResponse error: ${e.message}")
+        }
+        return list
+    }
 }

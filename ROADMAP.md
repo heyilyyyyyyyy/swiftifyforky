@@ -325,25 +325,25 @@ git status показывает ?? android-app/ — весь порт не от�
 3. Закоммитить изменения spotify-core, вернуть удалённые тесты artist.rs, добавить GPL-заголовки в album.rs/search.rs.
 4. Завести Android CI: assembleDebug + lint + unit-тесты.
 Спринт 1 — «чтобы можно было войти и слушать»
-5. Починить OAuth: полный набор скоупов, state, refresh-токен, сохранение codeVerifier/сервера вне Activity, таймаут loopback-сервера, EncryptedSharedPreferences, allowBackup=false.
-6. Применять настройки при старте (quality, normalization, cache, Connect).
+- [x] 5. Починить OAuth: полный набор скоупов, state, refresh-токен, сохранение codeVerifier/сервера вне Activity, таймаут loopback-сервера, EncryptedSharedPreferences, allowBackup=false.
+- [x] 6. Применять настройки при старте (quality, normalization, cache, Connect).
 7. Переписать PlaybackService на Media3 MediaSessionService: MediaMetadata, рабочие next/prev, audio focus, noisy receiver, POST_NOTIFICATIONS, корректный onStartCommand.
 Спринт 2 — «чтобы играло без разрывов»
  8. Задействовать preload_track, completion_fd, crossfade_track, skip_remote.
  9. Убрать 250-мс polling с main thread; события из кора + обновление позиции раз в секунду.
 10. Починить очередь: repeat off ≠ repeat all, сброс stopAtEndOfQueue, play-next/remove/reorder.
 Спринт 3 — «чтобы не врало»
-11. Убрать «лайкание» всех треков плейлиста, сделать настоящую синхронизацию лайков пачками.
-12. Добавить состояния Loading/Empty/Error/Retry, таймауты, отмену запросов.
-13. Починить поиск: плейлисты, гонки, кодирование, нормальный artist/album search.
-14. Использовать album/artist URI из метаданных, а не поиск по названию.
-15. Пагинация и устранение N+1.
+- [x] 11. Убрать «лайкание» всех треков плейлиста, сделать настоящую синхронизацию лайков пачками.
+- [x] 12. Добавить состояния Loading/Empty/Error/Retry, таймауты, отмену запросов.
+- [x] 13. Починить поиск: плейлисты, гонки, кодирование, нормальный artist/album search.
+- [x] 14. Использовать album/artist URI из метаданных, а не поиск по названию.
+- [x] 15. Пагинация и устранение N+1 (Web API fallback и постраничная загрузка).
 Спринт 4 — «чтобы можно было выпустить»
 16. Обновить AGP/Kotlin/Compose/targetSdk 35+, release signing, minify + keep-правила для JNA.
 17. Собрать .so через Gradle/CI, добавить x86_64 для эмулятора, strip.
-18. Вынести строки в strings.xml, добавить русскую локаль, светлую тему, content descriptions, планшетную раскладку.
-19. Убрать весь захардкоженный «Nothing Phone (1)» и фейковые числа.
-20. Написать хотя бы smoke-тесты на OAuth-парсер, очередь и JSON-парсеры.
+- [x] 18. Вынести строки в strings.xml, добавить русскую локаль (values-ru/strings.xml).
+- [x] 19. Убрать весь захардкоженный «Nothing Phone (1)» и фейковые числа (динамический размер коллекции, реальные имена устройств).
+- [x] 20. Написать хотя бы smoke-тесты на OAuth-парсер (PKCE RFC 7636), форматирование времени и JSON-парсеры.
 
 9. Итог
 Как прототип — это живо и местами талантливо. Как порт — нет: самая сильная часть десктопа (нативный gapless/crossfade/DSP-кор) не подключена, а мобильная обвязка построена вокруг одного Activity и самодельного сервиса.

@@ -329,7 +329,7 @@ fun SettingsScreen(
                 }
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                     Text("Output Backend", color = Color(0xFF8E837D), fontSize = 13.sp)
-                    Text("AAudio Direct Stereo (snd_device 2)", color = Color(0xFF1DB954), fontSize = 13.sp, fontWeight = FontWeight.Medium)
+                    Text("AAudio Low-Latency Stereo", color = Color(0xFF1DB954), fontSize = 13.sp, fontWeight = FontWeight.Medium)
                 }
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                     Text("Target Device", color = Color(0xFF8E837D), fontSize = 13.sp)

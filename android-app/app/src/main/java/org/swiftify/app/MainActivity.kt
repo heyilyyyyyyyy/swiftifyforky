@@ -1195,6 +1195,10 @@ val openArtistScreen: (String, String) -> Unit = { artName, artUri ->
                     }
 
                     // Compact Translucent Navigation Bar (Glass effect bleeding off screen, no outline)
+                    val navBarBottomInset = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
+                    val navTopSpacing = 12.dp
+                    val navBottomSpacing = if (navBarBottomInset > 0.dp) 4.dp else 12.dp
+
                     Surface(
                         color = Color(0xD9161311),
                         shape = RectangleShape,
@@ -1205,7 +1209,7 @@ val openArtistScreen: (String, String) -> Unit = { artName, artUri ->
                                 .fillMaxWidth()
                                 .windowInsetsPadding(WindowInsets.navigationBars)
                         ) {
-                            Spacer(modifier = Modifier.height(10.dp))
+                            Spacer(modifier = Modifier.height(navTopSpacing))
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
@@ -1250,7 +1254,7 @@ val openArtistScreen: (String, String) -> Unit = { artName, artUri ->
                                     }
                                 )
                             }
-                            Spacer(modifier = Modifier.height(10.dp))
+                            Spacer(modifier = Modifier.height(navBottomSpacing))
                         }
                     }
                 }
@@ -1756,6 +1760,12 @@ fun HomeScreen(
 
         Spacer(modifier = Modifier.height(14.dp))
 
+        val homeContext = androidx.compose.ui.platform.LocalContext.current
+        val savedTrackCount = remember {
+            homeContext.getSharedPreferences("swiftify_prefs", Context.MODE_PRIVATE)
+                .getStringSet("saved_track_uris", emptySet())?.size ?: 0
+        }
+
         // Two Quick Shortcuts: Favourite Songs & Your Playlists
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -1771,7 +1781,7 @@ fun HomeScreen(
                         onPlaylistClick(
                             PlaylistItem(
                                 name = "Favourite Songs",
-                                owner = "3,495 favourited tracks",
+                                owner = if (savedTrackCount > 0) "$savedTrackCount tracks" else "Your Collection",
                                 artworkUrl = "https://i.scdn.co/image/ab67616d0000b27344e9d13c687469d32a9f22a8",
                                 uri = "spotify:collection"
                             )
@@ -1791,7 +1801,12 @@ fun HomeScreen(
                     Spacer(modifier = Modifier.width(10.dp))
                     Column(modifier = Modifier.weight(1f)) {
                         Text(stringResource(R.string.fav_songs), color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold, maxLines = 1)
-                        Text("Favourited: 3495", color = Color(0xFF9E948E), fontSize = 11.sp, maxLines = 1)
+                        Text(
+                            text = if (savedTrackCount > 0) "Tracks: $savedTrackCount" else "Collection",
+                            color = Color(0xFF9E948E),
+                            fontSize = 11.sp,
+                            maxLines = 1
+                        )
                     }
                     Text("›", color = Color(0xFF8F8580), fontSize = 18.sp, fontWeight = FontWeight.Bold)
                 }
