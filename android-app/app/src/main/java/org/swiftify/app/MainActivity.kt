@@ -313,15 +313,15 @@ class MainActivity : ComponentActivity() {
             }
         }
 
-        // Check for stored credentials
-        val storedLogin = prefs.getString(KEY_LOGIN_BLOB, null)
-        val storedToken = prefs.getString(KEY_ACCESS_TOKEN, null)
+        // Check for stored credentials via SecureStorage
+        val storedLogin = SecureStorage.getLoginBlob(this)
+        val storedToken = SecureStorage.getAccessToken(this)
         accessTokenState.value = storedToken
         refreshAccessToken()
 
         if (storedLogin != null) {
             authState.value = AuthState.Connecting
-            statusMsg.value = "Reconnecting stored session..."
+            statusMsg.value = "Reconnecting stored session (EncryptedSharedPreferences)..."
             SpotifyBridge.connectStored(storedLogin)
         } else if (storedToken != null) {
             authState.value = AuthState.Connecting
@@ -334,12 +334,12 @@ class MainActivity : ComponentActivity() {
     }
 
     fun refreshAccessToken(force: Boolean = false, onComplete: ((String?) -> Unit)? = null) {
-        val refreshToken = prefs.getString(KEY_REFRESH_TOKEN, null)
+        val refreshToken = SecureStorage.getRefreshToken(this)
         if (refreshToken.isNullOrEmpty()) {
             onComplete?.invoke(accessTokenState.value)
             return
         }
-        val expiresAt = prefs.getLong(KEY_TOKEN_EXPIRES_AT, 0L)
+        val expiresAt = SecureStorage.getTokenExpiresAt(this)
         if (!force && System.currentTimeMillis() < expiresAt) {
             onComplete?.invoke(accessTokenState.value)
             return
@@ -360,12 +360,7 @@ class MainActivity : ComponentActivity() {
                     val newToken = json.getString("access_token")
                     val newRefresh = json.optString("refresh_token")
                     val expiresIn = json.optLong("expires_in", 3600L)
-                    val editor = prefs.edit().putString(KEY_ACCESS_TOKEN, newToken)
-                    if (newRefresh.isNotEmpty()) {
-                        editor.putString(KEY_REFRESH_TOKEN, newRefresh)
-                    }
-                    editor.putLong(KEY_TOKEN_EXPIRES_AT, System.currentTimeMillis() + (expiresIn - 60) * 1000)
-                    editor.apply()
+                    SecureStorage.saveTokens(this@MainActivity, newToken, newRefresh, expiresIn)
                     withContext(Dispatchers.Main) {
                         accessTokenState.value = newToken
                         onComplete?.invoke(newToken)
@@ -498,12 +493,7 @@ class MainActivity : ComponentActivity() {
                 val token = json.getString("access_token")
                 val refreshToken = json.optString("refresh_token")
                 val expiresIn = json.optLong("expires_in", 3600L)
-                val editor = prefs.edit().putString(KEY_ACCESS_TOKEN, token)
-                if (refreshToken.isNotEmpty()) {
-                    editor.putString(KEY_REFRESH_TOKEN, refreshToken)
-                }
-                editor.putLong(KEY_TOKEN_EXPIRES_AT, System.currentTimeMillis() + (expiresIn - 60) * 1000)
-                editor.apply()
+                SecureStorage.saveTokens(this@MainActivity, token, refreshToken, expiresIn)
                 accessTokenState.value = token
                 token
             }
@@ -520,7 +510,7 @@ class MainActivity : ComponentActivity() {
     private fun setupBridgeCallbacks() {
         SpotifyBridge.onConnectSuccess = { loginBlob ->
             Log.d("Auth", "Connected to Spotify! Login blob length=${loginBlob.length}")
-            prefs.edit().putString(KEY_LOGIN_BLOB, loginBlob).apply()
+            SecureStorage.setLoginBlob(this@MainActivity, loginBlob)
             authState.value = AuthState.LoggedIn
             statusMsg.value = "Connected to Spotify ✓"
             // Enable Spotify Connect now that session is authenticated
@@ -533,7 +523,7 @@ class MainActivity : ComponentActivity() {
         }
         SpotifyBridge.onConnectError = { error ->
             Log.e("Auth", "Core connect error: $error")
-            prefs.edit().remove(KEY_LOGIN_BLOB).apply()
+            SecureStorage.clearAuth(this@MainActivity)
             authState.value = AuthState.LoggedOut
             statusMsg.value = "Session error: $error"
         }

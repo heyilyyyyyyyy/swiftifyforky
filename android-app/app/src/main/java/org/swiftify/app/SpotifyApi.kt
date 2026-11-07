@@ -16,10 +16,9 @@ object SpotifyApi {
     private const val PREFS_NAME = "swiftify_prefs"
 
     suspend fun getValidToken(context: Context, forceRefresh: Boolean = false): String? = withContext(Dispatchers.IO) {
-        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        val token = prefs.getString("access_token", null)
-        val expiresAt = prefs.getLong("token_expires_at", 0L)
-        val refreshToken = prefs.getString("refresh_token", null)
+        val token = SecureStorage.getAccessToken(context)
+        val expiresAt = SecureStorage.getTokenExpiresAt(context)
+        val refreshToken = SecureStorage.getRefreshToken(context)
 
         if (!forceRefresh && !token.isNullOrEmpty() && System.currentTimeMillis() < expiresAt) {
             return@withContext token
@@ -44,12 +43,7 @@ object SpotifyApi {
                 val newToken = json.getString("access_token")
                 val newRefresh = json.optString("refresh_token")
                 val expiresIn = json.optLong("expires_in", 3600L)
-                val editor = prefs.edit().putString("access_token", newToken)
-                if (newRefresh.isNotEmpty()) {
-                    editor.putString("refresh_token", newRefresh)
-                }
-                editor.putLong("token_expires_at", System.currentTimeMillis() + (expiresIn - 60) * 1000)
-                editor.apply()
+                SecureStorage.saveTokens(context, newToken, newRefresh, expiresIn)
                 conn.disconnect()
                 return@withContext newToken
             }
