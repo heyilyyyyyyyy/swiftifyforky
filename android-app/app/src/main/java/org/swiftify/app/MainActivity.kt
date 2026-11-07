@@ -362,7 +362,8 @@ class MainActivity : ComponentActivity() {
                         onRemoveTrackFromPlaylist = { p, t -> removeTrackFromPlaylist(p, t) },
                         sleepTimerMinutes = sleepTimerMinutes.intValue,
                         sleepTimerRemainingSeconds = sleepTimerRemainingSeconds.intValue,
-                        onSetSleepTimer = { mins -> setSleepTimer(mins) }
+                        onSetSleepTimer = { mins -> setSleepTimer(mins) },
+                        onLogout = { performLogout() }
                     )
                 }
             }
@@ -1128,6 +1129,31 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    private fun performLogout() {
+        SpotifyBridge.pause()
+        isPlaying.value = false
+        livePlayingTrack.value = null
+        progressMs.longValue = 0L
+        PlaybackService.listener?.onPause()
+        syncPlaybackServiceNotification(0L)
+        SecureStorage.clearAuth(this)
+        prefs.edit()
+            .remove(KEY_LOGIN_BLOB)
+            .remove(KEY_ACCESS_TOKEN)
+            .remove(KEY_REFRESH_TOKEN)
+            .remove(KEY_TOKEN_EXPIRES_AT)
+            .remove(KEY_CACHED_PLAYLISTS)
+            .remove("saved_track_uris")
+            .apply()
+        accessTokenState.value = null
+        userPlaylistsState.clear()
+        tracksState.clear()
+        customQueue.clear()
+        playlistQueue.clear()
+        authState.value = AuthState.LoggedOut
+        Toast.makeText(this, "Logged out of Spotify", Toast.LENGTH_SHORT).show()
+    }
+
     override fun onDestroy() {
         super.onDestroy()
         PlaybackService.listener = null
@@ -1185,7 +1211,8 @@ fun SwiftifyApp(
     onRemoveTrackFromPlaylist: ((PlaylistItem, TrackItem) -> Unit)? = null,
     sleepTimerMinutes: Int = 0,
     sleepTimerRemainingSeconds: Int = 0,
-    onSetSleepTimer: ((Int) -> Unit)? = null
+    onSetSleepTimer: ((Int) -> Unit)? = null,
+    onLogout: (() -> Unit)? = null
 ) {
     var selectedTab by remember { mutableIntStateOf(0) }
     var isPlayerExpanded by remember { mutableStateOf(false) }
@@ -1589,7 +1616,8 @@ val openArtistScreen: (String, String) -> Unit = { artName, artUri ->
                             connectEnabled = connectEnabled,
                             onConnectToggle = onConnectToggle,
                             onReauthorize = onLoginClick,
-                            onCrossfadeChanged = onCrossfadeChanged
+                            onCrossfadeChanged = onCrossfadeChanged,
+                            onLogout = onLogout
                         )
                     }
                 }

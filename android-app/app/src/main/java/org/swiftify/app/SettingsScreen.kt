@@ -6,8 +6,12 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Logout
+import androidx.compose.material.icons.rounded.Person
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -25,7 +29,8 @@ fun SettingsScreen(
     connectEnabled: Boolean,
     onConnectToggle: (Boolean) -> Unit,
     onReauthorize: () -> Unit = {},
-    onCrossfadeChanged: ((Boolean, Int) -> Unit)? = null
+    onCrossfadeChanged: ((Boolean, Int) -> Unit)? = null,
+    onLogout: (() -> Unit)? = null
 ) {
     val context = LocalContext.current
     val prefs = remember { context.getSharedPreferences("swiftify_prefs", Context.MODE_PRIVATE) }
@@ -107,6 +112,110 @@ fun SettingsScreen(
             fontSize = 28.sp,
             fontWeight = FontWeight.Bold
         )
+
+        Spacer(modifier = Modifier.height(20.dp))
+
+        // Section: Account & Session
+        Text(
+            text = "SPOTIFY ACCOUNT",
+            color = Color(0xFFF2A385),
+            fontSize = 12.sp,
+            fontWeight = FontWeight.Bold,
+            letterSpacing = 1.sp
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.cardColors(containerColor = Color(0xFF1E1816))
+        ) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(46.dp)
+                            .clip(CircleShape)
+                            .background(Color(0xFF2B221F)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Rounded.Person,
+                            contentDescription = null,
+                            tint = Color(0xFFF2A385),
+                            modifier = Modifier.size(26.dp)
+                        )
+                    }
+                    Spacer(modifier = Modifier.width(14.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text("Connected to Spotify", color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+                        Text("Premium Active • High Fidelity Streaming", color = Color(0xFF8E837D), fontSize = 12.sp)
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(14.dp))
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Button(
+                        onClick = onReauthorize,
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2C2320)),
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Text("Re-authorize", color = Color(0xFFD6CBC5), fontSize = 13.sp, fontWeight = FontWeight.Medium)
+                    }
+
+                    var showLogoutConfirm by remember { mutableStateOf(false) }
+                    Button(
+                        onClick = { showLogoutConfirm = true },
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0x2BFF4D4D)),
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Rounded.Logout,
+                            contentDescription = null,
+                            tint = Color(0xFFFF6B6B),
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("Log Out", color = Color(0xFFFF6B6B), fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                    }
+
+                    if (showLogoutConfirm) {
+                        AlertDialog(
+                            onDismissRequest = { showLogoutConfirm = false },
+                            title = { Text("Log Out of Spotify", color = Color.White, fontWeight = FontWeight.Bold) },
+                            text = { Text("Are you sure you want to log out? Playback will stop and your saved login session will be removed.", color = Color(0xFFA59B94)) },
+                            containerColor = Color(0xFF221C1A),
+                            confirmButton = {
+                                Button(
+                                    onClick = {
+                                        showLogoutConfirm = false
+                                        onLogout?.invoke()
+                                    },
+                                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFF4D4D)),
+                                    shape = RoundedCornerShape(12.dp)
+                                ) {
+                                    Text("Log Out", color = Color.White, fontWeight = FontWeight.Bold)
+                                }
+                            },
+                            dismissButton = {
+                                TextButton(onClick = { showLogoutConfirm = false }) {
+                                    Text("Cancel", color = Color(0xFFA59B94))
+                                }
+                            }
+                        )
+                    }
+                }
+            }
+        }
 
         Spacer(modifier = Modifier.height(20.dp))
 
@@ -504,40 +613,6 @@ fun SettingsScreen(
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                     Text("Swiftify Core", color = Color(0xFF8E837D), fontSize = 13.sp)
                     Text("2.0-native", color = Color(0xFFF2A385), fontSize = 13.sp, fontWeight = FontWeight.Bold)
-                }
-            }
-        }
-
-        Spacer(modifier = Modifier.height(20.dp))
-
-        // Section: Account & Session
-        Text(
-            text = "SPOTIFY ACCOUNT & PERMISSIONS",
-            color = Color(0xFFF2A385),
-            fontSize = 12.sp,
-            fontWeight = FontWeight.Bold,
-            letterSpacing = 1.sp
-        )
-        Spacer(modifier = Modifier.height(8.dp))
-
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(16.dp),
-            colors = CardDefaults.cardColors(containerColor = Color(0xFF26201E))
-        ) {
-            Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Text(
-                    text = "Re-authenticate to grant library & like permissions to sync with PC.",
-                    color = Color(0xFFA59B94),
-                    fontSize = 13.sp
-                )
-                Button(
-                    onClick = onReauthorize,
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFF2A385)),
-                    shape = RoundedCornerShape(12.dp)
-                ) {
-                    Text("Re-authorize Spotify Session", color = Color(0xFF251510), fontWeight = FontWeight.Bold)
                 }
             }
         }
