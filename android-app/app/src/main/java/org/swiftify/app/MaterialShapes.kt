@@ -15,12 +15,17 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
+import androidx.compose.material.icons.rounded.Pause
+import androidx.compose.material.icons.rounded.PlayArrow
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.drawscope.translate
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -88,6 +93,40 @@ private fun sampleRadii(radii: FloatArray, angleRad: Float): Float {
     return radii[idx0] * (1f - t) + radii[idx1] * t
 }
 
+fun sampleShapeRadius(shape: String, theta: Float, reach: Float): Float {
+    return when (shape) {
+        "softCookie" -> reach * sampleRadii(softCookieRadii, theta)
+        "cookie9" -> reach * sampleRadii(cookie9Radii, theta)
+        "clover4" -> reach * sampleRadii(clover4Radii, theta)
+        "cookie4" -> reach * sampleRadii(cookie4Radii, theta)
+        "cookie6" -> reach * sampleRadii(cookie6Radii, theta)
+        "arrowRight" -> reach * sampleRadii(arrowRadii, theta + (275f * PI.toFloat() / 180f))
+        "arrowLeft" -> reach * sampleRadii(arrowRadii, theta + (275f * PI.toFloat() / 180f) + PI.toFloat())
+        "heart" -> reach * sampleRadii(heartRadii, theta)
+        "bun" -> reach * sampleRadii(bunRadii, theta)
+        "clamShell" -> reach * sampleRadii(clamShellRadii, theta)
+        "cookie12" -> reach * sampleRadii(cookie12Radii, theta)
+        "sunny" -> {
+            val lobe = (0.5f + 0.5f * cos(8f * theta)).pow(2.2f)
+            reach * (1f - 0.14f + 0.14f * lobe)
+        }
+        "softBurst" -> {
+            val lobe = (0.5f + 0.5f * cos(10f * theta)).pow(1.5f)
+            reach * (1f - 0.16f + 0.16f * lobe)
+        }
+        "flower" -> {
+            val lobe = (0.5f + 0.5f * cos(8f * theta)).pow(0.45f)
+            reach * (1f - 0.32f + 0.32f * lobe)
+        }
+        "ghostish" -> {
+            val lobe = (0.5f + 0.5f * cos(3f * (theta - PI.toFloat() / 2f))).pow(0.7f)
+            val rScale = if (sin(theta) < 0f) 0.95f else (0.78f + 0.22f * lobe)
+            reach * rScale
+        }
+        else -> reach
+    }
+}
+
 fun buildExpressivePath(shape: String, width: Float, height: Float, steps: Int = 90): Path {
     val cx = width / 2f
     val cy = height / 2f
@@ -98,38 +137,7 @@ fun buildExpressivePath(shape: String, width: Float, height: Float, steps: Int =
 
     for (i in 0..steps) {
         val theta = (i.toFloat() / steps) * (2f * PI.toFloat())
-        val r = when (shape) {
-            "softCookie" -> reach * sampleRadii(softCookieRadii, theta)
-            "cookie9" -> reach * sampleRadii(cookie9Radii, theta)
-            "clover4" -> reach * sampleRadii(clover4Radii, theta)
-            "cookie4" -> reach * sampleRadii(cookie4Radii, theta)
-            "cookie6" -> reach * sampleRadii(cookie6Radii, theta)
-            "arrowRight" -> reach * sampleRadii(arrowRadii, theta + (275f * PI.toFloat() / 180f))
-            "arrowLeft" -> reach * sampleRadii(arrowRadii, theta + (275f * PI.toFloat() / 180f) + PI.toFloat())
-            "heart" -> reach * sampleRadii(heartRadii, theta)
-            "bun" -> reach * sampleRadii(bunRadii, theta)
-            "clamShell" -> reach * sampleRadii(clamShellRadii, theta)
-            "cookie12" -> reach * sampleRadii(cookie12Radii, theta)
-            "sunny" -> {
-                val lobe = (0.5f + 0.5f * cos(8f * theta)).pow(2.2f)
-                reach * (1f - 0.14f + 0.14f * lobe)
-            }
-            "softBurst" -> {
-                val lobe = (0.5f + 0.5f * cos(10f * theta)).pow(1.5f)
-                reach * (1f - 0.16f + 0.16f * lobe)
-            }
-            "flower" -> {
-                val lobe = (0.5f + 0.5f * cos(8f * theta)).pow(0.45f)
-                reach * (1f - 0.32f + 0.32f * lobe)
-            }
-            "ghostish" -> {
-                val lobe = (0.5f + 0.5f * cos(3f * (theta - PI.toFloat() / 2f))).pow(0.7f)
-                val rScale = if (sin(theta) < 0f) 0.95f else (0.78f + 0.22f * lobe)
-                reach * rScale
-            }
-            else -> reach
-        }
-
+        val r = sampleShapeRadius(shape, theta, reach)
         val x = cx + r * cos(theta)
         val y = cy + r * sin(theta)
 
@@ -142,6 +150,229 @@ fun buildExpressivePath(shape: String, width: Float, height: Float, steps: Int =
     }
     path.close()
     return path
+}
+
+fun buildMorphedExpressivePath(
+    fromShape: String,
+    toShape: String,
+    morphProgress: Float,
+    width: Float,
+    height: Float,
+    steps: Int = 90
+): Path {
+    val cx = width / 2f
+    val cy = height / 2f
+    val reach = min(width, height) / 2f * 0.95f
+
+    val path = Path()
+    var first = true
+
+    for (i in 0..steps) {
+        val theta = (i.toFloat() / steps) * (2f * PI.toFloat())
+        val rFrom = sampleShapeRadius(fromShape, theta, reach)
+        val rTo = sampleShapeRadius(toShape, theta, reach)
+        val r = rFrom + (rTo - rFrom) * morphProgress.coerceIn(0f, 1f)
+        val x = cx + r * cos(theta)
+        val y = cy + r * sin(theta)
+
+        if (first) {
+            path.moveTo(x, y)
+            first = false
+        } else {
+            path.lineTo(x, y)
+        }
+    }
+    path.close()
+    return path
+}
+
+private data class BurstSpec(
+    val dx: Float,
+    val dy: Float,
+    val reach: Float,
+    val size: Float,
+    val shape: String,
+    val toneIndex: Int,
+    val turnDegrees: Float
+)
+
+@Composable
+fun ShapeBurstEffect(
+    triggerKey: Long,
+    primaryColor: Color,
+    secondaryColor: Color,
+    tertiaryColor: Color,
+    modifier: Modifier = Modifier,
+    count: Int = 10
+) {
+    if (triggerKey == 0L) return
+
+    val anim = remember(triggerKey) { Animatable(0f) }
+    LaunchedEffect(triggerKey) {
+        anim.animateTo(
+            targetValue = 1f,
+            animationSpec = tween(durationMillis = 720, easing = LinearEasing)
+        )
+    }
+
+    val t = anim.value
+    if (t in 0.001f..0.999f) {
+        val particles = remember(triggerKey) {
+            val shapes = listOf("cookie9", "sunny", "cookie6", "softBurst")
+            val rnd = java.util.Random(triggerKey)
+            List(count) { index ->
+                val angle = (2f * PI.toFloat() * (index + 0.6f * rnd.nextFloat()) / count) - (PI.toFloat() / 2f)
+                BurstSpec(
+                    dx = cos(angle),
+                    dy = sin(angle),
+                    reach = 42f + 54f * rnd.nextFloat(),
+                    size = 12f + 11f * rnd.nextFloat(),
+                    shape = shapes[rnd.nextInt(shapes.size)],
+                    toneIndex = rnd.nextInt(3),
+                    turnDegrees = (if (rnd.nextBoolean()) -1f else 1f) * (140f + 280f * rnd.nextFloat())
+                )
+            }
+        }
+
+        val tones = listOf(primaryColor, tertiaryColor, secondaryColor)
+        val travel = 1f - (1f - t).pow(3)
+        val scale = if (t < 0.18f) (0.3f + 0.7f * (t / 0.18f)) else (1f - 0.45f * ((t - 0.18f) / 0.82f))
+        val alpha = if (t < 0.55f) 1f else (1f - (t - 0.55f) / 0.45f)
+
+        Canvas(modifier = modifier) {
+            val cx = size.width / 2f
+            val cy = size.height / 2f
+
+            for (p in particles) {
+                val px = cx + p.dx * p.reach * travel
+                val py = cy + p.dy * p.reach * travel + (46f * t * t)
+                val pSize = p.size * scale
+                val color = tones[p.toneIndex].copy(alpha = alpha.coerceIn(0f, 1f))
+
+                val pPath = buildExpressivePath(p.shape, pSize, pSize, steps = 36)
+                rotate(p.turnDegrees * t, pivot = Offset(px, py)) {
+                    translate(left = px - pSize / 2f, top = py - pSize / 2f) {
+                        drawPath(pPath, color = color, style = Fill)
+                    }
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Authentic Desktop Swiftify Play Button:
+ * Paused: soft 5-scallop cookie (softCookie).
+ * Playing: springs & morphs into a 9-scallop cookie (cookie9) spinning continuously.
+ * Glyph pops on every toggle, and starts throw out a material shape cookie burst!
+ */
+@Composable
+fun SwiftifyPlayButton(
+    isPlaying: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    buttonSize: Dp = 78.dp,
+    iconSize: Dp = 40.dp,
+    primaryColor: Color = MaterialTheme.colorScheme.primary,
+    onPrimaryColor: Color = MaterialTheme.colorScheme.onPrimary,
+    secondaryColor: Color = MaterialTheme.colorScheme.secondary,
+    tertiaryColor: Color = MaterialTheme.colorScheme.tertiary
+) {
+    val interactionSource = remember { MutableInteractionSource() }
+    val isPressed by interactionSource.collectIsPressedAsState()
+
+    val morphProgress by animateFloatAsState(
+        targetValue = if (isPlaying) 1f else 0f,
+        animationSpec = spring(dampingRatio = 0.55f, stiffness = 340f),
+        label = "morphProgress"
+    )
+
+    val pressScale by animateFloatAsState(
+        targetValue = if (isPressed) 0.88f else 1f,
+        animationSpec = spring(dampingRatio = 0.5f, stiffness = 500f),
+        label = "pressScale"
+    )
+
+    val infiniteTransition = rememberInfiniteTransition(label = "playSpin")
+    val spinAngle by infiniteTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = 360f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 14000, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "spinAngle"
+    )
+
+    val glyphPop = remember { Animatable(1f) }
+    var lastIsPlaying by remember { mutableStateOf(isPlaying) }
+    var burstTrigger by remember { mutableLongStateOf(0L) }
+
+    LaunchedEffect(isPlaying) {
+        if (lastIsPlaying != isPlaying) {
+            lastIsPlaying = isPlaying
+            if (isPlaying) {
+                burstTrigger = System.currentTimeMillis()
+            }
+            glyphPop.snapTo(0.55f)
+            glyphPop.animateTo(
+                targetValue = 1f,
+                animationSpec = spring(dampingRatio = 0.45f, stiffness = 420f)
+            )
+        }
+    }
+
+    Box(
+        modifier = modifier
+            .size(buttonSize)
+            .scale(pressScale),
+        contentAlignment = Alignment.Center
+    ) {
+        // Confetti shape burst on play
+        ShapeBurstEffect(
+            triggerKey = burstTrigger,
+            primaryColor = primaryColor,
+            secondaryColor = secondaryColor,
+            tertiaryColor = tertiaryColor,
+            modifier = Modifier.fillMaxSize()
+        )
+
+        // Morphing & spinning cookie button body
+        Canvas(
+            modifier = Modifier
+                .fillMaxSize()
+                .clickable(
+                    interactionSource = interactionSource,
+                    indication = null,
+                    role = Role.Button,
+                    onClick = onClick
+                )
+        ) {
+            val path = buildMorphedExpressivePath(
+                fromShape = "softCookie",
+                toShape = "cookie9",
+                morphProgress = morphProgress,
+                width = size.width,
+                height = size.height,
+                steps = 90
+            )
+
+            val currentSpin = if (isPlaying || morphProgress > 0.05f) spinAngle else 0f
+            rotate(currentSpin, pivot = center) {
+                drawPath(path = path, color = primaryColor, style = Fill)
+            }
+        }
+
+        // Inner popping Play/Pause glyph
+        Icon(
+            imageVector = if (isPlaying) Icons.Rounded.Pause else Icons.Rounded.PlayArrow,
+            contentDescription = if (isPlaying) "Pause" else "Play",
+            tint = onPrimaryColor,
+            modifier = Modifier
+                .size(iconSize)
+                .scale(glyphPop.value)
+        )
+    }
 }
 
 @Composable

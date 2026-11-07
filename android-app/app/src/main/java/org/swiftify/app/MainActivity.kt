@@ -1482,34 +1482,7 @@ val openArtistScreen: (String, String) -> Unit = { artName, artUri ->
                     // Floating Mini Player (Independent floating box above navigation)
                     if (currentTrack != null) {
                         val miniPalette = rememberTrackPalette(androidx.compose.ui.platform.LocalContext.current, currentTrack.artworkUrl)
-                        val miniSpinTransition = rememberInfiniteTransition(label = "miniSpinTransition")
-                        val miniSpinAngle by miniSpinTransition.animateFloat(
-                            initialValue = 0f,
-                            targetValue = if (isPlaying) (2f * Math.PI.toFloat()) else 0f,
-                            animationSpec = infiniteRepeatable(
-                                animation = tween(durationMillis = 14000, easing = LinearEasing),
-                                repeatMode = RepeatMode.Restart
-                            ),
-                            label = "miniSpinAngle"
-                        )
-                        var isMiniPlayPressed by remember { mutableStateOf(false) }
-                        val miniPlayScale by animateFloatAsState(
-                            targetValue = if (isMiniPlayPressed) 0.88f else 1.0f,
-                            animationSpec = spring(dampingRatio = 0.5f, stiffness = 400f),
-                            label = "miniPlayScale"
-                        )
-                        var lastMiniIsPlaying by remember { mutableStateOf(isPlaying) }
-                        val miniGlyphPop = remember { Animatable(1f) }
-                        LaunchedEffect(isPlaying) {
-                            if (lastMiniIsPlaying != isPlaying) {
-                                lastMiniIsPlaying = isPlaying
-                                miniGlyphPop.snapTo(0.55f)
-                                miniGlyphPop.animateTo(
-                                    targetValue = 1f,
-                                    animationSpec = tween(durationMillis = 480, easing = SwiftifyMotion.ExpressiveFastSpatial)
-                                )
-                            }
-                        }
+
 
                         Box(
                             modifier = Modifier
@@ -1553,33 +1526,16 @@ val openArtistScreen: (String, String) -> Unit = { artName, artUri ->
                                         overflow = TextOverflow.Ellipsis
                                     )
                                 }
-                                MaterialExpressiveShape(
-                                    shape = if (isPlaying) "cookie9" else "softCookie",
-                                    color = MaterialTheme.colorScheme.primary,
-                                    spinAngleRad = if (isPlaying) miniSpinAngle else 0f,
-                                    modifier = Modifier
-                                        .size(42.dp)
-                                        .scale(miniPlayScale)
-                                        .pointerInput(Unit) {
-                                            detectTapGestures(
-                                                onPress = {
-                                                    isMiniPlayPressed = true
-                                                    tryAwaitRelease()
-                                                    isMiniPlayPressed = false
-                                                    onPlayPause()
-                                                }
-                                            )
-                                        }
-                                ) {
-                                    Icon(
-                                        imageVector = if (isPlaying) Icons.Rounded.Pause else Icons.Rounded.PlayArrow,
-                                        contentDescription = if (isPlaying) "Pause" else "Play",
-                                        tint = miniPalette.onAccent,
-                                        modifier = Modifier
-                                            .size(24.dp)
-                                            .scale(miniGlyphPop.value)
-                                    )
-                                }
+                                SwiftifyPlayButton(
+                                    isPlaying = isPlaying,
+                                    onClick = onPlayPause,
+                                    buttonSize = 42.dp,
+                                    iconSize = 22.dp,
+                                    primaryColor = MaterialTheme.colorScheme.primary,
+                                    onPrimaryColor = MaterialTheme.colorScheme.onPrimary,
+                                    secondaryColor = MaterialTheme.colorScheme.secondary,
+                                    tertiaryColor = MaterialTheme.colorScheme.tertiary
+                                )
                             }
                         }
                     }

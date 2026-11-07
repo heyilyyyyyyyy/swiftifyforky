@@ -51,6 +51,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import org.json.JSONObject
+import kotlin.math.abs
 
 data class LyricLine(
     val startTimeMs: Long,
@@ -405,10 +406,22 @@ fun ExpandedPlayer(
                                 idx
                             }
                             val lyricsListState = rememberLazyListState()
+                            var lastLineIdx by remember { mutableIntStateOf(-1) }
+                            var rippleTrigger by remember { mutableIntStateOf(0) }
+                            var scrollDeltaSign by remember { mutableFloatStateOf(1f) }
 
                             LaunchedEffect(activeLineIdx) {
-                                if (activeLineIdx >= 0 && isLineSynced) {
-                                    lyricsListState.animateScrollToItem((activeLineIdx - 1).coerceAtLeast(0))
+                                if (activeLineIdx >= 0 && activeLineIdx != lastLineIdx) {
+                                    scrollDeltaSign = if (activeLineIdx > lastLineIdx) 1f else -1f
+                                    lastLineIdx = activeLineIdx
+                                    rippleTrigger++
+                                    if (isLineSynced) {
+                                        // Desktop follow: smoothly autoscroll keeping active line centered
+                                        lyricsListState.animateScrollToItem(
+                                            index = (activeLineIdx + 1).coerceAtLeast(0),
+                                            scrollOffset = -160
+                                        )
+                                    }
                                 }
                             }
 
@@ -419,10 +432,10 @@ fun ExpandedPlayer(
                                     .clip(RoundedCornerShape(26.dp))
                                     .background(Color(0x3B000000))
                                     .padding(horizontal = 20.dp),
-                                contentPadding = PaddingValues(top = 28.dp, bottom = 48.dp),
+                                contentPadding = PaddingValues(top = 120.dp, bottom = 160.dp),
                                 verticalArrangement = Arrangement.spacedBy(14.dp)
                             ) {
-                                item {
+                                item(key = "lyrics_header") {
                                     Row(
                                         modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
                                         horizontalArrangement = Arrangement.SpaceBetween,
@@ -444,18 +457,38 @@ fun ExpandedPlayer(
                                         }
                                     }
                                 }
-                                itemsIndexed(lyricLines) { index, line ->
+                                itemsIndexed(lyricLines, key = { index, line -> "$index-${line.startTimeMs}" }) { index, line ->
                                     val isCurrent = isLineSynced && (index == activeLineIdx)
                                     val isPast = isLineSynced && (index < activeLineIdx)
 
+                                    // Desktop wave ripple stagger: lines near active line move first
+                                    val dist = abs(index - activeLineIdx).coerceAtMost(8)
+                                    val staggerDelayMs = dist * 16
+
+                                    val lineLag = remember { Animatable(0f) }
+                                    LaunchedEffect(rippleTrigger) {
+                                        if (rippleTrigger > 0 && isLineSynced) {
+                                            lineLag.snapTo(12f * scrollDeltaSign)
+                                            kotlinx.coroutines.delay(staggerDelayMs.toLong())
+                                            lineLag.animateTo(
+                                                targetValue = 0f,
+                                                animationSpec = spring(
+                                                    dampingRatio = 0.62f,
+                                                    stiffness = 340f
+                                                )
+                                            )
+                                        }
+                                    }
+
+                                    // Active line spring growth (matches Desktop: the sung line grows on a spring)
                                     val lineScale by animateFloatAsState(
-                                        targetValue = if (isCurrent) 1.04f else 1.0f,
-                                        animationSpec = spring(dampingRatio = 0.65f, stiffness = 350f),
+                                        targetValue = if (isCurrent) 1.10f else 1.0f,
+                                        animationSpec = spring(dampingRatio = 0.55f, stiffness = 320f),
                                         label = "lyricScale"
                                     )
                                     val pillBg by animateColorAsState(
-                                        targetValue = if (isCurrent) Color(0x28FFFFFF) else Color.Transparent,
-                                        animationSpec = tween(durationMillis = 280, easing = SwiftifyMotion.EmphasizedDecel),
+                                        targetValue = if (isCurrent) palette.accent.copy(alpha = 0.16f) else Color.Transparent,
+                                        animationSpec = tween(durationMillis = 240, easing = SwiftifyMotion.EmphasizedDecel),
                                         label = "lyricPillBg"
                                     )
                                     val textColor by animateColorAsState(
@@ -465,7 +498,7 @@ fun ExpandedPlayer(
                                             isPast -> Color(0x4DFFFFFF)
                                             else -> Color(0x73FFFFFF)
                                         },
-                                        animationSpec = tween(durationMillis = 280),
+                                        animationSpec = tween(durationMillis = 240),
                                         label = "lyricTextColor"
                                     )
 
@@ -475,6 +508,7 @@ fun ExpandedPlayer(
                                             .graphicsLayer {
                                                 scaleX = lineScale
                                                 scaleY = lineScale
+                                                translationY = lineLag.value
                                                 transformOrigin = TransformOrigin(0f, 0.5f)
                                             }
                                             .clip(RoundedCornerShape(20.dp))
@@ -487,11 +521,11 @@ fun ExpandedPlayer(
                                             .padding(horizontal = 14.dp, vertical = 8.dp)
                                     ) {
                                         Text(
-                                            text = line.words,
+                                            text = if (line.words.isNotEmpty()) line.words else "♪",
                                             color = textColor,
-                                            fontSize = if (isCurrent) 22.sp else 18.sp,
+                                            fontSize = if (isCurrent) 23.sp else 18.sp,
                                             fontWeight = if (isCurrent) FontWeight.Bold else FontWeight.SemiBold,
-                                            lineHeight = if (isCurrent) 30.sp else 26.sp,
+                                            lineHeight = if (isCurrent) 31.sp else 26.sp,
                                             textAlign = TextAlign.Start,
                                             modifier = Modifier.fillMaxWidth()
                                         )
@@ -910,63 +944,17 @@ fun ExpandedPlayer(
                 )
             }
 
-            // Big Play / Pause with dynamic softCookie (paused) and cookie9 (playing) turning
-            val playInteraction = remember { MutableInteractionSource() }
-            val isPlayPressed by playInteraction.collectIsPressedAsState()
-            val playScale by animateFloatAsState(
-                targetValue = if (isPlayPressed) 0.88f else 1.0f,
-                animationSpec = spring(dampingRatio = 0.5f, stiffness = 400f),
-                label = "playScale"
+            // Play/Pause button with cookie morphing, continuous rotation, glyph pop, and confetti burst
+            SwiftifyPlayButton(
+                isPlaying = isPlaying,
+                onClick = onPlayPause,
+                buttonSize = 78.dp,
+                iconSize = 40.dp,
+                primaryColor = palette.accent,
+                onPrimaryColor = palette.onAccent,
+                secondaryColor = palette.accent.copy(alpha = 0.7f),
+                tertiaryColor = Color(0xFF1ED760)
             )
-
-            // Glyph pop animation on play/pause toggle (matches Desktop PlayButton.qml: from 0.55 to 1.0)
-            var lastIsPlaying by remember { mutableStateOf(isPlaying) }
-            val glyphPop = remember { Animatable(1f) }
-            LaunchedEffect(isPlaying) {
-                if (lastIsPlaying != isPlaying) {
-                    lastIsPlaying = isPlaying
-                    glyphPop.snapTo(0.55f)
-                    glyphPop.animateTo(
-                        targetValue = 1f,
-                        animationSpec = tween(durationMillis = 480, easing = SwiftifyMotion.ExpressiveFastSpatial)
-                    )
-                }
-            }
-
-            val spinTransition = rememberInfiniteTransition(label = "spinTransition")
-            val spinAngle by spinTransition.animateFloat(
-                initialValue = 0f,
-                targetValue = if (isPlaying) (2f * Math.PI.toFloat()) else 0f,
-                animationSpec = infiniteRepeatable(
-                    animation = tween(durationMillis = 14000, easing = androidx.compose.animation.core.LinearEasing),
-                    repeatMode = androidx.compose.animation.core.RepeatMode.Restart
-                ),
-                label = "spinAngle"
-            )
-
-            MaterialExpressiveShape(
-                shape = if (isPlaying) "cookie9" else "softCookie",
-                color = palette.accent,
-                spinAngleRad = if (isPlaying) spinAngle else 0f,
-                modifier = Modifier
-                    .size(78.dp)
-                    .scale(playScale)
-                    .clickable(
-                        interactionSource = playInteraction,
-                        indication = null,
-                        role = Role.Button,
-                        onClick = onPlayPause
-                    )
-            ) {
-                Icon(
-                    imageVector = if (isPlaying) Icons.Rounded.Pause else Icons.Rounded.PlayArrow,
-                    contentDescription = if (isPlaying) "Pause" else "Play",
-                    tint = palette.onAccent,
-                    modifier = Modifier
-                        .size(40.dp)
-                        .scale(glyphPop.value)
-                )
-            }
 
             // Next with rounded arrowRight shape backing on click
             val nextInteraction = remember { MutableInteractionSource() }
