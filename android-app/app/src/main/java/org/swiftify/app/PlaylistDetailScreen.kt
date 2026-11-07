@@ -1,5 +1,5 @@
 package org.swiftify.app
-import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.animate
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.gestures.Orientation
 import androidx.compose.foundation.gestures.draggable
@@ -78,12 +78,12 @@ fun PlaylistDetailScreen(
     var isLoading by remember { mutableStateOf(true) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
     var reloadTrigger by remember { mutableIntStateOf(0) }
-    val context = androidx.compose.ui.platform.LocalContext.current
+    val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
     val prefs = remember { context.getSharedPreferences("swiftify_prefs", android.content.Context.MODE_PRIVATE) }
     val savedTrackUris = remember {
         val cached = prefs.getStringSet("saved_track_uris", emptySet()) ?: emptySet()
-        mutableStateListOf<String>().apply { addAll(cached) }
+        mutableStateOf<Set<String>>(cached.toSet())
     }
     var showDeleteConfirmation by remember { mutableStateOf(false) }
     var targetTrackForAddToPlaylist by remember { mutableStateOf<TrackItem?>(null) }
@@ -124,7 +124,7 @@ fun PlaylistDetailScreen(
                                     playlistTracks.clear()
                                     playlistTracks.addAll(loaded)
                                     val likedUris = loaded.map { it.uri }.filter { it.isNotEmpty() }.toSet()
-                                    val prefs = context.getSharedPreferences("swiftify_prefs", android.content.Context.MODE_PRIVATE)
+                                    savedTrackUris.value = likedUris
                                     prefs.edit().putStringSet("saved_track_uris", likedUris).apply()
                                 }
                             }
@@ -244,6 +244,18 @@ fun PlaylistDetailScreen(
             PlaylistSortMode.DEFAULT -> {}
         }
         if (isShuffle) list.shuffled() else list
+    }
+
+    // Stable identity for lazy-list reuse. Spotify playlists may contain the same
+    // track more than once, so append an occurrence counter to the track URI.
+    val keyedTracks = remember(displayTracks) {
+        val occurrences = HashMap<String, Int>(displayTracks.size)
+        displayTracks.map { track ->
+            val baseKey = track.uri.ifEmpty { "${track.title}\u0000${track.artist}" }
+            val occurrence = occurrences.getOrDefault(baseKey, 0)
+            occurrences[baseKey] = occurrence + 1
+            IndexedTrack(track, "$baseKey#$occurrence")
+        }
     }
 
     Column(
@@ -465,7 +477,7 @@ fun PlaylistDetailScreen(
             contentPadding = PaddingValues(bottom = 110.dp)
         ) {
             // Header matching Swiftify Desktop
-            item {
+            item(key = "playlist_header", contentType = "header") {
                 Column(
                     modifier = Modifier.fillMaxWidth().padding(top = 8.dp, bottom = 16.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
@@ -603,7 +615,7 @@ fun PlaylistDetailScreen(
 
             // Track list, loading, or empty/error states
             if (isLoading && displayTracks.isEmpty()) {
-                item {
+                item(key = "loading", contentType = "status") {
                     Box(
                         modifier = Modifier.fillMaxWidth().padding(48.dp),
                         contentAlignment = Alignment.Center
@@ -612,7 +624,7 @@ fun PlaylistDetailScreen(
                     }
                 }
             } else if (errorMessage != null && displayTracks.isEmpty()) {
-                item {
+                item(key = "error", contentType = "status") {
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -636,7 +648,7 @@ fun PlaylistDetailScreen(
                     }
                 }
             } else if (!isLoading && displayTracks.isEmpty()) {
-                item {
+                item(key = "empty", contentType = "status") {
                     Box(
                         modifier = Modifier.fillMaxWidth().padding(48.dp),
                         contentAlignment = Alignment.Center
@@ -650,23 +662,29 @@ fun PlaylistDetailScreen(
                     }
                 }
             } else {
-                itemsIndexed(displayTracks) { index, track ->
+                itemsIndexed(
+                    items = keyedTracks,
+                    key = { _, item -> item.key },
+                    contentType = { _, _ -> "playlist_track" }
+                ) { index, item ->
+                val track = item.track
                 val isCurrent = (livePlayingTrack != null && livePlayingTrack.uri == track.uri)
-                val context = LocalContext.current
-                val offsetX = remember { Animatable(0f) }
+                var offsetX by remember { mutableFloatStateOf(0f) }
+                val showSwipeHint by remember { derivedStateOf { offsetX > 10f } }
+                val swipeArmed by remember { derivedStateOf { offsetX > 110f } }
+                val isTrackSaved = savedTrackUris.value.contains(track.uri)
 
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clip(RoundedCornerShape(14.dp))
-                        .background(Color(0xFF231C1A))
+                        .background(Color(0xFF231C1A), RoundedCornerShape(14.dp))
                 ) {
                     // Background revealed when swiping right
-                    if (offsetX.value > 10f) {
+                    if (showSwipeHint) {
                         Row(
                             modifier = Modifier
                                 .matchParentSize()
-                                .background(Color(0xFF2B201C))
+                                .background(Color(0xFF2B201C), RoundedCornerShape(14.dp))
                                 .padding(start = 16.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
@@ -678,7 +696,7 @@ fun PlaylistDetailScreen(
                             )
                             Spacer(modifier = Modifier.width(8.dp))
                             Text(
-                                text = if (offsetX.value > 110f) "Add to Queue" else "Swipe to queue",
+                                text = if (swipeArmed) "Add to Queue" else "Swipe to queue",
                                 color = Color(0xFFF2A385),
                                 fontSize = 13.sp,
                                 fontWeight = FontWeight.Bold
@@ -690,29 +708,32 @@ fun PlaylistDetailScreen(
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .offset { IntOffset(offsetX.value.roundToInt(), 0) }
-                            .shadow(if (offsetX.value > 5f) 8.dp else 0.dp, RoundedCornerShape(14.dp))
-                            .clip(RoundedCornerShape(14.dp))
-                            .background(if (isCurrent) Color(0xFF281E1B) else Color(0xFF13100E))
+                            .offset { IntOffset(offsetX.roundToInt(), 0) }
+                            .background(
+                                if (isCurrent) Color(0xFF281E1B) else Color(0xFF13100E),
+                                RoundedCornerShape(14.dp)
+                            )
                             .clickable {
-                                if (offsetX.value == 0f) {
+                                if (offsetX == 0f) {
                                     onTrackSelect(track, displayTracks)
                                 }
                             }
                             .draggable(
                                 orientation = Orientation.Horizontal,
                                 state = rememberDraggableState { delta ->
-                                    coroutineScope.launch {
-                                        offsetX.snapTo((offsetX.value + delta).coerceIn(0f, 240f))
-                                    }
+                                    offsetX = (offsetX + delta).coerceIn(0f, 240f)
                                 },
                                 onDragStopped = {
-                                    if (offsetX.value > 110f) {
+                                    if (swipeArmed) {
                                         onAddToQueue?.invoke(track)
                                         Toast.makeText(context, "Added '${track.title}' to queue", Toast.LENGTH_SHORT).show()
                                     }
                                     coroutineScope.launch {
-                                        offsetX.animateTo(0f, spring(dampingRatio = 0.7f, stiffness = 600f))
+                                        animate(
+                                            initialValue = offsetX,
+                                            targetValue = 0f,
+                                            animationSpec = spring(dampingRatio = 0.7f, stiffness = 600f)
+                                        ) { value, _ -> offsetX = value }
                                     }
                                 }
                             )
@@ -770,15 +791,22 @@ fun PlaylistDetailScreen(
                     }
 
                     // Star button (Save / Liked Track)
-                    val isTrackSaved = savedTrackUris.contains(track.uri)
                     IconButton(
                         onClick = {
                             val next = !isTrackSaved
-                            if (next) savedTrackUris.add(track.uri) else savedTrackUris.remove(track.uri)
+                            savedTrackUris.value = if (next) {
+                                savedTrackUris.value + track.uri
+                            } else {
+                                savedTrackUris.value - track.uri
+                            }
                             coroutineScope.launch {
                                 val success = SpotifyApi.setTrackSaved(context, track.uri, next)
                                 if (!success) {
-                                    if (next) savedTrackUris.remove(track.uri) else savedTrackUris.add(track.uri)
+                                    savedTrackUris.value = if (next) {
+                                        savedTrackUris.value - track.uri
+                                    } else {
+                                        savedTrackUris.value + track.uri
+                                    }
                                     Toast.makeText(context, "Failed to update Saved Tracks", Toast.LENGTH_SHORT).show()
                                 }
                             }

@@ -4,7 +4,7 @@ import android.content.Context
 import android.util.Log
 import android.widget.Toast
 import kotlinx.coroutines.launch
-import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.animate
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -180,6 +180,16 @@ fun ArtistDetailScreen(
         else -> releases
     }
 
+    val keyedTracks = remember(visibleTracks.toList()) {
+        val occurrences = HashMap<String, Int>(visibleTracks.size)
+        visibleTracks.map { track ->
+            val baseKey = track.uri.ifEmpty { "${track.title}\u0000${track.artist}" }
+            val occurrence = occurrences.getOrDefault(baseKey, 0)
+            occurrences[baseKey] = occurrence + 1
+            IndexedTrack(track, "$baseKey#$occurrence")
+        }
+    }
+
     LazyColumn(
         modifier = Modifier
             .fillMaxSize()
@@ -187,7 +197,7 @@ fun ArtistDetailScreen(
             .padding(horizontal = 20.dp)
     ) {
         // Back Button & Header
-        item {
+        item(key = "artist_header", contentType = "header") {
             Spacer(modifier = Modifier.height(16.dp))
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -206,7 +216,7 @@ fun ArtistDetailScreen(
         }
 
         // Hero Header
-        item {
+        item(key = "artist_hero", contentType = "hero") {
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -269,7 +279,7 @@ fun ArtistDetailScreen(
         }
 
         // Section Title: Popular Songs
-        item {
+        item(key = "popular_title", contentType = "section_title") {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically
@@ -291,7 +301,7 @@ fun ArtistDetailScreen(
         }
 
         if (isLoading) {
-            item {
+            item(key = "loading", contentType = "status") {
                 Box(
                     modifier = Modifier.fillMaxWidth().height(160.dp),
                     contentAlignment = Alignment.Center
@@ -300,7 +310,7 @@ fun ArtistDetailScreen(
                 }
             }
         } else if (errorMessage != null && topTracks.isEmpty()) {
-            item {
+            item(key = "error", contentType = "status") {
                 Box(
                     modifier = Modifier.fillMaxWidth().padding(32.dp),
                     contentAlignment = Alignment.Center
@@ -315,22 +325,26 @@ fun ArtistDetailScreen(
             }
         } else {
             // Tracks (5 or 10)
-            itemsIndexed(visibleTracks) { idx, track ->
+            itemsIndexed(
+                items = keyedTracks,
+                key = { _, indexed -> indexed.key },
+                contentType = { _, _ -> "track_row" }
+            ) { idx, indexed ->
+                val track = indexed.track
                 val isCurrent = livePlayingTrack?.uri == track.uri
-                val context = LocalContext.current
-                val offsetX = remember { Animatable(0f) }
+                var offsetX by remember { mutableFloatStateOf(0f) }
+                val swipeArmed by remember { derivedStateOf { offsetX > 110f } }
 
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clip(RoundedCornerShape(14.dp))
-                        .background(Color(0xFF231C1A))
+                        .background(Color(0xFF231C1A), RoundedCornerShape(14.dp))
                 ) {
-                    if (offsetX.value > 10f) {
+                    if (offsetX > 10f) {
                         Row(
                             modifier = Modifier
                                 .matchParentSize()
-                                .background(Color(0xFF2B201C))
+                                .background(Color(0xFF2B201C), RoundedCornerShape(14.dp))
                                 .padding(start = 16.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
@@ -342,7 +356,7 @@ fun ArtistDetailScreen(
                             )
                             Spacer(modifier = Modifier.width(8.dp))
                             Text(
-                                text = if (offsetX.value > 110f) "Add to Queue" else "Swipe to queue",
+                                text = if (swipeArmed) "Add to Queue" else "Swipe to queue",
                                 color = Color(0xFFF2A385),
                                 fontSize = 13.sp,
                                 fontWeight = FontWeight.Bold
@@ -353,29 +367,32 @@ fun ArtistDetailScreen(
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .offset { IntOffset(offsetX.value.roundToInt(), 0) }
-                            .shadow(if (offsetX.value > 5f) 8.dp else 0.dp, RoundedCornerShape(14.dp))
-                            .clip(RoundedCornerShape(14.dp))
-                            .background(if (isCurrent) Color(0xFF281E1B) else Color(0xFF13100E))
+                            .offset { IntOffset(offsetX.roundToInt(), 0) }
+                            .background(
+                                if (isCurrent) Color(0xFF281E1B) else Color(0xFF13100E),
+                                RoundedCornerShape(14.dp)
+                            )
                             .clickable {
-                                if (offsetX.value == 0f) {
+                                if (offsetX == 0f) {
                                     onTrackSelect(track, topTracks)
                                 }
                             }
                             .draggable(
                                 orientation = Orientation.Horizontal,
                                 state = rememberDraggableState { delta ->
-                                    coroutineScope.launch {
-                                        offsetX.snapTo((offsetX.value + delta).coerceIn(0f, 240f))
-                                    }
+                                    offsetX = (offsetX + delta).coerceIn(0f, 240f)
                                 },
                                 onDragStopped = {
-                                    if (offsetX.value > 110f) {
+                                    if (swipeArmed) {
                                         onAddToQueue?.invoke(track)
                                         Toast.makeText(context, "Added '${track.title}' to queue", Toast.LENGTH_SHORT).show()
                                     }
                                     coroutineScope.launch {
-                                        offsetX.animateTo(0f, spring(dampingRatio = 0.7f, stiffness = 600f))
+                                        animate(
+                                            initialValue = offsetX,
+                                            targetValue = 0f,
+                                            animationSpec = spring(dampingRatio = 0.7f, stiffness = 600f)
+                                        ) { value, _ -> offsetX = value }
                                     }
                                 }
                             )
@@ -427,10 +444,8 @@ fun ArtistDetailScreen(
                                 modifier = Modifier.size(16.dp)
                             )
                         } else {
-                            val min = track.durationMs / 60000
-                            val sec = (track.durationMs % 60000) / 1000
                             Text(
-                                text = String.format("%d:%02d", min, sec),
+                                text = formatTime(track.durationMs),
                                 color = Color(0xFF756A64),
                                 fontSize = 13.sp
                             )
@@ -441,7 +456,7 @@ fun ArtistDetailScreen(
 
             // More / Less button
             if (topTracks.size > 5) {
-                item {
+                item(key = "more_button", contentType = "action") {
                     TextButton(
                         onClick = { showAllTracks = !showAllTracks },
                         modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
@@ -459,7 +474,7 @@ fun ArtistDetailScreen(
 
         // Section Title: Discography & Filter Chips
         if (releases.isNotEmpty()) {
-            item {
+            item(key = "discography_title", contentType = "section_title") {
                 Spacer(modifier = Modifier.height(28.dp))
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -504,12 +519,16 @@ fun ArtistDetailScreen(
             }
 
             // Horizontal Carousel or List of Releases
-            item {
+            item(key = "discography_row", contentType = "horizontal_list") {
                 LazyRow(
                     horizontalArrangement = Arrangement.spacedBy(14.dp),
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    items(filteredReleases) { rel ->
+                    items(
+                        items = filteredReleases,
+                        key = { it.uri.ifEmpty { "${it.name}#${it.year}" } },
+                        contentType = { "release_card" }
+                    ) { rel ->
                         Column(
                             modifier = Modifier
                                 .width(130.dp)
@@ -555,7 +574,7 @@ fun ArtistDetailScreen(
             }
         }
 
-        item {
+        item(key = "bottom_spacer", contentType = "spacer") {
             Spacer(modifier = Modifier.height(110.dp))
         }
     }

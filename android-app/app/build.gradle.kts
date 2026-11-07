@@ -30,6 +30,18 @@ android {
         debug {
             isDebuggable = true
         }
+        // Non-debuggable build signed with the local debug key, useful for
+        // performance testing without losing app data on reinstall.
+        create("perf") {
+            initWith(getByName("release"))
+            signingConfig = signingConfigs.getByName("debug")
+            matchingFallbacks += listOf("release")
+        }
+    }
+
+    lint {
+        checkReleaseBuilds = false
+        abortOnError = false
     }
 
     buildFeatures {

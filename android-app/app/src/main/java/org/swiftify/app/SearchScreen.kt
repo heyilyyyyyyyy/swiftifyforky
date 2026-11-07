@@ -1,7 +1,7 @@
 package org.swiftify.app
 
 import android.widget.Toast
-import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.animate
 import androidx.compose.animation.core.spring
 import androidx.compose.ui.draw.shadow
 import androidx.compose.foundation.background
@@ -339,7 +339,7 @@ fun SearchScreen(
                     // Top Result Card (if All is selected)
                     if (selectedCategory == "All") {
                         if (isArtistTopResult && topArtist != null) {
-                            item {
+                            item(key = "top_result_artist_${topArtist.uri}", contentType = "top_result") {
                                 Text("Top result", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(vertical = 10.dp))
                                 Row(
                                     modifier = Modifier
@@ -366,7 +366,7 @@ fun SearchScreen(
                             }
                         } else if (searchResultsTracks.isNotEmpty()) {
                             val topSong = searchResultsTracks.first()
-                            item {
+                            item(key = "top_result_song_${topSong.uri}", contentType = "top_result") {
                                 Text("Top result", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(vertical = 10.dp))
                                 Row(
                                     modifier = Modifier
@@ -397,7 +397,7 @@ fun SearchScreen(
 
                     // Songs Section
                     if (selectedCategory in listOf("All", "Songs") && searchResultsTracks.isNotEmpty()) {
-                        item {
+                        item(key = "songs_header", contentType = "header") {
                             Text(
                                 "Songs",
                                 color = Color.White,
@@ -407,22 +407,25 @@ fun SearchScreen(
                             )
                         }
                         val tracksToShow = if (selectedCategory == "All") searchResultsTracks.take(5) else searchResultsTracks
-                        items(tracksToShow) { track ->
+                        items(
+                            items = tracksToShow,
+                            key = { it.uri.ifEmpty { "${it.title}\u0000${it.artist}" } },
+                            contentType = { "song_row" }
+                        ) { track ->
                             val isCurrent = (livePlayingTrack != null && livePlayingTrack.uri == track.uri)
-                            val context = LocalContext.current
-                            val offsetX = remember { Animatable(0f) }
+                            var offsetX by remember { mutableFloatStateOf(0f) }
+                            val swipeArmed by remember { derivedStateOf { offsetX > 110f } }
 
                             Box(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .clip(RoundedCornerShape(14.dp))
-                                    .background(Color(0xFF231C1A))
+                                    .background(Color(0xFF231C1A), RoundedCornerShape(14.dp))
                             ) {
-                                if (offsetX.value > 10f) {
+                                if (offsetX > 10f) {
                                     Row(
                                         modifier = Modifier
                                             .matchParentSize()
-                                            .background(Color(0xFF2B201C))
+                                            .background(Color(0xFF2B201C), RoundedCornerShape(14.dp))
                                             .padding(start = 16.dp),
                                         verticalAlignment = Alignment.CenterVertically
                                     ) {
@@ -434,7 +437,7 @@ fun SearchScreen(
                                         )
                                         Spacer(modifier = Modifier.width(8.dp))
                                         Text(
-                                            text = if (offsetX.value > 110f) "Add to Queue" else "Swipe to queue",
+                                            text = if (swipeArmed) "Add to Queue" else "Swipe to queue",
                                             color = Color(0xFFF2A385),
                                             fontSize = 13.sp,
                                             fontWeight = FontWeight.Bold
@@ -445,29 +448,32 @@ fun SearchScreen(
                                 Row(
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .offset { IntOffset(offsetX.value.roundToInt(), 0) }
-                                        .shadow(if (offsetX.value > 5f) 8.dp else 0.dp, RoundedCornerShape(14.dp))
-                                        .clip(RoundedCornerShape(14.dp))
-                                        .background(if (isCurrent) Color(0xFF281E1B) else Color(0xFF13100E))
+                                        .offset { IntOffset(offsetX.roundToInt(), 0) }
+                                        .background(
+                                            if (isCurrent) Color(0xFF281E1B) else Color(0xFF13100E),
+                                            RoundedCornerShape(14.dp)
+                                        )
                                         .clickable {
-                                            if (offsetX.value == 0f) {
+                                            if (offsetX == 0f) {
                                                 onTrackSelect(track)
                                             }
                                         }
                                         .draggable(
                                             orientation = Orientation.Horizontal,
                                             state = rememberDraggableState { delta ->
-                                                coroutineScope.launch {
-                                                    offsetX.snapTo((offsetX.value + delta).coerceIn(0f, 240f))
-                                                }
+                                                offsetX = (offsetX + delta).coerceIn(0f, 240f)
                                             },
                                             onDragStopped = {
-                                                if (offsetX.value > 110f) {
+                                                if (swipeArmed) {
                                                     onAddToQueue?.invoke(track)
-                                                    Toast.makeText(context, "Added '${track.title}' to queue", Toast.LENGTH_SHORT).show()
+                                                    Toast.makeText(currentContext, "Added '${track.title}' to queue", Toast.LENGTH_SHORT).show()
                                                 }
                                                 coroutineScope.launch {
-                                                    offsetX.animateTo(0f, spring(dampingRatio = 0.7f, stiffness = 600f))
+                                                    animate(
+                                                        initialValue = offsetX,
+                                                        targetValue = 0f,
+                                                        animationSpec = spring(dampingRatio = 0.7f, stiffness = 600f)
+                                                    ) { value, _ -> offsetX = value }
                                                 }
                                             }
                                         )
@@ -525,7 +531,7 @@ fun SearchScreen(
 
                     // Artists Section
                     if (selectedCategory in listOf("All", "Artists") && searchResultsArtists.isNotEmpty()) {
-                        item {
+                        item(key = "artists_header", contentType = "header") {
                             Text(
                                 "Artists",
                                 color = Color.White,
@@ -534,7 +540,11 @@ fun SearchScreen(
                                 modifier = Modifier.padding(top = 16.dp, bottom = 10.dp)
                             )
                         }
-                        items(searchResultsArtists) { artist ->
+                        items(
+                            items = searchResultsArtists,
+                            key = { it.uri.ifEmpty { it.name } },
+                            contentType = { "artist_row" }
+                        ) { artist ->
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
@@ -571,7 +581,7 @@ fun SearchScreen(
 
                     // Playlists Section
                     if (selectedCategory in listOf("All", "Playlists") && searchResultsPlaylists.isNotEmpty()) {
-                        item {
+                        item(key = "playlists_header", contentType = "header") {
                             Text(
                                 "Playlists",
                                 color = Color.White,
@@ -580,7 +590,11 @@ fun SearchScreen(
                                 modifier = Modifier.padding(top = 16.dp, bottom = 10.dp)
                             )
                         }
-                        items(searchResultsPlaylists) { playlist ->
+                        items(
+                            items = searchResultsPlaylists,
+                            key = { it.uri.ifEmpty { it.name } },
+                            contentType = { "playlist_row" }
+                        ) { playlist ->
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
@@ -621,7 +635,7 @@ fun SearchScreen(
 
                     // Empty State
                     if (searchResultsTracks.isEmpty() && searchResultsArtists.isEmpty() && searchResultsPlaylists.isEmpty() && !isSearching) {
-                        item {
+                        item(key = "empty_state", contentType = "status") {
                             Box(
                                 modifier = Modifier
                                     .fillMaxWidth()

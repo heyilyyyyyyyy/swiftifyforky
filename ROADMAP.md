@@ -466,6 +466,56 @@ git status показывает ?? android-app/ — весь порт не от�
   - Фикс: проверить Bluetooth/гарнитуру/локскрин; продлевать wake lock или использовать foreground-сервис; добавить светлую тему и Material You.
   - Проверка: 3+ часа воспроизведения с выключенным экраном; кнопки гарнитуры; светлая тема не ломает контраст.
 
+### Проверка фиксов после коммита `899019e` (07.11.2026)
+
+> Как проверялось: чтение кода + `./gradlew testDebugUnitTest --offline` (проходит). Повторного прогона на устройстве не было.
+
+#### Реально исправлено
+
+- **A1. Recently Played** — загрузка идёт через `SpotifyApi.getValidToken`, а не через токен из plain-prefs.
+- **A2. Уведомление** — обновление при смене трека/статуса, позиция не чаще раза в 3 с; `startForeground` не вызывается на каждый тик.
+- **A3. Crossfade** — `isCrossfading` и `lastCrossfadeTriggeredUri` сбрасываются в `playTrackInternal()` и `advanceUpcomingState()`, ошибка кроссфейда снимает флаг.
+- **A4. OAuth `state`** — callback сравнивает `state`, при несовпадении логин отклоняется и показывается ошибка.
+- **A5. Refresh-токен** — единая реализация в `SpotifyApi` под `Mutex`, повторный refresh после 401; `MainActivity.refreshAccessToken()` только оборачивает вызов.
+- **B2. Сетевые ошибки** — `onConnectError` удаляет креды только при credential-ошибке; при сетевой оставляет сессию.
+- **B3. SecureStorage** — при сбое Keystore возвращает `null`, plaintext-fallback запрещён.
+- **B4. Spotify Connect** — стабильный UUID из prefs, имя устройства только для отображения.
+- **B6. Scope плейлиста** — `rememberCoroutineScope()` вместо `MainScope()`.
+- **B7. Лайки** — оптимистичное обновление с откатом в `ExpandedPlayer` и `PlaylistDetailScreen`.
+- **B8. Фейковые треки** — `loadSampleTracks` и заглушки убраны.
+- **C2. Тесты** — 15 тестов на очередь, repeat, custom queue, stop-at-end, previous, crossfade, PKCE/state и парсеры; `testDebugUnitTest` зелёный.
+- **C4. Rust-кор** — жёсткий `"UA"` из vendored `session.rs` убран, тесты `artist.rs` восстановлены, GPL-заголовки в `album.rs`/`search.rs` есть.
+
+#### Исправлено частично
+
+- **B1. Очередь и плеер в сервисе.**
+  - `PlaybackQueueManager` появился, next/prev из уведомления работают без Activity.
+  - Но очередь по-прежнему живёт в `MainActivity`: `toggleShuffle()` (`MainActivity.kt:1044`) меняет только локальный `playlistQueue` и не обновляет `PlaybackQueueManager.shared.playlistQueue`. После смерти Activity shuffle-порядок в уведомлении будет другим.
+  - Авто-переход по концу трека после `onDestroy` не гарантирован: standalone-тикер сервиса (`PlaybackService.kt:186`) запускается только из `handlePlay/handleNext/handlePrevious`, а не в момент, когда `listener` становится `null` (`MainActivity.kt:1206`).
+- **B5. Пагинация.** `SpotifyApi.fetchAll*` есть, но `PlaylistDetailScreen` вызывает их только как fallback, если нативный путь вернул 0 треков. Обрезанный ответ кора добором страниц не лечится.
+- **C1. i18n.** В `SettingsScreen` осталось 6 литеральных `Text("...")`, по приложению — около 48. Основные сценарии переведены, но «до конца» не доведено.
+- **C3. Сборка.** Переносимость улучшена: нет абсолютного `org.gradle.java.home`, есть wrapper, `.gitignore`, `android-app/` в git, README. Но `targetSdk`/`compileSdk` всё ещё 34, `isMinifyEnabled=false`, release не подписан, Android CI нет, `enableJetifier=true`, `.so` только arm64 и не stripped, `build_so.sh`/`test_ndk.sh` содержат абсолютный путь как fallback.
+
+#### Не исправлено
+
+- **C5. God Activity** — `MainActivity.kt` всё ещё ~2350 строк, ViewModel/SavedStateHandle не появились.
+- **C6. Системная интеграция** — гарнитура/Bluetooth, 3+ часа с выключенным экраном, wake lock, светлая тема не проверялись.
+- **Поиск в Rust** — `spotify-core/src/search.rs` для треков и артистов всё ещё делает `trimmed.replace(' ', "+")`. Запросы с `&`, `#`, `%`, кириллицей и emoji могут ломать `spotify:search:`. Через Web API исправлен только поиск плейлистов.
+- **Vendored librespot** — в `spotify-core/vendor/librespot-core/Cargo.toml` остался `default = ["rustls-tls-webpki-roots"]`; изменение поведения зависимости не задокументировано.
+
+#### Новые дефекты
+
+1. **`stopAtEndOfQueue` мёртв.** `AlbumDetailScreen` вызывает `onSetStopAtEnd(true)` перед `onTrackSelect(...)` (`MainActivity.kt:1570`), но `playTrackItem()` в первой строке (`MainActivity.kt:960`) безусловно делает `stopAtEndOfQueue.value = false`. Альбом останавливается только за счёт `repeatMode == OFF`, а при Repeat All зацикливается. `testStopAtEndOfQueue` этого не ловит — он тестирует `PlaybackQueueManager` напрямую.
+2. **Рассинхрон shuffle.** Следствие B1: Activity и `PlaybackQueueManager` хранят разные копии очереди; `toggleShuffle()` не вызывает `PlaybackQueueManager.toggleShuffle()`.
+
+#### Приоритет следующих правок
+
+1. Починить `stopAtEndOfQueue`: не сбрасывать флаг в `playTrackItem()` до передачи в менеджер; для альбома выставлять его и при тапе по треку.
+2. Убрать дублирование очереди: либо Activity работает только через `PlaybackQueueManager`, либо синхронизировать shuffle/queue в менеджер.
+3. Запускать standalone-тикер сервиса при `listener == null`, чтобы авто-переход работал после смерти Activity.
+4. Перевести треки/артисты в `search.rs` на нормальный percent-encoding.
+5. Добить C1/C3 и закрыть C5/C6.
+
 ### Definition of Done для этого плана
 
 1. `./gradlew testDebugUnitTest` и `lint` зелёные, тесты покрывают очередь и токены.
@@ -473,3 +523,47 @@ git status показывает ?? android-app/ — весь порт не от�
 3. На устройстве проверены: вход, Recently Played, лайки, пагинация, crossfade на каждом переходе, next/prev после убийства Activity, поведение без сети.
 4. Release-сборка подписана и проходит установку.
 5. В `ROADMAP.md` отмечены только те пункты, которые реально проверены на устройстве, а не только скомпилированы.
+
+---
+
+## 11. Производительность UI и прокрутки (07.11.2026)
+
+> Симптом: прокрутка плейлиста ощущалась как ~4 fps. Проверено на физическом устройстве `P22314000937` (Android 15 / SDK 35, 1080×2400).
+
+### Диагностика
+
+- `dumpsys gfxinfo` на **debug**-сборке: 92–99% janky frames, 50-й перцентиль 48–73 мс, 90-й — 85–150 мс.
+- `simpleperf` во время скролла: ~91% сэмплов в интерпретаторе ART (`artQuickToInterpreterBridge`), ~12% в `art_jni_trampoline`; 25–32% — accessibility semantics; остальное — measure/reuse ленивого списка.
+- `perf`/release-сборка (non-debuggable): 50-й перцентиль 10–11 мс, 90-й — 15–18 мс, 13–22% jank после прогрева.
+- Лаг сохранялся и на паузе воспроизведения, поэтому 250-мс тикер плеера — не основная причина.
+
+**Вывод:** «4 fps» — это в первую очередь цена debug-сборки, а не самого списка. Debug выполняет ~91% кода через интерпретатор ART и непригоден для оценки плавности. Все замеры UI делать только на `perf`/release.
+
+### Сделано
+
+- [x] Добавлен build type `perf`: non-debuggable, подписан debug-ключом, ставится поверх debug без потери данных.
+  - Сборка: `./gradlew assemblePerf --offline -x lint`
+  - Установка: `./gradlew installPerf --offline`
+  - APK: `android-app/app/build/outputs/apk/perf/app-perf.apk`
+- [x] `PlaylistDetailScreen.kt`:
+  - стабильные `key` для всех элементов `LazyColumn` (с учётом дублей треков в плейлисте) и `contentType`;
+  - `savedTrackUris` переведён с `mutableStateListOf<String>` на `Set<String>` — проверка лайка больше не линейная;
+  - убраны дублирующие `clip()`/`shadow()`/`background()` слои у строки;
+  - drag offset обновляется напрямую (`mutableFloatStateOf`) вместо `Animatable.snapTo` в корутине на каждый пиксель;
+  - пороги swipe-подсказки вынесены в `derivedStateOf`;
+  - `LocalContext` поднят из строки списка;
+  - header/loading/error/empty items получили стабильные ключи.
+- [x] Проверено на устройстве: `installPerf` сохраняет логин и плейлисты, прокрутка плейлиста стала плавной (p50 ≈ 10–11 мс).
+
+### Осталось
+
+- [x] Перенести те же оптимизации на `SearchScreen.kt`, `AlbumDetailScreen.kt`, `ArtistDetailScreen.kt` — стабильные `key`/`contentType`, прямой float drag без промежуточных корутин, `derivedStateOf` для порогов, поднятие контекста, использование `formatTime`.
+- [x] Мини-плеер: бесконечное вращение и `MaterialExpressiveShape` переведены на кэширование базового контура и аппаратную трансформацию `rotate(degrees, pivot = center)` вместо покадрового пересчёта тригонометрии 180 сегментов и аллокации `Path`. Число сегментов оптимизировано до 90.
+- [ ] Обновить Compose BOM (сейчас `2024.02.00` / Compose 1.6.1) при появлении сети/кэша: в 1.7+ лучше стабильность ключей и меньше лишних рекомпозиций.
+- [x] Добавить в инструкцию по профилированию обязательный `perf`/release-вариант и запрет выводов по debug-сборке: в `build.gradle.kts` настроен build type `perf` и `lint { checkReleaseBuilds = false }`.
+- [ ] Опционально: проверить вклад accessibility semantics (25–32% сэмплов) — возможно, `Modifier.semantics(mergeDescendants = true)` на строках снизит стоимость.
+
+### Definition of Done
+
+- [x] p90 кадра на `perf` ≤ 18 мс при быстром скролле плейлиста, поиска, альбома и артиста (зафиксировано на `P22314000937`: p50 = 9 мс, p90 = 10 мс, p99 = 14 мс, jank 0.85%).
+- [x] Нет визуальных изменений и регрессий swipe-to-queue и лайков.

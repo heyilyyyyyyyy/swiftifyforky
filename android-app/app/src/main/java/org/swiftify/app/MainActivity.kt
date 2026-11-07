@@ -86,6 +86,8 @@ data class TrackItem(
     val artistUri: String = ""
 )
 
+data class IndexedTrack(val track: TrackItem, val key: String)
+
 data class PlaylistItem(
     val name: String,
     val owner: String,
@@ -956,8 +958,8 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    private fun playTrackItem(item: TrackItem, queueContext: List<TrackItem>? = null, contextName: String? = null) {
-        stopAtEndOfQueue.value = false
+    private fun playTrackItem(item: TrackItem, queueContext: List<TrackItem>? = null, contextName: String? = null, stopAtEnd: Boolean = stopAtEndOfQueue.value) {
+        stopAtEndOfQueue.value = stopAtEnd
         if (!contextName.isNullOrEmpty()) {
             queueContextName.value = contextName
         } else if (item.album.isNotEmpty()) {
@@ -1054,6 +1056,9 @@ class MainActivity : ComponentActivity() {
                 if (curr != null) playlistQueue.add(curr)
                 playlistQueue.addAll(rest)
                 currentPlaylistIndex = 0
+                PlaybackQueueManager.shared.playlistQueue.clear()
+                PlaybackQueueManager.shared.playlistQueue.addAll(playlistQueue)
+                PlaybackQueueManager.shared.currentPlaylistIndex = 0
                 syncVisibleQueue()
                 preloadUpcomingTrack()
             }
@@ -1064,6 +1069,9 @@ class MainActivity : ComponentActivity() {
                 playlistQueue.addAll(originalQueueBeforeShuffle)
                 val idx = playlistQueue.indexOfFirst { it.uri == curr?.uri }
                 currentPlaylistIndex = if (idx >= 0) idx else 0
+                PlaybackQueueManager.shared.playlistQueue.clear()
+                PlaybackQueueManager.shared.playlistQueue.addAll(playlistQueue)
+                PlaybackQueueManager.shared.currentPlaylistIndex = currentPlaylistIndex
                 syncVisibleQueue()
                 preloadUpcomingTrack()
             }
@@ -1563,6 +1571,7 @@ val openArtistScreen: (String, String) -> Unit = { artName, artUri ->
                         isPlaying = isPlaying,
                         onBack = { activeAlbumUri = null },
                         onTrackSelect = { selectedTrack, playlistTracks ->
+                            onSetStopAtEnd?.invoke(true)
                             onTrackSelect(selectedTrack, playlistTracks)
                         },
                         onPlayAll = { albumTracks ->
@@ -1589,10 +1598,12 @@ val openArtistScreen: (String, String) -> Unit = { artName, artUri ->
                             }
                         },
                         onTrackSelect = { selectedTrack, playlistTracks ->
+                            onSetStopAtEnd?.invoke(false)
                             onTrackSelect(selectedTrack, playlistTracks)
                         },
                         onPlayAll = { playlistTracks ->
                             if (playlistTracks.isNotEmpty()) {
+                                onSetStopAtEnd?.invoke(false)
                                 onTrackSelect(playlistTracks.first(), playlistTracks)
                             }
                         },

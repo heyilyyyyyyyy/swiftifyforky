@@ -62,7 +62,16 @@ class PlaybackService : Service(), AudioManager.OnAudioFocusChangeListener {
         const val EXTRA_DURATION_MS = "extra_duration_ms"
 
         @Volatile
+        var instance: PlaybackService? = null
+
+        @Volatile
         var listener: PlaybackEventListener? = null
+            set(value) {
+                field = value
+                if (value == null) {
+                    instance?.checkStartStandaloneTicker()
+                }
+            }
 
         fun updateNotification(
             context: Context,
@@ -137,6 +146,7 @@ class PlaybackService : Service(), AudioManager.OnAudioFocusChangeListener {
 
     override fun onCreate() {
         super.onCreate()
+        instance = this
         createNotificationChannel()
         notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager
         audioManager = getSystemService(Context.AUDIO_SERVICE) as? AudioManager
@@ -182,6 +192,12 @@ class PlaybackService : Service(), AudioManager.OnAudioFocusChangeListener {
     }
 
     private var standaloneTickerJob: Job? = null
+
+    fun checkStartStandaloneTicker() {
+        if (isPlaying) {
+            startStandaloneTicker()
+        }
+    }
 
     private fun startStandaloneTicker() {
         if (standaloneTickerJob?.isActive == true) return
@@ -431,6 +447,11 @@ class PlaybackService : Service(), AudioManager.OnAudioFocusChangeListener {
                 } else if (!isPlaying && wasPlaying) {
                     releaseWakeLock()
                     unregisterNoisyReceiver()
+                    standaloneTickerJob?.cancel()
+                    standaloneTickerJob = null
+                }
+                if (isPlaying && listener == null) {
+                    startStandaloneTicker()
                 }
 
                 if (newUrl.isNotEmpty() && newUrl != currentArtUrl) {
@@ -577,6 +598,9 @@ class PlaybackService : Service(), AudioManager.OnAudioFocusChangeListener {
 
     override fun onDestroy() {
         super.onDestroy()
+        if (instance == this) instance = null
+        standaloneTickerJob?.cancel()
+        standaloneTickerJob = null
         stopForeground(true)
         isForegroundActive = false
         releaseWakeLock()

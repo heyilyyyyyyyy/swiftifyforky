@@ -40,13 +40,20 @@ pub struct SearchArtistItem {
     pub artwork_url: String,
 }
 
-pub async fn search_tracks_json(session: &Session, query: &str) -> Result<String, String> {
+pub fn encode_search_uri(query: &str) -> String {
     let trimmed = query.trim();
     if trimmed.is_empty() {
+        return String::new();
+    }
+    let encoded: String = form_urlencoded::byte_serialize(trimmed.as_bytes()).collect();
+    format!("spotify:search:{encoded}")
+}
+
+pub async fn search_tracks_json(session: &Session, query: &str) -> Result<String, String> {
+    let uri = encode_search_uri(query);
+    if uri.is_empty() {
         return Ok(r#"{"tracks":[]}"#.to_string());
     }
-    let encoded_query = trimmed.replace(' ', "+");
-    let uri = format!("spotify:search:{encoded_query}");
 
     let context = session
         .spclient()
@@ -77,12 +84,10 @@ pub async fn search_tracks_json(session: &Session, query: &str) -> Result<String
 
 pub async fn search_artists_json(session: &Session, query: &str) -> Result<String, String> {
     let trimmed = query.trim();
-    if trimmed.is_empty() {
+    let uri = encode_search_uri(trimmed);
+    if uri.is_empty() {
         return Ok(r#"{"artists":[]}"#.to_string());
     }
-
-    let encoded_query = trimmed.replace(' ', "+");
-    let uri = format!("spotify:search:{encoded_query}");
 
     let mut uris = Vec::new();
     if let Ok(context) = session.spclient().get_context(&uri).await {
@@ -300,3 +305,19 @@ pub async fn collection_tracks_json(session: &Session) -> Result<String, String>
     serde_json::to_string(&SearchResultsPayload { tracks })
         .map_err(|error| format!("failed to encode collection tracks: {error}"))
 }
+
+#[cfg(test)]
+mod tests {
+    use super::encode_search_uri;
+
+    #[test]
+    fn test_encode_search_uri() {
+        assert_eq!(encode_search_uri(""), "");
+        assert_eq!(encode_search_uri("   "), "");
+        assert_eq!(encode_search_uri("radiohead"), "spotify:search:radiohead");
+        assert_eq!(encode_search_uri("daft punk"), "spotify:search:daft+punk");
+        assert_eq!(encode_search_uri("кино"), "spotify:search:%D0%BA%D0%B8%D0%BD%D0%BE");
+        assert_eq!(encode_search_uri("rock & roll #1"), "spotify:search:rock+%26+roll+%231");
+    }
+}
+

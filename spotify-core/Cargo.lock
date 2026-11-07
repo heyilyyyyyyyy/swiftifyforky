@@ -2925,6 +2925,7 @@ name = "spotify-core"
 version = "0.1.8"
 dependencies = [
  "env_logger",
+ "form_urlencoded",
  "hound",
  "http",
  "librespot",

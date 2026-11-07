@@ -23,6 +23,7 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.*
 import androidx.compose.ui.graphics.drawscope.Fill
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
@@ -80,6 +81,62 @@ private fun sampleRadii(radii: FloatArray, angleRad: Float): Float {
     return radii[idx0] * (1f - t) + radii[idx1] * t
 }
 
+fun buildExpressivePath(shape: String, width: Float, height: Float, steps: Int = 90): Path {
+    val cx = width / 2f
+    val cy = height / 2f
+    val reach = min(width, height) / 2f * 0.95f
+
+    val path = Path()
+    var first = true
+
+    for (i in 0..steps) {
+        val theta = (i.toFloat() / steps) * (2f * PI.toFloat())
+        val r = when (shape) {
+            "softCookie" -> reach * sampleRadii(softCookieRadii, theta)
+            "cookie9" -> reach * sampleRadii(cookie9Radii, theta)
+            "clover4" -> reach * sampleRadii(clover4Radii, theta)
+            "cookie4" -> reach * sampleRadii(cookie4Radii, theta)
+            "cookie6" -> reach * sampleRadii(cookie6Radii, theta)
+            "arrowRight" -> reach * sampleRadii(arrowRadii, theta)
+            "arrowLeft" -> reach * sampleRadii(arrowRadii, theta + PI.toFloat())
+            "heart" -> reach * sampleRadii(heartRadii, theta)
+            "bun" -> reach * sampleRadii(bunRadii, theta)
+            "clamShell" -> reach * sampleRadii(clamShellRadii, theta)
+            "cookie12" -> reach * sampleRadii(cookie12Radii, theta)
+            "sunny" -> {
+                val lobe = (0.5f + 0.5f * cos(8f * theta)).pow(2.2f)
+                reach * (1f - 0.14f + 0.14f * lobe)
+            }
+            "softBurst" -> {
+                val lobe = (0.5f + 0.5f * cos(10f * theta)).pow(1.5f)
+                reach * (1f - 0.16f + 0.16f * lobe)
+            }
+            "flower" -> {
+                val lobe = (0.5f + 0.5f * cos(8f * theta)).pow(0.45f)
+                reach * (1f - 0.32f + 0.32f * lobe)
+            }
+            "ghostish" -> {
+                val lobe = (0.5f + 0.5f * cos(3f * (theta - PI.toFloat() / 2f))).pow(0.7f)
+                val rScale = if (sin(theta) < 0f) 0.95f else (0.78f + 0.22f * lobe)
+                reach * rScale
+            }
+            else -> reach
+        }
+
+        val x = cx + r * cos(theta)
+        val y = cy + r * sin(theta)
+
+        if (first) {
+            path.moveTo(x, y)
+            first = false
+        } else {
+            path.lineTo(x, y)
+        }
+    }
+    path.close()
+    return path
+}
+
 @Composable
 fun MaterialExpressiveShape(
     shape: String,
@@ -88,68 +145,32 @@ fun MaterialExpressiveShape(
     spinAngleRad: Float = 0f,
     content: (@Composable () -> Unit)? = null
 ) {
+    var cachedPath by remember { mutableStateOf<Path?>(null) }
+    var lastWidth by remember { mutableFloatStateOf(0f) }
+    var lastHeight by remember { mutableFloatStateOf(0f) }
+    var lastShape by remember { mutableStateOf("") }
+
     Box(
         modifier = modifier,
         contentAlignment = Alignment.Center
     ) {
         Canvas(modifier = Modifier.matchParentSize()) {
-            val cx = size.width / 2f
-            val cy = size.height / 2f
-            val reach = min(size.width, size.height) / 2f * 0.95f
-
-            val path = Path()
-            val steps = 180
-            var first = true
-
-            for (i in 0..steps) {
-                val theta = (i.toFloat() / steps) * (2f * PI.toFloat())
-                val effTheta = theta - spinAngleRad
-
-                val r = when (shape) {
-                    "softCookie" -> reach * sampleRadii(softCookieRadii, effTheta)
-                    "cookie9" -> reach * sampleRadii(cookie9Radii, effTheta)
-                    "clover4" -> reach * sampleRadii(clover4Radii, effTheta)
-                    "cookie4" -> reach * sampleRadii(cookie4Radii, effTheta)
-                    "cookie6" -> reach * sampleRadii(cookie6Radii, effTheta)
-                    "arrowRight" -> reach * sampleRadii(arrowRadii, effTheta)
-                    "arrowLeft" -> reach * sampleRadii(arrowRadii, effTheta + PI.toFloat())
-                    "heart" -> reach * sampleRadii(heartRadii, effTheta)
-                    "bun" -> reach * sampleRadii(bunRadii, effTheta)
-                    "clamShell" -> reach * sampleRadii(clamShellRadii, effTheta)
-                    "cookie12" -> reach * sampleRadii(cookie12Radii, effTheta)
-                    "sunny" -> {
-                        val lobe = (0.5f + 0.5f * cos(8f * effTheta)).pow(2.2f)
-                        reach * (1f - 0.14f + 0.14f * lobe)
-                    }
-                    "softBurst" -> {
-                        val lobe = (0.5f + 0.5f * cos(10f * effTheta)).pow(1.5f)
-                        reach * (1f - 0.16f + 0.16f * lobe)
-                    }
-                    "flower" -> {
-                        val lobe = (0.5f + 0.5f * cos(8f * effTheta)).pow(0.45f)
-                        reach * (1f - 0.32f + 0.32f * lobe)
-                    }
-                    "ghostish" -> {
-                        val lobe = (0.5f + 0.5f * cos(3f * (effTheta - PI.toFloat() / 2f))).pow(0.7f)
-                        val rScale = if (sin(effTheta) < 0f) 0.95f else (0.78f + 0.22f * lobe)
-                        reach * rScale
-                    }
-                    else -> reach
-                }
-
-                val x = cx + r * cos(theta)
-                val y = cy + r * sin(theta)
-
-                if (first) {
-                    path.moveTo(x, y)
-                    first = false
-                } else {
-                    path.lineTo(x, y)
-                }
+            if (cachedPath == null || lastWidth != size.width || lastHeight != size.height || lastShape != shape) {
+                lastWidth = size.width
+                lastHeight = size.height
+                lastShape = shape
+                cachedPath = buildExpressivePath(shape, size.width, size.height, steps = 90)
             }
-            path.close()
 
-            drawPath(path = path, color = color, style = Fill)
+            val p = cachedPath ?: return@Canvas
+            if (spinAngleRad != 0f) {
+                val degrees = (spinAngleRad * (180f / PI.toFloat()))
+                rotate(degrees, pivot = center) {
+                    drawPath(path = p, color = color, style = Fill)
+                }
+            } else {
+                drawPath(path = p, color = color, style = Fill)
+            }
         }
 
         content?.invoke()
