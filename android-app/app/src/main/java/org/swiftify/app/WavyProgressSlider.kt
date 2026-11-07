@@ -27,7 +27,7 @@ fun WavyProgressSlider(
     totalMs: Long,
     isPlaying: Boolean,
     onSeek: (Long) -> Unit,
-    activeColor: Color = Color(0xFFF2A385),
+    activeColor: Color = Color(0xFF1ED760),
     inactiveColor: Color = Color(0x33FFFFFF),
     waveAmplitude: Dp = 3.dp,
     waveLength: Dp = 22.dp,

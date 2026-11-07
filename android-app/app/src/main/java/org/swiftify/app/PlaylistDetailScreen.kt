@@ -260,7 +260,7 @@ fun PlaylistDetailScreen(
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color(0xFF13100E))
+            .background(MaterialTheme.colorScheme.background)
     ) {
         // Top Bar matching Swiftify Desktop:
         // [ StyledBackButton ] [ 🔍 Find in Playlist (Search Pill) ] [ Share ] [ Sort ] [ More ]
@@ -279,8 +279,8 @@ fun PlaylistDetailScreen(
                 modifier = Modifier
                     .weight(1f)
                     .height(38.dp)
-                    .clip(RoundedCornerShape(19.dp))
-                    .background(Color(0xFF221C1A))
+                    .clip(RoundedCornerShape(17.dp))
+                    .background(MaterialTheme.colorScheme.surfaceContainerHigh)
                     .padding(horizontal = 12.dp),
                 contentAlignment = Alignment.CenterStart
             ) {
@@ -291,7 +291,7 @@ fun PlaylistDetailScreen(
                     Icon(
                         imageVector = Icons.Rounded.Search,
                         contentDescription = "Search",
-                        tint = Color(0xFF8E847E),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.size(18.dp)
                     )
                     Spacer(modifier = Modifier.width(8.dp))
@@ -299,16 +299,16 @@ fun PlaylistDetailScreen(
                         if (searchQuery.isEmpty()) {
                             Text(
                                 text = "Find in Playlist",
-                                color = Color(0xFF8E847E),
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 fontSize = 13.sp
                             )
                         }
                         BasicTextField(
                             value = searchQuery,
                             onValueChange = { searchQuery = it },
-                            textStyle = TextStyle(color = Color.White, fontSize = 13.sp),
+                            textStyle = TextStyle(color = MaterialTheme.colorScheme.onSurface, fontSize = 13.sp),
                             singleLine = true,
-                            cursorBrush = SolidColor(Color(0xFFF2A385)),
+                            cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
                             modifier = Modifier.fillMaxWidth()
                         )
                     }
@@ -320,7 +320,7 @@ fun PlaylistDetailScreen(
                             Icon(
                                 imageVector = Icons.Rounded.Close,
                                 contentDescription = "Clear",
-                                tint = Color(0xFFA59B94),
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
                                 modifier = Modifier.size(16.dp)
                             )
                         }
@@ -351,7 +351,7 @@ fun PlaylistDetailScreen(
                 Icon(
                     imageVector = Icons.Rounded.Share,
                     contentDescription = "Share",
-                    tint = Color(0xFFD6CBC5),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.size(20.dp)
                 )
             }
@@ -365,7 +365,7 @@ fun PlaylistDetailScreen(
                     Icon(
                         imageVector = Icons.Rounded.Sort,
                         contentDescription = "Sort",
-                        tint = if (sortMode != PlaylistSortMode.DEFAULT) Color(0xFFF2A385) else Color(0xFFD6CBC5),
+                        tint = if (sortMode != PlaylistSortMode.DEFAULT) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.size(20.dp)
                     )
                 }
@@ -373,14 +373,14 @@ fun PlaylistDetailScreen(
                 DropdownMenu(
                     expanded = isSortMenuOpen,
                     onDismissRequest = { isSortMenuOpen = false },
-                    modifier = Modifier.background(Color(0xFF221C1A))
+                    modifier = Modifier.background(MaterialTheme.colorScheme.surfaceContainerHigh)
                 ) {
                     PlaylistSortMode.values().forEach { mode ->
                         DropdownMenuItem(
                             text = {
                                 Text(
                                     text = mode.label,
-                                    color = if (sortMode == mode) Color(0xFFF2A385) else Color.White,
+                                    color = if (sortMode == mode) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
                                     fontSize = 13.sp,
                                     fontWeight = if (sortMode == mode) FontWeight.Bold else FontWeight.Normal
                                 )
@@ -403,7 +403,7 @@ fun PlaylistDetailScreen(
                     Icon(
                         imageVector = Icons.Rounded.MoreVert,
                         contentDescription = "More",
-                        tint = Color(0xFFD6CBC5),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.size(20.dp)
                     )
                 }
@@ -411,10 +411,10 @@ fun PlaylistDetailScreen(
                 DropdownMenu(
                     expanded = isMoreMenuOpen,
                     onDismissRequest = { isMoreMenuOpen = false },
-                    modifier = Modifier.background(Color(0xFF221C1A))
+                    modifier = Modifier.background(MaterialTheme.colorScheme.surfaceContainerHigh)
                 ) {
                     DropdownMenuItem(
-                        text = { Text("Copy Spotify URI", color = Color.White, fontSize = 13.sp) },
+                        text = { Text("Copy Spotify URI", color = MaterialTheme.colorScheme.onSurface, fontSize = 13.sp) },
                         onClick = {
                             isMoreMenuOpen = false
                             val cm = context.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as? ClipboardManager
@@ -424,7 +424,7 @@ fun PlaylistDetailScreen(
                         }
                     )
                     DropdownMenuItem(
-                        text = { Text("Refresh Playlist", color = Color.White, fontSize = 13.sp) },
+                        text = { Text("Refresh Playlist", color = MaterialTheme.colorScheme.onSurface, fontSize = 13.sp) },
                         onClick = {
                             isMoreMenuOpen = false
                             reloadTrigger++
@@ -432,7 +432,7 @@ fun PlaylistDetailScreen(
                     )
                     if (playlist.uri.startsWith("spotify:playlist:") && onDeletePlaylist != null) {
                         DropdownMenuItem(
-                            text = { Text("Delete Playlist", color = Color(0xFFFF6B6B), fontSize = 13.sp) },
+                            text = { Text("Delete Playlist", color = MaterialTheme.colorScheme.error, fontSize = 13.sp) },
                             onClick = {
                                 isMoreMenuOpen = false
                                 showDeleteConfirmation = true
@@ -446,24 +446,27 @@ fun PlaylistDetailScreen(
         if (showDeleteConfirmation) {
             AlertDialog(
                 onDismissRequest = { showDeleteConfirmation = false },
-                title = { Text("Delete Playlist", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 18.sp) },
-                text = { Text("Are you sure you want to delete '${playlist.name}'? This cannot be undone.", color = Color(0xFFA59B94), fontSize = 14.sp) },
-                containerColor = Color(0xFF221C1A),
+                title = { Text("Delete Playlist", color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.Bold, fontSize = 18.sp) },
+                text = { Text("Are you sure you want to delete '${playlist.name}'? This cannot be undone.", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 14.sp) },
+                containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
                 confirmButton = {
                     Button(
                         onClick = {
                             showDeleteConfirmation = false
                             onDeletePlaylist?.invoke(playlist)
                         },
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFF4D4D)),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.error,
+                            contentColor = MaterialTheme.colorScheme.onError
+                        ),
                         shape = RoundedCornerShape(12.dp)
                     ) {
-                        Text("Delete", color = Color.White, fontWeight = FontWeight.Bold)
+                        Text("Delete", fontWeight = FontWeight.Bold)
                     }
                 },
                 dismissButton = {
                     TextButton(onClick = { showDeleteConfirmation = false }) {
-                        Text("Cancel", color = Color(0xFFA59B94))
+                        Text("Cancel", color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 }
             )
@@ -483,10 +486,10 @@ fun PlaylistDetailScreen(
                 ) {
                     Box(
                         modifier = Modifier
-                            .size(190.dp)
-                            .shadow(24.dp, RoundedCornerShape(26.dp), spotColor = Color(0x66F2A385))
-                            .clip(RoundedCornerShape(26.dp))
-                            .background(Color(0xFF201B19)),
+                            .size(176.dp)
+                            .shadow(20.dp, RoundedCornerShape(12.dp), spotColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.24f))
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(MaterialTheme.colorScheme.surfaceContainerHigh),
                         contentAlignment = Alignment.Center
                     ) {
                         val finalCover = if (playlistCoverUrl.isNotEmpty()) playlistCoverUrl else playlist.coverUrl
@@ -501,7 +504,7 @@ fun PlaylistDetailScreen(
                             Icon(
                                 imageVector = androidx.compose.material.icons.Icons.Rounded.QueueMusic,
                                 contentDescription = null,
-                                tint = Color(0xFFF2A385),
+                                tint = MaterialTheme.colorScheme.primary,
                                 modifier = Modifier.size(64.dp)
                             )
                         }
@@ -512,8 +515,8 @@ fun PlaylistDetailScreen(
                     // Pill Badge: ≡ PLAYLIST
                     Box(
                         modifier = Modifier
-                            .clip(RoundedCornerShape(12.dp))
-                            .background(Color(0x33F2A385))
+                            .clip(CircleShape)
+                            .background(MaterialTheme.colorScheme.primaryContainer)
                             .padding(horizontal = 10.dp, vertical = 4.dp),
                         contentAlignment = Alignment.Center
                     ) {
@@ -521,14 +524,14 @@ fun PlaylistDetailScreen(
                             Icon(
                                 imageVector = Icons.Rounded.QueueMusic,
                                 contentDescription = null,
-                                tint = Color(0xFFF2A385),
+                                tint = MaterialTheme.colorScheme.onPrimaryContainer,
                                 modifier = Modifier.size(13.dp)
                             )
                             Spacer(modifier = Modifier.width(5.dp))
                             Text(
                                 text = "PLAYLIST",
-                                color = Color(0xFFF2A385),
-                                fontSize = 10.sp,
+                                color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                fontSize = 11.sp,
                                 fontWeight = FontWeight.Bold,
                                 letterSpacing = 1.sp
                             )
@@ -539,7 +542,7 @@ fun PlaylistDetailScreen(
 
                     Text(
                         text = playlist.name,
-                        color = Color.White,
+                        color = MaterialTheme.colorScheme.onSurface,
                         fontSize = 24.sp,
                         fontWeight = FontWeight.Bold,
                         maxLines = 2,
@@ -554,14 +557,14 @@ fun PlaylistDetailScreen(
 
                     Text(
                         text = factsStr,
-                        color = Color(0xFF9E948E),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                         fontSize = 13.sp,
                         textAlign = TextAlign.Center
                     )
 
                     Spacer(modifier = Modifier.height(18.dp))
 
-                    // Wavy Scalloped Play & Shuffle Buttons (Swiftify Desktop Style, No Heart Icon)
+                    // Wavy Scalloped Play & Shuffle Buttons (Swiftify Desktop Style)
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.Center,
@@ -570,8 +573,8 @@ fun PlaylistDetailScreen(
                         WavyPillButton(
                             text = "Play",
                             icon = Icons.Rounded.PlayArrow,
-                            backgroundColor = Color(0xFFF2A385),
-                            contentColor = Color(0xFF13100E),
+                            backgroundColor = MaterialTheme.colorScheme.primary,
+                            contentColor = MaterialTheme.colorScheme.onPrimary,
                             enabled = displayTracks.isNotEmpty(),
                             onClick = { onPlayAll(displayTracks) }
                         )
@@ -581,8 +584,8 @@ fun PlaylistDetailScreen(
                         WavyPillButton(
                             text = "Shuffle",
                             icon = Icons.Rounded.Shuffle,
-                            backgroundColor = Color(0xFF332722),
-                            contentColor = Color(0xFFF2A385),
+                            backgroundColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                            contentColor = MaterialTheme.colorScheme.primary,
                             enabled = displayTracks.isNotEmpty(),
                             onClick = {
                                 isShuffle = true
@@ -595,7 +598,7 @@ fun PlaylistDetailScreen(
 
                     WavyLine(
                         modifier = Modifier.fillMaxWidth(),
-                        color = Color(0x33F2A385),
+                        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.25f),
                         wavelength = 18f,
                         amplitude = 2.5f
                     )
@@ -604,7 +607,7 @@ fun PlaylistDetailScreen(
 
                     if (isLoading) {
                         CircularProgressIndicator(
-                            color = Color(0xFFF2A385),
+                            color = MaterialTheme.colorScheme.primary,
                             strokeWidth = 2.dp,
                             modifier = Modifier.size(24.dp).padding(vertical = 4.dp)
                         )
@@ -619,7 +622,7 @@ fun PlaylistDetailScreen(
                         modifier = Modifier.fillMaxWidth().padding(48.dp),
                         contentAlignment = Alignment.Center
                     ) {
-                        CircularProgressIndicator(color = Color(0xFFF2A385), strokeWidth = 3.dp)
+                        CircularProgressIndicator(color = MaterialTheme.colorScheme.primary, strokeWidth = 3.dp)
                     }
                 }
             } else if (errorMessage != null && displayTracks.isEmpty()) {
@@ -632,17 +635,17 @@ fun PlaylistDetailScreen(
                     ) {
                         Text(
                             text = errorMessage ?: "Failed to load tracks",
-                            color = Color(0xFFA59B94),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
                             fontSize = 14.sp,
                             textAlign = TextAlign.Center
                         )
                         Spacer(modifier = Modifier.height(14.dp))
                         Button(
                             onClick = { reloadTrigger++ },
-                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2C221E)),
+                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh),
                             shape = RoundedCornerShape(18.dp)
                         ) {
-                            Text("Retry", color = Color(0xFFF2A385), fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                            Text("Retry", color = MaterialTheme.colorScheme.primary, fontSize = 13.sp, fontWeight = FontWeight.Bold)
                         }
                     }
                 }
@@ -654,7 +657,7 @@ fun PlaylistDetailScreen(
                     ) {
                         Text(
                             text = if (searchQuery.isNotBlank()) "No results found for “$searchQuery”" else "This playlist is empty",
-                            color = Color(0xFF8A807A),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
                             fontSize = 14.sp,
                             textAlign = TextAlign.Center
                         )
@@ -676,27 +679,27 @@ fun PlaylistDetailScreen(
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .background(Color(0xFF231C1A), RoundedCornerShape(14.dp))
+                        .background(MaterialTheme.colorScheme.surfaceContainerHigh, RoundedCornerShape(8.dp))
                 ) {
                     // Background revealed when swiping right
                     if (showSwipeHint) {
                         Row(
                             modifier = Modifier
                                 .matchParentSize()
-                                .background(Color(0xFF2B201C), RoundedCornerShape(14.dp))
+                                .background(MaterialTheme.colorScheme.surfaceContainerHighest, RoundedCornerShape(8.dp))
                                 .padding(start = 16.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Icon(
                                 imageVector = Icons.Rounded.QueueMusic,
                                 contentDescription = null,
-                                tint = Color(0xFFF2A385),
+                                tint = MaterialTheme.colorScheme.primary,
                                 modifier = Modifier.size(20.dp)
                             )
                             Spacer(modifier = Modifier.width(8.dp))
                             Text(
                                 text = if (swipeArmed) "Add to Queue" else "Swipe to queue",
-                                color = Color(0xFFF2A385),
+                                color = MaterialTheme.colorScheme.primary,
                                 fontSize = 13.sp,
                                 fontWeight = FontWeight.Bold
                             )
@@ -709,8 +712,8 @@ fun PlaylistDetailScreen(
                             .fillMaxWidth()
                             .offset { IntOffset(offsetX.roundToInt(), 0) }
                             .background(
-                                if (isCurrent) Color(0xFF281E1B) else Color(0xFF13100E),
-                                RoundedCornerShape(14.dp)
+                                if (isCurrent) MaterialTheme.colorScheme.primary.copy(alpha = 0.12f) else MaterialTheme.colorScheme.surfaceContainerLow,
+                                RoundedCornerShape(8.dp)
                             )
                             .clickable {
                                 if (offsetX == 0f) {
@@ -741,7 +744,7 @@ fun PlaylistDetailScreen(
                     ) {
                     Text(
                         text = "${index + 1}",
-                        color = if (isCurrent) Color(0xFFF2A385) else Color(0xFF7A706A),
+                        color = if (isCurrent) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
                         fontSize = 14.sp,
                         fontWeight = FontWeight.Medium,
                         modifier = Modifier.width(28.dp)
@@ -751,7 +754,7 @@ fun PlaylistDetailScreen(
                         AsyncImage(
                             model = track.artworkUrl,
                             contentDescription = null,
-                            modifier = Modifier.fillMaxSize().clip(RoundedCornerShape(8.dp)),
+                            modifier = Modifier.fillMaxSize().clip(RoundedCornerShape(7.dp)),
                             contentScale = ContentScale.Crop
                         )
                         if (isCurrent && isPlaying) {
@@ -762,7 +765,7 @@ fun PlaylistDetailScreen(
                                 Icon(
                                     imageVector = Icons.Rounded.VolumeUp,
                                     contentDescription = null,
-                                    tint = Color(0xFFF2A385),
+                                    tint = MaterialTheme.colorScheme.primary,
                                     modifier = Modifier.size(16.dp)
                                 )
                             }
@@ -774,7 +777,7 @@ fun PlaylistDetailScreen(
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
                             text = track.title,
-                            color = if (isCurrent) Color(0xFFF2A385) else Color.White,
+                            color = if (isCurrent) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
                             fontSize = 15.sp,
                             fontWeight = FontWeight.SemiBold,
                             maxLines = 1,
@@ -782,7 +785,7 @@ fun PlaylistDetailScreen(
                         )
                         Text(
                             text = track.artist,
-                            color = Color(0xFF9E948E),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
                             fontSize = 13.sp,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
@@ -815,7 +818,7 @@ fun PlaylistDetailScreen(
                         Icon(
                             imageVector = if (isTrackSaved) Icons.Rounded.Star else Icons.Rounded.StarBorder,
                             contentDescription = "Save",
-                            tint = if (isTrackSaved) Color(0xFFF2A385) else Color(0xFF6E635E),
+                            tint = if (isTrackSaved) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.size(18.dp)
                         )
                     }
@@ -830,7 +833,7 @@ fun PlaylistDetailScreen(
                             Icon(
                                 imageVector = Icons.Rounded.MoreVert,
                                 contentDescription = "Track options",
-                                tint = Color(0xFF9E948E),
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
                                 modifier = Modifier.size(18.dp)
                             )
                         }
@@ -838,10 +841,10 @@ fun PlaylistDetailScreen(
                         DropdownMenu(
                             expanded = isTrackMenuOpen,
                             onDismissRequest = { isTrackMenuOpen = false },
-                            modifier = Modifier.background(Color(0xFF221C1A))
+                            modifier = Modifier.background(MaterialTheme.colorScheme.surfaceContainerHigh)
                         ) {
                             DropdownMenuItem(
-                                text = { Text("Add to Queue", color = Color.White, fontSize = 13.sp) },
+                                text = { Text("Add to Queue", color = MaterialTheme.colorScheme.onSurface, fontSize = 13.sp) },
                                 onClick = {
                                     isTrackMenuOpen = false
                                     onAddToQueue?.invoke(track)
@@ -849,7 +852,7 @@ fun PlaylistDetailScreen(
                                 }
                             )
                             DropdownMenuItem(
-                                text = { Text("Add to Playlist...", color = Color.White, fontSize = 13.sp) },
+                                text = { Text("Add to Playlist...", color = MaterialTheme.colorScheme.onSurface, fontSize = 13.sp) },
                                 onClick = {
                                     isTrackMenuOpen = false
                                     targetTrackForAddToPlaylist = track
@@ -857,7 +860,7 @@ fun PlaylistDetailScreen(
                             )
                             if (playlist.uri.startsWith("spotify:playlist:") && onRemoveTrackFromPlaylist != null) {
                                 DropdownMenuItem(
-                                    text = { Text("Remove from this Playlist", color = Color(0xFFFF6B6B), fontSize = 13.sp) },
+                                    text = { Text("Remove from this Playlist", color = MaterialTheme.colorScheme.error, fontSize = 13.sp) },
                                     onClick = {
                                         isTrackMenuOpen = false
                                         playlistTracks.remove(track)
@@ -866,7 +869,7 @@ fun PlaylistDetailScreen(
                                 )
                             }
                             DropdownMenuItem(
-                                text = { Text("Share Song", color = Color.White, fontSize = 13.sp) },
+                                text = { Text("Share Song", color = MaterialTheme.colorScheme.onSurface, fontSize = 13.sp) },
                                 onClick = {
                                     isTrackMenuOpen = false
                                     val cleanTrackId = track.uri.removePrefix("spotify:track:").trim()
@@ -885,7 +888,7 @@ fun PlaylistDetailScreen(
 
                     Text(
                         text = formatTime(track.durationMs),
-                        color = Color(0xFF7A706A),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                         fontSize = 13.sp
                     )
                 }
@@ -919,8 +922,8 @@ fun AddToPlaylistBottomSheet(
 ) {
     ModalBottomSheet(
         onDismissRequest = onDismiss,
-        containerColor = Color(0xFF1D1715),
-        dragHandle = { BottomSheetDefaults.DragHandle(color = Color(0xFF6E625D)) }
+        containerColor = MaterialTheme.colorScheme.surfaceContainer,
+        dragHandle = { BottomSheetDefaults.DragHandle(color = MaterialTheme.colorScheme.outlineVariant) }
     ) {
         Column(
             modifier = Modifier
@@ -929,14 +932,14 @@ fun AddToPlaylistBottomSheet(
         ) {
             Text(
                 text = "Add to playlist",
-                color = Color.White,
+                color = MaterialTheme.colorScheme.onSurface,
                 fontSize = 18.sp,
                 fontWeight = FontWeight.Bold
             )
             Spacer(modifier = Modifier.height(2.dp))
             Text(
                 text = track.title,
-                color = Color(0xFFA59B94),
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
                 fontSize = 13.sp,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
@@ -947,7 +950,7 @@ fun AddToPlaylistBottomSheet(
             if (userPlaylists.isEmpty()) {
                 Text(
                     text = "No user playlists found",
-                    color = Color(0xFF887D77),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                     fontSize = 14.sp,
                     modifier = Modifier.padding(vertical = 20.dp)
                 )
@@ -961,8 +964,8 @@ fun AddToPlaylistBottomSheet(
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .clip(RoundedCornerShape(12.dp))
-                                .background(Color(0xFF261F1D))
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(MaterialTheme.colorScheme.surfaceContainerHigh)
                                 .clickable {
                                     onPlaylistSelect(p)
                                 }
@@ -972,8 +975,8 @@ fun AddToPlaylistBottomSheet(
                             Box(
                                 modifier = Modifier
                                     .size(42.dp)
-                                    .clip(RoundedCornerShape(8.dp))
-                                    .background(Color(0xFF332A27)),
+                                    .clip(RoundedCornerShape(7.dp))
+                                    .background(MaterialTheme.colorScheme.surfaceContainerHighest),
                                 contentAlignment = Alignment.Center
                             ) {
                                 if (p.artworkUrl.isNotEmpty()) {
@@ -987,7 +990,7 @@ fun AddToPlaylistBottomSheet(
                                     Icon(
                                         imageVector = Icons.Rounded.MusicNote,
                                         contentDescription = null,
-                                        tint = Color(0xFFF2A385),
+                                        tint = MaterialTheme.colorScheme.primary,
                                         modifier = Modifier.size(22.dp)
                                     )
                                 }
@@ -996,7 +999,7 @@ fun AddToPlaylistBottomSheet(
                             Column(modifier = Modifier.weight(1f)) {
                                 Text(
                                     text = p.name,
-                                    color = Color.White,
+                                    color = MaterialTheme.colorScheme.onSurface,
                                     fontSize = 14.sp,
                                     fontWeight = FontWeight.SemiBold,
                                     maxLines = 1,
@@ -1004,7 +1007,7 @@ fun AddToPlaylistBottomSheet(
                                 )
                                 Text(
                                     text = p.owner,
-                                    color = Color(0xFF9E948E),
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                                     fontSize = 12.sp,
                                     maxLines = 1
                                 )

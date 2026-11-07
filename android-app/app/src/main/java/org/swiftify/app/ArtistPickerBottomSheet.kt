@@ -7,12 +7,13 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.ArrowForward
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -28,7 +29,7 @@ fun ArtistPickerBottomSheet(
 ) {
     ModalBottomSheet(
         onDismissRequest = onDismiss,
-        containerColor = Color(0xFF1E1715),
+        containerColor = MaterialTheme.colorScheme.surfaceContainer,
         dragHandle = {
             Box(
                 modifier = Modifier
@@ -36,7 +37,7 @@ fun ArtistPickerBottomSheet(
                     .width(40.dp)
                     .height(4.dp)
                     .clip(RoundedCornerShape(2.dp))
-                    .background(Color(0xFF5A4D47))
+                    .background(MaterialTheme.colorScheme.outlineVariant)
             )
         }
     ) {
@@ -48,7 +49,7 @@ fun ArtistPickerBottomSheet(
         ) {
             Text(
                 text = "Artists in this song",
-                color = Color(0xFFF5EFEA),
+                color = MaterialTheme.colorScheme.onSurface,
                 fontSize = 18.sp,
                 fontWeight = FontWeight.Bold
             )
@@ -59,8 +60,8 @@ fun ArtistPickerBottomSheet(
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .clip(RoundedCornerShape(14.dp))
-                            .background(Color(0xFF28201D))
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(MaterialTheme.colorScheme.surfaceContainerHigh)
                             .clickable {
                                 onArtistSelect(artist)
                                 onDismiss()
@@ -80,21 +81,21 @@ fun ArtistPickerBottomSheet(
                         Column(modifier = Modifier.weight(1f)) {
                             Text(
                                 text = artist.name,
-                                color = Color(0xFFF5EFEA),
+                                color = MaterialTheme.colorScheme.onSurface,
                                 fontSize = 16.sp,
                                 fontWeight = FontWeight.SemiBold
                             )
                             Text(
                                 text = "View artist profile",
-                                color = Color(0xFFF2A385),
+                                color = MaterialTheme.colorScheme.primary,
                                 fontSize = 13.sp
                             )
                         }
-                        Text(
-                            text = "→",
-                            color = Color(0xFFA59B94),
-                            fontSize = 18.sp,
-                            fontWeight = FontWeight.Bold
+                        Icon(
+                            imageVector = Icons.Rounded.ArrowForward,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(20.dp)
                         )
                     }
                 }

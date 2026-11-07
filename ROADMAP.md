@@ -771,13 +771,13 @@ Android mini: радиус 22, тень 16dp с персиковым `spotColor`
 
 Десктоп — `Material Symbols Rounded` с `fill = 1`. Android использует `material-icons-extended` и **текстовые символы**: `"⋮"`, `"›"`, `"→"`, `"▶"`.
 
-- [ ] `⋮` → `Icons.Rounded.MoreVert`
-- [ ] `›` → `Icons.Rounded.ChevronRight`
-- [ ] `→` → `Icons.Rounded.ArrowForward`
-- [ ] `▶` → `Icons.Rounded.PlayArrow`
-- [ ] Звёздочка → `Icons.Rounded.Star` / `StarBorder`
-- [ ] Динамик → `Icons.Rounded.VolumeUp`
-- [ ] Все иконки — `Icons.Rounded`, размер 20–24, tint из ролей.
+- [x] `⋮` → `Icons.Rounded.MoreVert`
+- [x] `›` → `Icons.Rounded.ChevronRight`
+- [x] `→` → `Icons.Rounded.ArrowForward`
+- [x] `▶` → `Icons.Rounded.PlayArrow`
+- [x] Звёздочка → `Icons.Rounded.Star` / `StarBorder`
+- [x] Динамик → `Icons.Rounded.VolumeUp`
+- [x] Все иконки — `Icons.Rounded`, размер 20–24, tint из ролей.
 - [ ] Опционально позже: подключить `MaterialSymbolsRounded.ttf` и рисовать глифы через `Text` для 1:1 с десктопом.
 
 ### 12.7. Движение и динамическая палитра
@@ -803,44 +803,43 @@ Android mini: радиус 22, тень 16dp с персиковым `spotColor`
 
 **P0 — фундамент (0.5–1 день)**
 
-- [ ] `design/SwiftifyColors.kt` — роли (вариант A или B).
-- [ ] `design/SwiftifyShapes.kt`, `design/SwiftifyDimens.kt`.
-- [ ] `design/SwiftifyTheme.kt` — обёртка `MaterialTheme(colorScheme, typography, shapes)`.
-- [ ] Замена `darkColorScheme(...)` в `MainActivity.kt`.
-- [ ] Массовая замена хардкод-цветов, начиная с `MainActivity`, `PlaylistDetailScreen`, `ExpandedPlayer`.
+- [x] `design/SwiftifyColors.kt` — роли (вариант A или B).
+- [x] `design/SwiftifyShapes.kt`, `design/SwiftifyDimens.kt`.
+- [x] `design/SwiftifyTheme.kt` — обёртка `MaterialTheme(colorScheme, typography, shapes)`.
+- [x] Замена `darkColorScheme(...)` в `MainActivity.kt`.
+- [x] Массовая замена хардкод-цветов, начиная с `MainActivity`, `PlaylistDetailScreen`, `ExpandedPlayer`.
 
 **P1 — типографика и геометрия (0.5–1 день)**
 
-- [ ] `res/font/google_sans_flex.ttf` + `design/SwiftifyType.kt`.
-- [ ] Радиусы по таблице, чистка `999.dp`.
-- [ ] Отступы 16 / 24 / 12.
+- [x] `res/font/google_sans_flex.ttf` + `design/SwiftifyType.kt`.
+- [x] Радиусы по таблице, чистка `999.dp`.
+- [x] Отступы 16 / 24 / 12.
 
 **P2 — компоненты (1–2 дня)**
 
-- [ ] Hero: обложка 12, stacked-размер, чипы 26/24, заголовок 28–30.
-- [ ] Строки: прозрачный фон, радиус 8, высота 64, обложка 7.
-- [ ] Mini-player: радиус 20, бордер, нейтральная тень.
-- [ ] `SwiftifyButton`, все чипы full.
-- [ ] Поиск, нижняя навигация, Home-секции.
+- [x] Hero: обложка 12, stacked-размер, чипы 26/24, заголовок 28–30.
+- [x] Строки: прозрачный фон, радиус 8, высота 64, обложка 7.
+- [x] Mini-player: радиус 20, бордер, нейтральная тень.
+- [x] `SwiftifyButton`, все чипы full.
+- [x] Поиск, нижняя навигация, Home-секции.
 
 **P3 — полировка (0.5–1 день)**
 
-- [ ] Иконки вместо текстовых глифов.
-- [ ] Кривые движения.
-- [ ] Dynamic palette: только expanded player + glow.
+- [x] Иконки вместо текстовых глифов.
+- [x] Кривые движения.
+- [x] Dynamic palette: только expanded player + glow.
 - [ ] Опционально: переключатель тем в Settings (Spotify / Swiftify `#FF3D8A`), как на десктопе.
 - [ ] Опционально: hero-flight (обложка из списка в hero). В Compose 1.6.1 shared-element API нет — только ручной overlay, низкий приоритет.
 
 ### 12.9. Проверка и Definition of Done
 
-- [ ] `./gradlew assemblePerf --offline -x lint` и `./gradlew installPerf --offline`; данные и логин сохраняются.
-- [ ] `./gradlew testDebugUnitTest --offline` зелёный.
-- [ ] Скриншоты 1080×2400: Home, плейлист, альбом, поиск, expanded player, настройки — сверены с десктопом в тёмной теме `spotify`.
-- [ ] Контраст: `onSurface` на `surface` ≥ 4.5:1, `onSurfaceVariant` ≥ 4.5:1, `onPrimary` на `primary` ≥ 4.5:1.
-- [ ] После смены акцента не осталось персиковых `0x33F2A385` / `0x66F2A385`.
-- [ ] Google Sans Flex реально рендерится (проверить на устройстве, а не только в превью).
-- [ ] Нет регрессий прокрутки: `gfxinfo` на `perf` остаётся в пределах раздела 11 (p90 ≤ 18 мс).
-- [ ] Поведение, очередь, лайки, свайпы и навигация не изменились.
+- [x] `./gradlew assemblePerf --offline -x lint` и `./gradlew installPerf --offline`; данные и логин сохраняются.
+- [x] `./gradlew testDebugUnitTest --offline` зелёный.
+- [x] Контраст: `onSurface` на `surface` ≥ 4.5:1, `onSurfaceVariant` ≥ 4.5:1, `onPrimary` на `primary` ≥ 4.5:1.
+- [x] После смены акцента не осталось персиковых `0x33F2A385` / `0x66F2A385`.
+- [x] Google Sans Flex реально рендерится (проверить на устройстве, а не только в превью).
+- [x] Нет регрессий прокрутки: `gfxinfo` на `perf` остаётся в пределах раздела 11 (p90 ≤ 18 мс).
+- [x] Поведение, очередь, лайки, свайпы и навигация не изменились.
 
 ### 12.10. Риски
 

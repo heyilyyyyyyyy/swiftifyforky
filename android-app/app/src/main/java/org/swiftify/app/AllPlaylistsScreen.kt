@@ -36,7 +36,7 @@ fun AllPlaylistsScreen(
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color(0xFF13100E))
+            .background(MaterialTheme.colorScheme.background)
             .padding(horizontal = 20.dp)
     ) {
         Spacer(modifier = Modifier.height(16.dp))
@@ -48,7 +48,7 @@ fun AllPlaylistsScreen(
             Spacer(modifier = Modifier.width(14.dp))
             Text(
                 text = "Your Playlists",
-                color = Color(0xFFF5EFEA),
+                color = MaterialTheme.colorScheme.onSurface,
                 fontSize = 24.sp,
                 fontWeight = FontWeight.Bold,
                 modifier = Modifier.weight(1f)
@@ -58,12 +58,12 @@ fun AllPlaylistsScreen(
                 modifier = Modifier
                     .size(38.dp)
                     .clip(RoundedCornerShape(12.dp))
-                    .background(Color(0xFF261F1D))
+                    .background(MaterialTheme.colorScheme.surfaceContainerHigh)
             ) {
                 Icon(
                     imageVector = Icons.Rounded.Add,
                     contentDescription = "New Playlist",
-                    tint = Color(0xFFF2A385),
+                    tint = MaterialTheme.colorScheme.primary,
                     modifier = Modifier.size(22.dp)
                 )
             }
@@ -76,7 +76,7 @@ fun AllPlaylistsScreen(
                 modifier = Modifier.fillMaxSize(),
                 contentAlignment = Alignment.Center
             ) {
-                CircularProgressIndicator(color = Color(0xFFF2A385), strokeWidth = 3.dp)
+                CircularProgressIndicator(color = MaterialTheme.colorScheme.primary, strokeWidth = 3.dp)
             }
         } else {
             LazyVerticalGrid(
@@ -90,8 +90,8 @@ fun AllPlaylistsScreen(
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .clip(RoundedCornerShape(16.dp))
-                            .background(Color(0xFF1D1715))
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(MaterialTheme.colorScheme.surfaceContainerHigh)
                             .clickable { showCreateDialog = true }
                             .padding(12.dp)
                     ) {
@@ -100,20 +100,20 @@ fun AllPlaylistsScreen(
                                 .fillMaxWidth()
                                 .aspectRatio(1f)
                                 .clip(RoundedCornerShape(12.dp))
-                                .background(Color(0xFF2A221F)),
+                                .background(MaterialTheme.colorScheme.surfaceContainerHighest),
                             contentAlignment = Alignment.Center
                         ) {
                             Icon(
                                 imageVector = Icons.Rounded.Add,
                                 contentDescription = "Create Playlist",
-                                tint = Color(0xFFF2A385),
+                                tint = MaterialTheme.colorScheme.primary,
                                 modifier = Modifier.size(36.dp)
                             )
                         }
                         Spacer(modifier = Modifier.height(10.dp))
                         Text(
                             text = "New Playlist",
-                            color = Color(0xFFF5EFEA),
+                            color = MaterialTheme.colorScheme.onSurface,
                             fontSize = 15.sp,
                             fontWeight = FontWeight.Bold,
                             maxLines = 1,
@@ -122,7 +122,7 @@ fun AllPlaylistsScreen(
                         Spacer(modifier = Modifier.height(2.dp))
                         Text(
                             text = "Tap to create",
-                            color = Color(0xFFA59B94),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
                             fontSize = 13.sp,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
@@ -134,8 +134,8 @@ fun AllPlaylistsScreen(
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .clip(RoundedCornerShape(16.dp))
-                            .background(Color(0xFF1D1715))
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(MaterialTheme.colorScheme.surfaceContainerHigh)
                             .clickable { onPlaylistClick(playlist) }
                             .padding(12.dp)
                     ) {
@@ -144,7 +144,7 @@ fun AllPlaylistsScreen(
                                 .fillMaxWidth()
                                 .aspectRatio(1f)
                                 .clip(RoundedCornerShape(12.dp))
-                                .background(Color(0xFF2A221F))
+                                .background(MaterialTheme.colorScheme.surfaceContainerHighest)
                         ) {
                             if (playlist.artworkUrl.isNotEmpty()) {
                                 AsyncImage(
@@ -161,7 +161,7 @@ fun AllPlaylistsScreen(
                                     Icon(
                                         imageVector = Icons.Rounded.MusicNote,
                                         contentDescription = null,
-                                        tint = Color(0xFFF2A385),
+                                        tint = MaterialTheme.colorScheme.primary,
                                         modifier = Modifier.size(32.dp)
                                     )
                                 }
@@ -172,7 +172,7 @@ fun AllPlaylistsScreen(
 
                         Text(
                             text = playlist.name,
-                            color = Color(0xFFF5EFEA),
+                            color = MaterialTheme.colorScheme.onSurface,
                             fontSize = 15.sp,
                             fontWeight = FontWeight.Bold,
                             maxLines = 1,
@@ -183,7 +183,7 @@ fun AllPlaylistsScreen(
 
                         Text(
                             text = playlist.owner,
-                            color = Color(0xFFA59B94),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
                             fontSize = 13.sp,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
@@ -201,7 +201,7 @@ fun AllPlaylistsScreen(
                 title = {
                     Text(
                         "Create Playlist",
-                        color = Color(0xFFF5EFEA),
+                        color = MaterialTheme.colorScheme.onSurface,
                         fontWeight = FontWeight.Bold,
                         fontSize = 18.sp
                     )
@@ -214,12 +214,12 @@ fun AllPlaylistsScreen(
                             label = { Text("Playlist name") },
                             singleLine = true,
                             colors = OutlinedTextFieldDefaults.colors(
-                                focusedBorderColor = Color(0xFFF2A385),
-                                unfocusedBorderColor = Color(0xFF453934),
-                                focusedLabelColor = Color(0xFFF2A385),
-                                unfocusedLabelColor = Color(0xFFA59B94),
-                                focusedTextColor = Color.White,
-                                unfocusedTextColor = Color.White
+                                focusedBorderColor = MaterialTheme.colorScheme.primary,
+                                unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant,
+                                focusedLabelColor = MaterialTheme.colorScheme.primary,
+                                unfocusedLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                                focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                                unfocusedTextColor = MaterialTheme.colorScheme.onSurface
                             )
                         )
                         OutlinedTextField(
@@ -228,17 +228,17 @@ fun AllPlaylistsScreen(
                             label = { Text("Description (optional)") },
                             maxLines = 3,
                             colors = OutlinedTextFieldDefaults.colors(
-                                focusedBorderColor = Color(0xFFF2A385),
-                                unfocusedBorderColor = Color(0xFF453934),
-                                focusedLabelColor = Color(0xFFF2A385),
-                                unfocusedLabelColor = Color(0xFFA59B94),
-                                focusedTextColor = Color.White,
-                                unfocusedTextColor = Color.White
+                                focusedBorderColor = MaterialTheme.colorScheme.primary,
+                                unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant,
+                                focusedLabelColor = MaterialTheme.colorScheme.primary,
+                                unfocusedLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                                focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                                unfocusedTextColor = MaterialTheme.colorScheme.onSurface
                             )
                         )
                     }
                 },
-                containerColor = Color(0xFF221C1A),
+                containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
                 confirmButton = {
                     Button(
                         onClick = {
@@ -249,8 +249,8 @@ fun AllPlaylistsScreen(
                         },
                         enabled = newName.isNotBlank(),
                         colors = ButtonDefaults.buttonColors(
-                            containerColor = Color(0xFFF2A385),
-                            contentColor = Color(0xFF13100E)
+                            containerColor = MaterialTheme.colorScheme.primary,
+                            contentColor = MaterialTheme.colorScheme.onPrimary
                         ),
                         shape = RoundedCornerShape(12.dp)
                     ) {
@@ -261,7 +261,7 @@ fun AllPlaylistsScreen(
                     TextButton(
                         onClick = { showCreateDialog = false }
                     ) {
-                        Text("Cancel", color = Color(0xFFA59B94))
+                        Text("Cancel", color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 }
             )

@@ -139,7 +139,7 @@ fun AlbumDetailScreen(
     LazyColumn(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color(0xFF13100E))
+            .background(MaterialTheme.colorScheme.background)
             .padding(horizontal = 20.dp)
     ) {
         // Back Button & Header
@@ -153,7 +153,7 @@ fun AlbumDetailScreen(
                 Spacer(modifier = Modifier.width(12.dp))
                 Text(
                     text = "Album",
-                    color = Color(0xFFA59B94),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                     fontSize = 15.sp,
                     fontWeight = FontWeight.Medium
                 )
@@ -166,10 +166,13 @@ fun AlbumDetailScreen(
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clip(RoundedCornerShape(24.dp))
+                    .clip(RoundedCornerShape(23.dp))
                     .background(
                         Brush.verticalGradient(
-                            listOf(Color(0xFF2A201C), Color(0xFF1B1513))
+                            listOf(
+                                MaterialTheme.colorScheme.surfaceContainerHighest,
+                                MaterialTheme.colorScheme.surfaceContainer
+                            )
                         )
                     )
                     .padding(24.dp),
@@ -177,10 +180,10 @@ fun AlbumDetailScreen(
             ) {
                 Box(
                     modifier = Modifier
-                        .size(200.dp)
-                        .shadow(22.dp, RoundedCornerShape(24.dp), spotColor = Color(0x66F2A385))
-                        .clip(RoundedCornerShape(24.dp))
-                        .background(Color(0xFF221C1A))
+                        .size(176.dp)
+                        .shadow(20.dp, RoundedCornerShape(12.dp), spotColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.3f))
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(MaterialTheme.colorScheme.surfaceContainerHigh)
                 ) {
                     AsyncImage(
                         model = artworkUrl,
@@ -194,8 +197,8 @@ fun AlbumDetailScreen(
 
                 Text(
                     text = albumTitle,
-                    color = Color(0xFFF5EFEA),
-                    fontSize = 22.sp,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    fontSize = 24.sp,
                     fontWeight = FontWeight.Bold,
                     textAlign = TextAlign.Center,
                     maxLines = 2,
@@ -205,7 +208,7 @@ fun AlbumDetailScreen(
                 if (artistName.isNotEmpty()) {
                     Text(
                         text = artistName,
-                        color = Color(0xFFF2A385),
+                        color = MaterialTheme.colorScheme.primary,
                         fontSize = 15.sp,
                         fontWeight = FontWeight.SemiBold,
                         textAlign = TextAlign.Center,
@@ -225,7 +228,7 @@ fun AlbumDetailScreen(
                 }
                 Text(
                     text = metaStr,
-                    color = Color(0xFFA59B94),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                     fontSize = 13.sp,
                     modifier = Modifier.padding(top = 4.dp)
                 )
@@ -235,8 +238,8 @@ fun AlbumDetailScreen(
                 WavyPillButton(
                     text = "Play All",
                     icon = Icons.Rounded.PlayArrow,
-                    backgroundColor = Color(0xFFF2A385),
-                    contentColor = Color(0xFF13100E),
+                    backgroundColor = MaterialTheme.colorScheme.primary,
+                    contentColor = MaterialTheme.colorScheme.onPrimary,
                     enabled = albumTracks.isNotEmpty(),
                     onClick = {
                         if (albumTracks.isNotEmpty()) {
@@ -255,7 +258,7 @@ fun AlbumDetailScreen(
                     modifier = Modifier.fillMaxWidth().height(160.dp),
                     contentAlignment = Alignment.Center
                 ) {
-                    CircularProgressIndicator(color = Color(0xFFF2A385), strokeWidth = 3.dp)
+                    CircularProgressIndicator(color = MaterialTheme.colorScheme.primary, strokeWidth = 3.dp)
                 }
             }
         } else if (errorMessage != null && albumTracks.isEmpty()) {
@@ -266,7 +269,7 @@ fun AlbumDetailScreen(
                 ) {
                     Text(
                         text = errorMessage ?: "No tracks in album",
-                        color = Color(0xFFA59B94),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                         fontSize = 14.sp,
                         textAlign = TextAlign.Center
                     )
@@ -286,26 +289,26 @@ fun AlbumDetailScreen(
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .background(Color(0xFF231C1A), RoundedCornerShape(14.dp))
+                        .background(MaterialTheme.colorScheme.surfaceContainerHigh, RoundedCornerShape(8.dp))
                 ) {
                     if (offsetX > 10f) {
                         Row(
                             modifier = Modifier
                                 .matchParentSize()
-                                .background(Color(0xFF2B201C), RoundedCornerShape(14.dp))
+                                .background(MaterialTheme.colorScheme.surfaceContainerHighest, RoundedCornerShape(8.dp))
                                 .padding(start = 16.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Icon(
                                 imageVector = Icons.Rounded.QueueMusic,
                                 contentDescription = null,
-                                tint = Color(0xFFF2A385),
+                                tint = MaterialTheme.colorScheme.primary,
                                 modifier = Modifier.size(20.dp)
                             )
                             Spacer(modifier = Modifier.width(8.dp))
                             Text(
                                 text = if (swipeArmed) "Add to Queue" else "Swipe to queue",
-                                color = Color(0xFFF2A385),
+                                color = MaterialTheme.colorScheme.primary,
                                 fontSize = 13.sp,
                                 fontWeight = FontWeight.Bold
                             )
@@ -317,8 +320,8 @@ fun AlbumDetailScreen(
                             .fillMaxWidth()
                             .offset { IntOffset(offsetX.roundToInt(), 0) }
                             .background(
-                                if (isCurrent) Color(0xFF281E1B) else Color(0xFF13100E),
-                                RoundedCornerShape(14.dp)
+                                if (isCurrent) MaterialTheme.colorScheme.primary.copy(alpha = 0.12f) else MaterialTheme.colorScheme.surfaceContainerLow,
+                                RoundedCornerShape(8.dp)
                             )
                             .clickable {
                                 if (offsetX == 0f) {
@@ -349,7 +352,7 @@ fun AlbumDetailScreen(
                     ) {
                         Text(
                             text = "${idx + 1}",
-                            color = if (isCurrent) Color(0xFFF2A385) else Color(0xFF756A64),
+                            color = if (isCurrent) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
                             fontSize = 15.sp,
                             fontWeight = FontWeight.Bold,
                             modifier = Modifier.width(28.dp)
@@ -358,7 +361,7 @@ fun AlbumDetailScreen(
                         Column(modifier = Modifier.weight(1f)) {
                             Text(
                                 text = track.title,
-                                color = if (isCurrent) Color(0xFFF2A385) else Color(0xFFF5EFEA),
+                                color = if (isCurrent) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
                                 fontSize = 15.sp,
                                 fontWeight = FontWeight.SemiBold,
                                 maxLines = 1,
@@ -366,7 +369,7 @@ fun AlbumDetailScreen(
                             )
                             Text(
                                 text = track.artist,
-                                color = Color(0xFFA59B94),
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 fontSize = 13.sp,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis
@@ -377,13 +380,13 @@ fun AlbumDetailScreen(
                             Icon(
                                 imageVector = Icons.Rounded.VolumeUp,
                                 contentDescription = null,
-                                tint = Color(0xFFF2A385),
+                                tint = MaterialTheme.colorScheme.primary,
                                 modifier = Modifier.size(16.dp)
                             )
                         } else {
                             Text(
                                 text = formatTime(track.durationMs),
-                                color = Color(0xFF756A64),
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 fontSize = 13.sp
                             )
                         }

@@ -1,5 +1,6 @@
 package org.swiftify.app
 
+import org.swiftify.app.design.*
 import android.content.Context
 import android.content.Intent
 import android.content.SharedPreferences
@@ -17,6 +18,7 @@ import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
@@ -309,16 +311,7 @@ class MainActivity : ComponentActivity() {
         startPlaybackTicker()
 
         setContent {
-            MaterialTheme(
-                colorScheme = darkColorScheme(
-                    primary = Color(0xFFF2A385),
-                    background = Color(0xFF110F0E),
-                    surface = Color(0xFF1F1A18),
-                    surfaceVariant = Color(0xFF28221F),
-                    onBackground = Color(0xFFF7F2EE),
-                    onSurface = Color(0xFFF7F2EE)
-                )
-            ) {
+            org.swiftify.app.design.SwiftifyTheme {
                 Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
                     SwiftifyApp(
                         authState = authState.value,
@@ -1385,9 +1378,9 @@ val openArtistScreen: (String, String) -> Unit = { artName, artUri ->
     }
 
 
-    Box(modifier = Modifier.fillMaxSize().background(Color(0xFF110F0E))) {
+    Box(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
         Scaffold(
-            containerColor = Color(0xFF110F0E),
+            containerColor = MaterialTheme.colorScheme.background,
             bottomBar = {
                 Column(
                     modifier = Modifier
@@ -1410,24 +1403,30 @@ val openArtistScreen: (String, String) -> Unit = { artName, artUri ->
                         var isMiniPlayPressed by remember { mutableStateOf(false) }
                         val miniPlayScale by animateFloatAsState(
                             targetValue = if (isMiniPlayPressed) 0.88f else 1.0f,
-                            animationSpec = spring(dampingRatio = 0.6f, stiffness = 400f),
+                            animationSpec = spring(dampingRatio = 0.5f, stiffness = 400f),
                             label = "miniPlayScale"
                         )
+                        var lastMiniIsPlaying by remember { mutableStateOf(isPlaying) }
+                        val miniGlyphPop = remember { Animatable(1f) }
+                        LaunchedEffect(isPlaying) {
+                            if (lastMiniIsPlaying != isPlaying) {
+                                lastMiniIsPlaying = isPlaying
+                                miniGlyphPop.snapTo(0.55f)
+                                miniGlyphPop.animateTo(
+                                    targetValue = 1f,
+                                    animationSpec = tween(durationMillis = 480, easing = SwiftifyMotion.ExpressiveFastSpatial)
+                                )
+                            }
+                        }
 
                         Box(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .padding(horizontal = 14.dp, vertical = 6.dp)
-                                .shadow(16.dp, RoundedCornerShape(22.dp), spotColor = miniPalette.accent.copy(alpha = 0.45f))
-                                .clip(RoundedCornerShape(22.dp))
-                                .background(
-                                    Brush.horizontalGradient(
-                                        listOf(
-                                            miniPalette.dominant.copy(alpha = 0.94f),
-                                            miniPalette.secondary.copy(alpha = 0.94f)
-                                        )
-                                    )
-                                )
+                                .shadow(8.dp, RoundedCornerShape(20.dp), spotColor = Color.Black.copy(alpha = 0.25f))
+                                .border(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f), RoundedCornerShape(20.dp))
+                                .clip(RoundedCornerShape(20.dp))
+                                .background(MaterialTheme.colorScheme.surfaceContainerHigh)
                                 .clickable { isPlayerExpanded = true }
                                 .padding(horizontal = 12.dp, vertical = 8.dp)
                         ) {
@@ -1440,7 +1439,7 @@ val openArtistScreen: (String, String) -> Unit = { artName, artUri ->
                                     contentDescription = null,
                                     modifier = Modifier
                                         .size(44.dp)
-                                        .clip(RoundedCornerShape(12.dp)),
+                                        .clip(RoundedCornerShape(7.dp)),
                                     contentScale = ContentScale.Crop
                                 )
                                 Spacer(modifier = Modifier.width(12.dp))
@@ -1448,14 +1447,14 @@ val openArtistScreen: (String, String) -> Unit = { artName, artUri ->
                                     Text(
                                         text = currentTrack.title,
                                         color = Color.White,
-                                        fontSize = 14.sp,
+                                        fontSize = 15.sp,
                                         fontWeight = FontWeight.Bold,
                                         maxLines = 1,
                                         overflow = TextOverflow.Ellipsis
                                     )
                                     Text(
                                         text = currentTrack.artist,
-                                        color = Color(0xCCFFFFFF),
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                                         fontSize = 12.sp,
                                         fontWeight = FontWeight.Medium,
                                         maxLines = 1,
@@ -1464,7 +1463,7 @@ val openArtistScreen: (String, String) -> Unit = { artName, artUri ->
                                 }
                                 MaterialExpressiveShape(
                                     shape = if (isPlaying) "cookie9" else "softCookie",
-                                    color = miniPalette.accent,
+                                    color = MaterialTheme.colorScheme.primary,
                                     spinAngleRad = if (isPlaying) miniSpinAngle else 0f,
                                     modifier = Modifier
                                         .size(42.dp)
@@ -1484,7 +1483,9 @@ val openArtistScreen: (String, String) -> Unit = { artName, artUri ->
                                         imageVector = if (isPlaying) Icons.Rounded.Pause else Icons.Rounded.PlayArrow,
                                         contentDescription = if (isPlaying) "Pause" else "Play",
                                         tint = miniPalette.onAccent,
-                                        modifier = Modifier.size(24.dp)
+                                        modifier = Modifier
+                                            .size(24.dp)
+                                            .scale(miniGlyphPop.value)
                                     )
                                 }
                             }
@@ -1497,7 +1498,7 @@ val openArtistScreen: (String, String) -> Unit = { artName, artUri ->
                     val navBottomSpacing = if (navBarBottomInset > 0.dp) 4.dp else 12.dp
 
                     Surface(
-                        color = Color(0xD9161311),
+                        color = MaterialTheme.colorScheme.surfaceContainerLow,
                         shape = RectangleShape,
                         modifier = Modifier.fillMaxWidth()
                     ) {
@@ -1561,142 +1562,192 @@ val openArtistScreen: (String, String) -> Unit = { artName, artUri ->
             }
         ) { padding ->
             Box(modifier = Modifier.fillMaxSize().padding(top = padding.calculateTopPadding())) {
-                if (activeArtist != null) {
-                    ArtistDetailScreen(
-                        artist = activeArtist!!,
-                        livePlayingTrack = livePlayingTrack,
-                        isPlaying = isPlaying,
-                        onBack = { activeArtist = null },
-                        onTrackSelect = { selectedTrack, playlistTracks ->
-                            onTrackSelect(selectedTrack, playlistTracks)
-                        },
-                        onPlayAll = { artistTracks ->
-                            if (artistTracks.isNotEmpty()) {
-                                onTrackSelect(artistTracks.first(), artistTracks)
-                            }
-                        },
-                        onAddToQueue = onAddToQueue,
-                        onAlbumSelect = { albUri, albTitle, albArt ->
-                            activeAlbumUri = albUri
-                            activeAlbumTitle = albTitle
-                            activeAlbumArtwork = albArt
+                val currentScreen = when {
+                    activeArtist != null -> "artist"
+                    activeAlbumUri != null -> "album"
+                    activePlaylist != null -> "playlist"
+                    showAllPlaylists -> "all_playlists"
+                    else -> "tab_$selectedTab"
+                }
+
+                AnimatedContent(
+                    targetState = currentScreen,
+                    transitionSpec = {
+                        val isEnteringDetail = targetState == "artist" || targetState == "album" || targetState == "playlist" || targetState == "all_playlists"
+                        val isExitingDetail = initialState == "artist" || initialState == "album" || initialState == "playlist" || initialState == "all_playlists"
+
+                        if (isEnteringDetail && !isExitingDetail) {
+                            (slideInHorizontally(
+                                initialOffsetX = { (it * 0.22f).toInt() },
+                                animationSpec = tween(durationMillis = SwiftifyMotion.DurationMotionDefaultMs, easing = SwiftifyMotion.ExpressiveDefaultSpatial)
+                            ) + fadeIn(animationSpec = tween(SwiftifyMotion.DurationMotionDefaultMs)))
+                            .togetherWith(
+                                slideOutHorizontally(
+                                    targetOffsetX = { -(it * 0.12f).toInt() },
+                                    animationSpec = tween(durationMillis = SwiftifyMotion.DurationMotionFastMs, easing = SwiftifyMotion.EmphasizedDecel)
+                                ) + fadeOut(animationSpec = tween(SwiftifyMotion.DurationMotionFastMs))
+                            )
+                        } else if (isExitingDetail && !isEnteringDetail) {
+                            (slideInHorizontally(
+                                initialOffsetX = { -(it * 0.12f).toInt() },
+                                animationSpec = tween(durationMillis = SwiftifyMotion.DurationMotionFastMs, easing = SwiftifyMotion.EmphasizedDecel)
+                            ) + fadeIn(animationSpec = tween(SwiftifyMotion.DurationMotionFastMs)))
+                            .togetherWith(
+                                slideOutHorizontally(
+                                    targetOffsetX = { (it * 0.22f).toInt() },
+                                    animationSpec = tween(durationMillis = SwiftifyMotion.DurationMotionDefaultMs, easing = SwiftifyMotion.ExpressiveDefaultSpatial)
+                                ) + fadeOut(animationSpec = tween(SwiftifyMotion.DurationMotionDefaultMs))
+                            )
+                        } else {
+                            fadeIn(animationSpec = tween(SwiftifyMotion.DurationMotionFastMs))
+                                .togetherWith(fadeOut(animationSpec = tween(SwiftifyMotion.DurationMotionFastMs)))
                         }
-                    )
-                } else if (activeAlbumUri != null) {
-                    AlbumDetailScreen(
-                        albumUri = activeAlbumUri!!,
-                        initialTitle = activeAlbumTitle,
-                        initialArtworkUrl = activeAlbumArtwork,
-                        livePlayingTrack = livePlayingTrack,
-                        isPlaying = isPlaying,
-                        onBack = { activeAlbumUri = null },
-                        onTrackSelect = { selectedTrack, playlistTracks ->
-                            onSetStopAtEnd?.invoke(true)
-                            onTrackSelect(selectedTrack, playlistTracks)
-                        },
-                        onPlayAll = { albumTracks ->
-                            if (albumTracks.isNotEmpty()) {
-                                onSetStopAtEnd?.invoke(true)
-                                onTrackSelect(albumTracks.first(), albumTracks)
-                            }
-                        },
-                        onAddToQueue = onAddToQueue,
-                        onArtistClick = { aName, aUri ->
-                            openArtistScreen(aName, aUri)
+                    },
+                    label = "screenTransition"
+                ) { screen ->
+                    when {
+                        screen == "artist" && activeArtist != null -> {
+                            ArtistDetailScreen(
+                                artist = activeArtist!!,
+                                livePlayingTrack = livePlayingTrack,
+                                isPlaying = isPlaying,
+                                onBack = { activeArtist = null },
+                                onTrackSelect = { selectedTrack, playlistTracks ->
+                                    onTrackSelect(selectedTrack, playlistTracks)
+                                },
+                                onPlayAll = { artistTracks ->
+                                    if (artistTracks.isNotEmpty()) {
+                                        onTrackSelect(artistTracks.first(), artistTracks)
+                                    }
+                                },
+                                onAddToQueue = onAddToQueue,
+                                onAlbumSelect = { albUri, albTitle, albArt ->
+                                    activeAlbumUri = albUri
+                                    activeAlbumTitle = albTitle
+                                    activeAlbumArtwork = albArt
+                                }
+                            )
                         }
-                    )
-                } else if (activePlaylist != null) {
-                    PlaylistDetailScreen(
-                        playlist = activePlaylist!!,
-                        tracks = tracks,
-                        livePlayingTrack = livePlayingTrack,
-                        isPlaying = isPlaying,
-                        onBack = {
-                            activePlaylist = null
-                            if (!openedFromAllPlaylists) {
-                                showAllPlaylists = false
+                        screen == "album" && activeAlbumUri != null -> {
+                            AlbumDetailScreen(
+                                albumUri = activeAlbumUri!!,
+                                initialTitle = activeAlbumTitle,
+                                initialArtworkUrl = activeAlbumArtwork,
+                                livePlayingTrack = livePlayingTrack,
+                                isPlaying = isPlaying,
+                                onBack = { activeAlbumUri = null },
+                                onTrackSelect = { selectedTrack, playlistTracks ->
+                                    onSetStopAtEnd?.invoke(true)
+                                    onTrackSelect(selectedTrack, playlistTracks)
+                                },
+                                onPlayAll = { albumTracks ->
+                                    if (albumTracks.isNotEmpty()) {
+                                        onSetStopAtEnd?.invoke(true)
+                                        onTrackSelect(albumTracks.first(), albumTracks)
+                                    }
+                                },
+                                onAddToQueue = onAddToQueue,
+                                onArtistClick = { aName, aUri ->
+                                    openArtistScreen(aName, aUri)
+                                }
+                            )
+                        }
+                        screen == "playlist" && activePlaylist != null -> {
+                            PlaylistDetailScreen(
+                                playlist = activePlaylist!!,
+                                tracks = tracks,
+                                livePlayingTrack = livePlayingTrack,
+                                isPlaying = isPlaying,
+                                onBack = {
+                                    activePlaylist = null
+                                    if (!openedFromAllPlaylists) {
+                                        showAllPlaylists = false
+                                    }
+                                },
+                                onTrackSelect = { selectedTrack, playlistTracks ->
+                                    onSetStopAtEnd?.invoke(false)
+                                    onTrackSelect(selectedTrack, playlistTracks)
+                                },
+                                onPlayAll = { playlistTracks ->
+                                    if (playlistTracks.isNotEmpty()) {
+                                        onSetStopAtEnd?.invoke(false)
+                                        onTrackSelect(playlistTracks.first(), playlistTracks)
+                                    }
+                                },
+                                onAddToQueue = onAddToQueue,
+                                onTrackTitleClick = { track -> openAlbumByTrack(track) },
+                                onArtistClick = { artistName -> openArtistScreen(artistName, "") },
+                                userPlaylists = userPlaylists,
+                                onDeletePlaylist = { p ->
+                                    activePlaylist = null
+                                    onDeletePlaylist?.invoke(p)
+                                },
+                                onAddTrackToPlaylist = onAddTrackToPlaylist,
+                                onRemoveTrackFromPlaylist = onRemoveTrackFromPlaylist
+                            )
+                        }
+                        screen == "all_playlists" -> {
+                            AllPlaylistsScreen(
+                                playlists = if (userPlaylists.isNotEmpty()) userPlaylists else samplePlaylists,
+                                onBack = {
+                                    showAllPlaylists = false
+                                    openedFromAllPlaylists = false
+                                },
+                                onPlaylistClick = {
+                                    openedFromAllPlaylists = true
+                                    activePlaylist = it
+                                },
+                                onCreatePlaylist = onCreatePlaylist
+                            )
+                        }
+                        else -> {
+                            when (selectedTab) {
+                                0 -> HomeScreen(
+                                    authState = authState,
+                                    tracks = tracks,
+                                    currentTrackIndex = currentTrackIndex,
+                                    livePlayingTrack = livePlayingTrack,
+                                    isPlaying = isPlaying,
+                                    statusMsg = statusMsg,
+                                    onLoginClick = onLoginClick,
+                                    onTrackClick = onTrackClick,
+                                    onPlayPause = onPlayPause,
+                                    userPlaylists = userPlaylists,
+                                    onPlaylistClick = {
+                                        openedFromAllPlaylists = false
+                                        activePlaylist = it
+                                    },
+                                    onArtistClick = { activeArtist = it },
+                                    onSeeAllPlaylists = { showAllPlaylists = true }
+                                )
+                                1 -> SearchScreen(
+                                    accessToken = accessToken,
+                                    allTracks = tracks,
+                                    currentTrackIndex = currentTrackIndex,
+                                    livePlayingTrack = livePlayingTrack,
+                                    isPlaying = isPlaying,
+                                    onTrackSelect = { track -> onTrackSelect(track, null) },
+                                    onAddToQueue = onAddToQueue,
+                                    onArtistSelect = { artist ->
+                                        activeArtist = artist
+                                    },
+                                    onAlbumSelect = { track ->
+                                        openAlbumByTrack(track)
+                                    },
+                                    onPlaylistSelect = {
+                                        openedFromAllPlaylists = false
+                                        activePlaylist = it
+                                    }
+                                )
+                                2 -> SettingsScreen(
+                                    connectEnabled = connectEnabled,
+                                    onConnectToggle = onConnectToggle,
+                                    onReauthorize = onLoginClick,
+                                    onCrossfadeChanged = onCrossfadeChanged,
+                                    onLogout = onLogout
+                                )
                             }
-                        },
-                        onTrackSelect = { selectedTrack, playlistTracks ->
-                            onSetStopAtEnd?.invoke(false)
-                            onTrackSelect(selectedTrack, playlistTracks)
-                        },
-                        onPlayAll = { playlistTracks ->
-                            if (playlistTracks.isNotEmpty()) {
-                                onSetStopAtEnd?.invoke(false)
-                                onTrackSelect(playlistTracks.first(), playlistTracks)
-                            }
-                        },
-                        onAddToQueue = onAddToQueue,
-                        onTrackTitleClick = { track -> openAlbumByTrack(track) },
-                        onArtistClick = { artistName -> openArtistScreen(artistName, "") },
-                        userPlaylists = userPlaylists,
-                        onDeletePlaylist = { p ->
-                            activePlaylist = null
-                            onDeletePlaylist?.invoke(p)
-                        },
-                        onAddTrackToPlaylist = onAddTrackToPlaylist,
-                        onRemoveTrackFromPlaylist = onRemoveTrackFromPlaylist
-                    )
-                } else if (showAllPlaylists) {
-                    AllPlaylistsScreen(
-                        playlists = if (userPlaylists.isNotEmpty()) userPlaylists else samplePlaylists,
-                        onBack = {
-                            showAllPlaylists = false
-                            openedFromAllPlaylists = false
-                        },
-                        onPlaylistClick = {
-                            openedFromAllPlaylists = true
-                            activePlaylist = it
-                        },
-                        onCreatePlaylist = onCreatePlaylist
-                    )
-                } else {
-                    when (selectedTab) {
-                        0 -> HomeScreen(
-                            authState = authState,
-                            tracks = tracks,
-                            currentTrackIndex = currentTrackIndex,
-                            livePlayingTrack = livePlayingTrack,
-                            isPlaying = isPlaying,
-                            statusMsg = statusMsg,
-                            onLoginClick = onLoginClick,
-                            onTrackClick = onTrackClick,
-                            onPlayPause = onPlayPause,
-                            userPlaylists = userPlaylists,
-                            onPlaylistClick = {
-                                openedFromAllPlaylists = false
-                                activePlaylist = it
-                            },
-                            onArtistClick = { activeArtist = it },
-                            onSeeAllPlaylists = { showAllPlaylists = true }
-                        )
-                        1 -> SearchScreen(
-                            accessToken = accessToken,
-                            allTracks = tracks,
-                            currentTrackIndex = currentTrackIndex,
-                            livePlayingTrack = livePlayingTrack,
-                            isPlaying = isPlaying,
-                            onTrackSelect = { track -> onTrackSelect(track, null) },
-                            onAddToQueue = onAddToQueue,
-                            onArtistSelect = { artist ->
-                                activeArtist = artist
-                            },
-                            onAlbumSelect = { track ->
-                                openAlbumByTrack(track)
-                            },
-                            onPlaylistSelect = {
-                                openedFromAllPlaylists = false
-                                activePlaylist = it
-                            }
-                        )
-                        2 -> SettingsScreen(
-                            connectEnabled = connectEnabled,
-                            onConnectToggle = onConnectToggle,
-                            onReauthorize = onLoginClick,
-                            onCrossfadeChanged = onCrossfadeChanged,
-                            onLogout = onLogout
-                        )
+                        }
                     }
                 }
             }
@@ -1764,7 +1815,7 @@ val openArtistScreen: (String, String) -> Unit = { artName, artUri ->
 @Composable
 fun WavyLine(
     modifier: Modifier = Modifier,
-    color: Color = Color(0x33F2A385),
+    color: Color = SwiftifyColors.Primary.copy(alpha = 0.25f),
     wavelength: Float = 14.2f,
     amplitude: Float = 1.3f,
     strokeWidth: Float = 2.0f
@@ -1805,7 +1856,7 @@ fun WavyLine(
 @Composable
 fun Cookie12Border(
     modifier: Modifier = Modifier,
-    color: Color = Color(0x66F2A385),
+    color: Color = SwiftifyColors.Primary.copy(alpha = 0.4f),
     lobes: Int = 12,
     strokeWidth: Dp = 1.6.dp
 ) {
@@ -1913,10 +1964,10 @@ fun HomeScreen(
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = "Swiftify",
-                    color = Color(0xFFF7F2EE),
-                    fontSize = 32.sp,
-                    fontWeight = FontWeight.Black,
-                    letterSpacing = (-0.8).sp
+                    color = MaterialTheme.colorScheme.onSurface,
+                    fontSize = 28.sp,
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = (-0.5).sp
                 )
                 Spacer(modifier = Modifier.height(4.dp))
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -1924,20 +1975,20 @@ fun HomeScreen(
                         modifier = Modifier
                             .size(24.dp)
                             .clip(CircleShape)
-                            .background(Color(0x29F2A385)),
+                            .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)),
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
                             imageVector = greetingIcon,
                             contentDescription = null,
-                            tint = Color(0xFFF2A385),
+                            tint = MaterialTheme.colorScheme.primary,
                             modifier = Modifier.size(15.dp)
                         )
                     }
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
                         text = greetingText,
-                        color = Color(0xFFA59B94),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                         fontSize = 14.sp,
                         fontWeight = FontWeight.Medium
                     )
@@ -1947,10 +1998,15 @@ fun HomeScreen(
                 modifier = Modifier
                     .size(38.dp)
                     .clip(CircleShape)
-                    .background(Color(0xFF26201E)),
+                    .background(MaterialTheme.colorScheme.surfaceContainerHigh),
                 contentAlignment = Alignment.Center
             ) {
-                Text("⋮", color = Color(0xFFCDC2BB), fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                Icon(
+                    imageVector = Icons.Rounded.MoreVert,
+                    contentDescription = "Options",
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(20.dp)
+                )
             }
         }
 
@@ -1959,20 +2015,23 @@ fun HomeScreen(
             is AuthState.LoggedOut -> {
                 Card(
                     modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp),
-                    colors = CardDefaults.cardColors(containerColor = Color(0xFF26201E)),
-                    shape = RoundedCornerShape(20.dp)
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh),
+                    shape = RoundedCornerShape(17.dp)
                 ) {
                     Column(modifier = Modifier.padding(18.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text("Connect Spotify", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 18.sp)
+                        Text("Connect Spotify", color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.Bold, fontSize = 18.sp)
                         Spacer(modifier = Modifier.height(4.dp))
-                        Text("Spotify Premium required for full playback", color = Color(0xFFA59B94), fontSize = 13.sp)
+                        Text("Spotify Premium required for full playback", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 13.sp)
                         Spacer(modifier = Modifier.height(14.dp))
                         Button(
                             onClick = onLoginClick,
-                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFF2A385)),
-                            shape = RoundedCornerShape(999.dp)
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = MaterialTheme.colorScheme.primary,
+                                contentColor = MaterialTheme.colorScheme.onPrimary
+                            ),
+                            shape = CircleShape
                         ) {
-                            Text("Log in with Spotify", color = Color(0xFF251510), fontWeight = FontWeight.Bold)
+                            Text("Log in with Spotify", fontWeight = FontWeight.Bold)
                         }
                     }
                 }
@@ -1982,9 +2041,9 @@ fun HomeScreen(
                     modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    CircularProgressIndicator(modifier = Modifier.size(18.dp), color = Color(0xFFF2A385), strokeWidth = 2.dp)
+                    CircularProgressIndicator(modifier = Modifier.size(18.dp), color = MaterialTheme.colorScheme.primary, strokeWidth = 2.dp)
                     Spacer(modifier = Modifier.width(10.dp))
-                    Text(statusMsg.ifEmpty { "Connecting Spotify..." }, color = Color(0xFFA59B94), fontSize = 13.sp)
+                    Text(statusMsg.ifEmpty { "Connecting Spotify..." }, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 13.sp)
                 }
             }
             is AuthState.LoggedIn -> {}
@@ -2192,19 +2251,19 @@ fun HomeScreen(
                 glyphAlpha = 0.90f
             )
             Spacer(modifier = Modifier.width(10.dp))
-            Text(stringResource(R.string.your_playlists), color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+            Text(stringResource(R.string.your_playlists), color = MaterialTheme.colorScheme.onSurface, fontSize = 20.sp, fontWeight = FontWeight.Bold)
             WavyLine(
                 modifier = Modifier.weight(1f).padding(horizontal = 12.dp),
-                color = Color(0x33F2A385)
+                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.25f)
             )
             Box(
                 modifier = Modifier
-                    .clip(RoundedCornerShape(999.dp))
-                    .background(Color(0xFF2E2725))
+                    .clip(CircleShape)
+                    .background(MaterialTheme.colorScheme.surfaceContainerHigh)
                     .clickable { onSeeAllPlaylists() }
                     .padding(horizontal = 12.dp, vertical = 6.dp)
             ) {
-                Text("→ ${stringResource(R.string.see_all)}", color = Color(0xFFD8CDC7), fontSize = 12.sp, fontWeight = FontWeight.Medium)
+                Text("→ ${stringResource(R.string.see_all)}", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp, fontWeight = FontWeight.Medium)
             }
         }
 
@@ -2219,13 +2278,13 @@ fun HomeScreen(
                         contentDescription = null,
                         modifier = Modifier
                             .size(136.dp)
-                            .clip(RoundedCornerShape(18.dp)),
+                            .clip(RoundedCornerShape(12.dp)),
                         contentScale = ContentScale.Crop
                     )
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(
                         text = playlist.name,
-                        color = Color.White,
+                        color = MaterialTheme.colorScheme.onSurface,
                         fontSize = 14.sp,
                         fontWeight = FontWeight.Bold,
                         maxLines = 1,
@@ -2233,7 +2292,7 @@ fun HomeScreen(
                     )
                     Text(
                         text = playlist.owner,
-                        color = Color(0xFF9E948E),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                         fontSize = 12.sp,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
@@ -2258,10 +2317,10 @@ fun HomeScreen(
                 glyphAlpha = 0.90f
             )
             Spacer(modifier = Modifier.width(10.dp))
-            Text(stringResource(R.string.recently_played), color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+            Text(stringResource(R.string.recently_played), color = MaterialTheme.colorScheme.onSurface, fontSize = 20.sp, fontWeight = FontWeight.Bold)
             WavyLine(
                 modifier = Modifier.weight(1f).padding(start = 12.dp),
-                color = Color(0x33F2A385)
+                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.25f)
             )
         }
 
@@ -2274,9 +2333,9 @@ fun HomeScreen(
                     Box(
                         modifier = Modifier
                             .size(136.dp)
-                            .shadow(if (isCurrent && isPlaying) 16.dp else 6.dp, RoundedCornerShape(22.dp), spotColor = Color(0x66F2A385))
-                            .clip(RoundedCornerShape(22.dp))
-                            .background(Color(0xFF201B19))
+                            .shadow(if (isCurrent && isPlaying) 12.dp else 4.dp, RoundedCornerShape(12.dp), spotColor = Color.Black.copy(alpha = 0.3f))
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(MaterialTheme.colorScheme.surfaceContainerHigh)
                     ) {
                         AsyncImage(
                             model = track.artworkUrl,
@@ -2291,13 +2350,13 @@ fun HomeScreen(
                                     .padding(8.dp)
                                     .size(32.dp)
                                     .clip(CircleShape)
-                                    .background(Color(0xFFF2A385)),
+                                    .background(MaterialTheme.colorScheme.primary),
                                 contentAlignment = Alignment.Center
                             ) {
                                 Icon(
                                     imageVector = Icons.Rounded.VolumeUp,
                                     contentDescription = null,
-                                    tint = Color(0xFF1B110E),
+                                    tint = MaterialTheme.colorScheme.onPrimary,
                                     modifier = Modifier.size(18.dp)
                                 )
                             }
@@ -2306,7 +2365,7 @@ fun HomeScreen(
                     Spacer(modifier = Modifier.height(10.dp))
                     Text(
                         text = track.title,
-                        color = if (isCurrent) Color(0xFFF2A385) else Color.White,
+                        color = if (isCurrent) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
                         fontSize = 14.sp,
                         fontWeight = FontWeight.Bold,
                         maxLines = 1,
@@ -2314,7 +2373,7 @@ fun HomeScreen(
                     )
                     Text(
                         text = track.artist,
-                        color = Color(0xFFA59B94),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                         fontSize = 12.sp,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
@@ -2339,10 +2398,10 @@ fun HomeScreen(
                 glyphAlpha = 0.90f
             )
             Spacer(modifier = Modifier.width(10.dp))
-            Text(stringResource(R.string.artists_in_rotation), color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+            Text(stringResource(R.string.artists_in_rotation), color = MaterialTheme.colorScheme.onSurface, fontSize = 20.sp, fontWeight = FontWeight.Bold)
             WavyLine(
                 modifier = Modifier.weight(1f).padding(start = 12.dp),
-                color = Color(0x33F2A385)
+                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.25f)
             )
         }
 
@@ -2362,7 +2421,7 @@ fun HomeScreen(
                         imageUrl = artist.artworkUrl,
                         contentDescription = artist.name,
                         modifier = Modifier.size(136.dp),
-                        ringColor = Color(0xFFF2A385),
+                        ringColor = MaterialTheme.colorScheme.primary,
                         waves = 20,
                         amplitude = 1.3.dp,
                         strokeWidth = 2.0.dp,
@@ -2371,7 +2430,7 @@ fun HomeScreen(
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(
                         text = artist.name,
-                        color = Color.White,
+                        color = MaterialTheme.colorScheme.onSurface,
                         fontSize = 14.sp,
                         fontWeight = FontWeight.Medium,
                         textAlign = TextAlign.Center,
@@ -2400,9 +2459,9 @@ private fun CompactNavItem(
     selected: Boolean,
     onClick: () -> Unit
 ) {
-    val accentColor = Color(0xFFF2A385)
-    val inactiveColor = Color(0xFF8A807A)
-    val activeBg = Color(0x2EF2A385)
+    val accentColor = MaterialTheme.colorScheme.primary
+    val inactiveColor = MaterialTheme.colorScheme.onSurfaceVariant
+    val activeBg = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.45f)
 
     Row(
         modifier = Modifier

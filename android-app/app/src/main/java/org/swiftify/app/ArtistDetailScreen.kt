@@ -193,8 +193,8 @@ fun ArtistDetailScreen(
     LazyColumn(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color(0xFF13100E))
-            .padding(horizontal = 20.dp)
+            .background(MaterialTheme.colorScheme.background)
+            .padding(horizontal = 16.dp)
     ) {
         // Back Button & Header
         item(key = "artist_header", contentType = "header") {
@@ -207,7 +207,7 @@ fun ArtistDetailScreen(
                 Spacer(modifier = Modifier.width(12.dp))
                 Text(
                     text = "Artist",
-                    color = Color(0xFFA59B94),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                     fontSize = 15.sp,
                     fontWeight = FontWeight.Medium
                 )
@@ -220,10 +220,13 @@ fun ArtistDetailScreen(
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clip(RoundedCornerShape(24.dp))
+                    .clip(RoundedCornerShape(23.dp))
                     .background(
                         Brush.verticalGradient(
-                            listOf(Color(0xFF2A201C), Color(0xFF1B1513))
+                            listOf(
+                                MaterialTheme.colorScheme.surfaceContainerHighest,
+                                MaterialTheme.colorScheme.surfaceContainer
+                            )
                         )
                     )
                     .padding(24.dp),
@@ -233,7 +236,7 @@ fun ArtistDetailScreen(
                     imageUrl = artistAvatar,
                     contentDescription = artist.name,
                     modifier = Modifier.size(150.dp),
-                    ringColor = Color(0xFFF2A385),
+                    ringColor = MaterialTheme.colorScheme.primary,
                     waves = 20,
                     amplitude = 1.4.dp,
                     strokeWidth = 2.4.dp,
@@ -244,28 +247,36 @@ fun ArtistDetailScreen(
 
                 Text(
                     text = artist.name,
-                    color = Color(0xFFF5EFEA),
+                    color = MaterialTheme.colorScheme.onSurface,
                     fontSize = 26.sp,
                     fontWeight = FontWeight.Bold,
                     textAlign = TextAlign.Center
                 )
 
-                Text(
-                    text = "ARTIST",
-                    color = Color(0xFFF2A385),
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Bold,
-                    letterSpacing = 1.5.sp,
-                    modifier = Modifier.padding(top = 4.dp)
-                )
+                Spacer(modifier = Modifier.height(6.dp))
+
+                Box(
+                    modifier = Modifier
+                        .clip(CircleShape)
+                        .background(MaterialTheme.colorScheme.primaryContainer)
+                        .padding(horizontal = 10.dp, vertical = 3.dp)
+                ) {
+                    Text(
+                        text = "ARTIST",
+                        color = MaterialTheme.colorScheme.onPrimaryContainer,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = 1.sp
+                    )
+                }
 
                 Spacer(modifier = Modifier.height(18.dp))
 
                 WavyPillButton(
                     text = "Play Top Songs",
                     icon = Icons.Rounded.PlayArrow,
-                    backgroundColor = Color(0xFFF2A385),
-                    contentColor = Color(0xFF13100E),
+                    backgroundColor = MaterialTheme.colorScheme.primary,
+                    contentColor = MaterialTheme.colorScheme.onPrimary,
                     enabled = topTracks.isNotEmpty(),
                     onClick = {
                         if (topTracks.isNotEmpty()) {
@@ -286,13 +297,13 @@ fun ArtistDetailScreen(
             ) {
                 Text(
                     text = "Popular Songs",
-                    color = Color(0xFFF5EFEA),
+                    color = MaterialTheme.colorScheme.onSurface,
                     fontSize = 20.sp,
                     fontWeight = FontWeight.Bold
                 )
                 WavyLine(
                     modifier = Modifier.weight(1f).padding(start = 14.dp),
-                    color = Color(0x33F2A385),
+                    color = MaterialTheme.colorScheme.primary.copy(alpha = 0.25f),
                     wavelength = 18f,
                     amplitude = 2.5f
                 )
@@ -306,7 +317,7 @@ fun ArtistDetailScreen(
                     modifier = Modifier.fillMaxWidth().height(160.dp),
                     contentAlignment = Alignment.Center
                 ) {
-                    CircularProgressIndicator(color = Color(0xFFF2A385), strokeWidth = 3.dp)
+                    CircularProgressIndicator(color = MaterialTheme.colorScheme.primary, strokeWidth = 3.dp)
                 }
             }
         } else if (errorMessage != null && topTracks.isEmpty()) {
@@ -317,7 +328,7 @@ fun ArtistDetailScreen(
                 ) {
                     Text(
                         text = errorMessage ?: "No tracks available",
-                        color = Color(0xFFA59B94),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                         fontSize = 14.sp,
                         textAlign = TextAlign.Center
                     )
@@ -338,26 +349,26 @@ fun ArtistDetailScreen(
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .background(Color(0xFF231C1A), RoundedCornerShape(14.dp))
+                        .background(MaterialTheme.colorScheme.surfaceContainerHigh, RoundedCornerShape(8.dp))
                 ) {
                     if (offsetX > 10f) {
                         Row(
                             modifier = Modifier
                                 .matchParentSize()
-                                .background(Color(0xFF2B201C), RoundedCornerShape(14.dp))
+                                .background(MaterialTheme.colorScheme.surfaceContainerHighest, RoundedCornerShape(8.dp))
                                 .padding(start = 16.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Icon(
                                 imageVector = Icons.Rounded.QueueMusic,
                                 contentDescription = null,
-                                tint = Color(0xFFF2A385),
+                                tint = MaterialTheme.colorScheme.primary,
                                 modifier = Modifier.size(20.dp)
                             )
                             Spacer(modifier = Modifier.width(8.dp))
                             Text(
                                 text = if (swipeArmed) "Add to Queue" else "Swipe to queue",
-                                color = Color(0xFFF2A385),
+                                color = MaterialTheme.colorScheme.primary,
                                 fontSize = 13.sp,
                                 fontWeight = FontWeight.Bold
                             )
@@ -369,8 +380,8 @@ fun ArtistDetailScreen(
                             .fillMaxWidth()
                             .offset { IntOffset(offsetX.roundToInt(), 0) }
                             .background(
-                                if (isCurrent) Color(0xFF281E1B) else Color(0xFF13100E),
-                                RoundedCornerShape(14.dp)
+                                if (isCurrent) MaterialTheme.colorScheme.primary.copy(alpha = 0.12f) else MaterialTheme.colorScheme.surfaceContainerLow,
+                                RoundedCornerShape(8.dp)
                             )
                             .clickable {
                                 if (offsetX == 0f) {
@@ -401,7 +412,7 @@ fun ArtistDetailScreen(
                     ) {
                         Text(
                             text = "${idx + 1}",
-                            color = if (isCurrent) Color(0xFFF2A385) else Color(0xFF756A64),
+                            color = if (isCurrent) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
                             fontSize = 15.sp,
                             fontWeight = FontWeight.Bold,
                             modifier = Modifier.width(28.dp)
@@ -411,8 +422,8 @@ fun ArtistDetailScreen(
                             model = track.artworkUrl,
                             contentDescription = null,
                             modifier = Modifier
-                                .size(46.dp)
-                                .clip(RoundedCornerShape(10.dp)),
+                                .size(44.dp)
+                                .clip(RoundedCornerShape(7.dp)),
                             contentScale = ContentScale.Crop
                         )
 
@@ -421,7 +432,7 @@ fun ArtistDetailScreen(
                         Column(modifier = Modifier.weight(1f)) {
                             Text(
                                 text = track.title,
-                                color = if (isCurrent) Color(0xFFF2A385) else Color(0xFFF5EFEA),
+                                color = if (isCurrent) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
                                 fontSize = 15.sp,
                                 fontWeight = FontWeight.SemiBold,
                                 maxLines = 1,
@@ -429,7 +440,7 @@ fun ArtistDetailScreen(
                             )
                             Text(
                                 text = track.album.ifEmpty { track.artist },
-                                color = Color(0xFFA59B94),
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 fontSize = 13.sp,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis
@@ -440,13 +451,13 @@ fun ArtistDetailScreen(
                             Icon(
                                 imageVector = Icons.Rounded.VolumeUp,
                                 contentDescription = null,
-                                tint = Color(0xFFF2A385),
+                                tint = MaterialTheme.colorScheme.primary,
                                 modifier = Modifier.size(16.dp)
                             )
                         } else {
                             Text(
                                 text = formatTime(track.durationMs),
-                                color = Color(0xFF756A64),
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 fontSize = 13.sp
                             )
                         }
@@ -463,7 +474,7 @@ fun ArtistDetailScreen(
                     ) {
                         Text(
                             text = if (showAllTracks) "Show Less ↑" else "More (10 Songs) ↓",
-                            color = Color(0xFFF2A385),
+                            color = MaterialTheme.colorScheme.primary,
                             fontWeight = FontWeight.Bold,
                             fontSize = 14.sp
                         )
@@ -482,13 +493,13 @@ fun ArtistDetailScreen(
                 ) {
                     Text(
                         text = "Discography",
-                        color = Color(0xFFF5EFEA),
+                        color = MaterialTheme.colorScheme.onSurface,
                         fontSize = 20.sp,
                         fontWeight = FontWeight.Bold
                     )
                     WavyLine(
                         modifier = Modifier.weight(1f).padding(start = 14.dp),
-                        color = Color(0x33F2A385),
+                        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.25f),
                         wavelength = 18f,
                         amplitude = 2.5f
                     )
@@ -501,14 +512,14 @@ fun ArtistDetailScreen(
                         val isSel = (selectedFilter == chip)
                         Box(
                             modifier = Modifier
-                                .clip(RoundedCornerShape(20.dp))
-                                .background(if (isSel) Color(0xFFF2A385) else Color(0xFF221C1A))
+                                .clip(CircleShape)
+                                .background(if (isSel) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceContainerHigh)
                                 .clickable { selectedFilter = chip }
                                 .padding(horizontal = 14.dp, vertical = 7.dp)
                         ) {
                             Text(
                                 text = chip,
-                                color = if (isSel) Color(0xFF13100E) else Color(0xFFA59B94),
+                                color = if (isSel) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
                                 fontSize = 13.sp,
                                 fontWeight = if (isSel) FontWeight.Bold else FontWeight.Medium
                             )
@@ -539,8 +550,8 @@ fun ArtistDetailScreen(
                             Box(
                                 modifier = Modifier
                                     .size(130.dp)
-                                    .clip(RoundedCornerShape(14.dp))
-                                    .background(Color(0xFF221C1A))
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .background(MaterialTheme.colorScheme.surfaceContainerHigh)
                             ) {
                                 AsyncImage(
                                     model = rel.artworkUrl,
@@ -552,7 +563,7 @@ fun ArtistDetailScreen(
                             Spacer(modifier = Modifier.height(8.dp))
                             Text(
                                 text = rel.name,
-                                color = Color(0xFFF5EFEA),
+                                color = MaterialTheme.colorScheme.onSurface,
                                 fontSize = 14.sp,
                                 fontWeight = FontWeight.SemiBold,
                                 maxLines = 1,
@@ -564,7 +575,7 @@ fun ArtistDetailScreen(
                             }
                             Text(
                                 text = desc,
-                                color = Color(0xFFA59B94),
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 fontSize = 12.sp,
                                 maxLines = 1
                             )

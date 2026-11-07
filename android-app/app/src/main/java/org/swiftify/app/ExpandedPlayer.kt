@@ -37,6 +37,9 @@ import androidx.compose.ui.draw.scale
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.TransformOrigin
+import androidx.compose.ui.graphics.graphicsLayer
+import org.swiftify.app.design.SwiftifyMotion
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -159,13 +162,13 @@ fun ExpandedPlayer(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color(0xFF0C0908))
+            .background(Color(0xFF000000))
             .background(
                 Brush.verticalGradient(
                     listOf(
                         palette.dominant.copy(alpha = 0.96f),
                         palette.secondary.copy(alpha = 0.98f),
-                        Color(0xFF0C0908)
+                        Color(0xFF000000)
                     )
                 )
             )
@@ -196,7 +199,7 @@ fun ExpandedPlayer(
                     Icon(
                         imageVector = Icons.Rounded.KeyboardArrowDown,
                         contentDescription = "Collapse",
-                        tint = palette.accent,
+                        tint = Color.White,
                         modifier = Modifier.size(28.dp)
                     )
                 }
@@ -264,7 +267,7 @@ fun ExpandedPlayer(
                     DropdownMenu(
                         expanded = showOptionsMenu,
                         onDismissRequest = { showOptionsMenu = false },
-                        modifier = Modifier.background(Color(0xFF221C1A))
+                        modifier = Modifier.background(MaterialTheme.colorScheme.surfaceContainerHigh)
                     ) {
                         DropdownMenuItem(
                             leadingIcon = {
@@ -445,32 +448,54 @@ fun ExpandedPlayer(
                                     val isCurrent = isLineSynced && (index == activeLineIdx)
                                     val isPast = isLineSynced && (index < activeLineIdx)
 
-                                    val fontSize = if (isCurrent) 22.sp else 17.sp
-                                    val textColor = when {
-                                        !isLineSynced -> Color.White
-                                        isCurrent -> Color.White
-                                        isPast -> Color(0x66FFFFFF)
-                                        else -> Color(0x88FFFFFF)
-                                    }
-                                    val fontWeight = if (isCurrent) FontWeight.ExtraBold else FontWeight.SemiBold
+                                    val lineScale by animateFloatAsState(
+                                        targetValue = if (isCurrent) 1.04f else 1.0f,
+                                        animationSpec = spring(dampingRatio = 0.65f, stiffness = 350f),
+                                        label = "lyricScale"
+                                    )
+                                    val pillBg by animateColorAsState(
+                                        targetValue = if (isCurrent) Color(0x28FFFFFF) else Color.Transparent,
+                                        animationSpec = tween(durationMillis = 280, easing = SwiftifyMotion.EmphasizedDecel),
+                                        label = "lyricPillBg"
+                                    )
+                                    val textColor by animateColorAsState(
+                                        targetValue = when {
+                                            !isLineSynced -> Color.White
+                                            isCurrent -> Color.White
+                                            isPast -> Color(0x4DFFFFFF)
+                                            else -> Color(0x73FFFFFF)
+                                        },
+                                        animationSpec = tween(durationMillis = 280),
+                                        label = "lyricTextColor"
+                                    )
 
-                                    Text(
-                                        text = line.words,
-                                        color = textColor,
-                                        fontSize = fontSize,
-                                        fontWeight = fontWeight,
-                                        lineHeight = if (isCurrent) 32.sp else 26.sp,
-                                        textAlign = TextAlign.Start,
+                                    Box(
                                         modifier = Modifier
                                             .fillMaxWidth()
-                                            .clip(RoundedCornerShape(12.dp))
+                                            .graphicsLayer {
+                                                scaleX = lineScale
+                                                scaleY = lineScale
+                                                transformOrigin = TransformOrigin(0f, 0.5f)
+                                            }
+                                            .clip(RoundedCornerShape(20.dp))
+                                            .background(pillBg)
                                             .clickable {
                                                 if (line.startTimeMs > 0L) {
                                                     onSeek(line.startTimeMs)
                                                 }
                                             }
-                                            .padding(vertical = 4.dp, horizontal = 6.dp)
-                                    )
+                                            .padding(horizontal = 14.dp, vertical = 8.dp)
+                                    ) {
+                                        Text(
+                                            text = line.words,
+                                            color = textColor,
+                                            fontSize = if (isCurrent) 22.sp else 18.sp,
+                                            fontWeight = if (isCurrent) FontWeight.Bold else FontWeight.SemiBold,
+                                            lineHeight = if (isCurrent) 30.sp else 26.sp,
+                                            textAlign = TextAlign.Start,
+                                            modifier = Modifier.fillMaxWidth()
+                                        )
+                                    }
                                 }
                             }
                         } else {
@@ -723,7 +748,7 @@ fun ExpandedPlayer(
                                 ambientColor = palette.dominant
                             )
                             .clip(RoundedCornerShape(28.dp))
-                            .background(Color(0xFF1E1715)),
+                            .background(MaterialTheme.colorScheme.surfaceContainerHigh),
                         contentAlignment = Alignment.Center
                     ) {
                         AsyncImage(
@@ -889,10 +914,24 @@ fun ExpandedPlayer(
             val playInteraction = remember { MutableInteractionSource() }
             val isPlayPressed by playInteraction.collectIsPressedAsState()
             val playScale by animateFloatAsState(
-                targetValue = if (isPlayPressed) 0.90f else 1.0f,
-                animationSpec = spring(dampingRatio = 0.6f, stiffness = 400f),
+                targetValue = if (isPlayPressed) 0.88f else 1.0f,
+                animationSpec = spring(dampingRatio = 0.5f, stiffness = 400f),
                 label = "playScale"
             )
+
+            // Glyph pop animation on play/pause toggle (matches Desktop PlayButton.qml: from 0.55 to 1.0)
+            var lastIsPlaying by remember { mutableStateOf(isPlaying) }
+            val glyphPop = remember { Animatable(1f) }
+            LaunchedEffect(isPlaying) {
+                if (lastIsPlaying != isPlaying) {
+                    lastIsPlaying = isPlaying
+                    glyphPop.snapTo(0.55f)
+                    glyphPop.animateTo(
+                        targetValue = 1f,
+                        animationSpec = tween(durationMillis = 480, easing = SwiftifyMotion.ExpressiveFastSpatial)
+                    )
+                }
+            }
 
             val spinTransition = rememberInfiniteTransition(label = "spinTransition")
             val spinAngle by spinTransition.animateFloat(
@@ -923,7 +962,9 @@ fun ExpandedPlayer(
                     imageVector = if (isPlaying) Icons.Rounded.Pause else Icons.Rounded.PlayArrow,
                     contentDescription = if (isPlaying) "Pause" else "Play",
                     tint = palette.onAccent,
-                    modifier = Modifier.size(40.dp)
+                    modifier = Modifier
+                        .size(40.dp)
+                        .scale(glyphPop.value)
                 )
             }
 
@@ -1074,7 +1115,7 @@ fun ExpandedPlayer(
                     }
                 }
             },
-            containerColor = Color(0xFF221C1A),
+            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
             confirmButton = {
                 TextButton(onClick = { showSleepTimerDialog = false }) {
                     Text("Close", color = palette.accent, fontWeight = FontWeight.Bold)
@@ -1109,7 +1150,7 @@ fun ExpandedPlayer(
                     AudioInfoRow("URI", track.uri)
                 }
             },
-            containerColor = Color(0xFF221C1A),
+            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
             confirmButton = {
                 TextButton(onClick = { showAudioInfoDialog = false }) {
                     Text("Close", color = palette.accent, fontWeight = FontWeight.Bold)
@@ -1135,7 +1176,7 @@ fun ExpandedPlayer(
             },
             text = {
                 if (userPlaylists.isEmpty()) {
-                    Text("No editable playlists found.", color = Color(0xFFA59B94), fontSize = 14.sp)
+                    Text("No editable playlists found.", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 14.sp)
                 } else {
                     Column(modifier = Modifier.fillMaxWidth().verticalScroll(rememberScrollState())) {
                         userPlaylists.forEach { pl ->
@@ -1159,17 +1200,17 @@ fun ExpandedPlayer(
                                 Spacer(modifier = Modifier.width(12.dp))
                                 Column(modifier = Modifier.weight(1f)) {
                                     Text(pl.name, color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
-                                    Text(pl.owner, color = Color(0xFFA59B94), fontSize = 12.sp, maxLines = 1)
+                                    Text(pl.owner, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp, maxLines = 1)
                                 }
                             }
                         }
                     }
                 }
             },
-            containerColor = Color(0xFF221C1A),
+            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
             confirmButton = {
                 TextButton(onClick = { showAddToPlaylistDialog = false }) {
-                    Text("Cancel", color = Color(0xFFA59B94))
+                    Text("Cancel", color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
         )
@@ -1180,7 +1221,7 @@ fun ExpandedPlayer(
 @Composable
 private fun AudioInfoRow(label: String, value: String) {
     Column(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
-        Text(label.uppercase(), color = Color(0xFF8E837D), fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
+        Text(label.uppercase(), color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
         Text(value, color = Color.White, fontSize = 13.sp)
     }
 }
@@ -1204,13 +1245,13 @@ private fun ModeTabChip(
         Icon(
             imageVector = icon,
             contentDescription = title,
-            tint = if (isSelected) Color(0xFF140E0C) else Color(0xDDFFFFFF),
+            tint = if (isSelected) Color.Black else Color(0xDDFFFFFF),
             modifier = Modifier.size(16.dp)
         )
         Spacer(modifier = Modifier.width(6.dp))
         Text(
             text = title,
-            color = if (isSelected) Color(0xFF140E0C) else Color(0xDDFFFFFF),
+            color = if (isSelected) Color.Black else Color(0xDDFFFFFF),
             fontSize = 13.sp,
             fontWeight = FontWeight.Bold
         )

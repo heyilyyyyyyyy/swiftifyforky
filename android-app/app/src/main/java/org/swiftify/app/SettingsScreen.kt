@@ -101,7 +101,7 @@ fun SettingsScreen(
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color(0xFF161413))
+            .background(MaterialTheme.colorScheme.background)
             .padding(horizontal = 16.dp)
             .verticalScroll(scrollState)
     ) {
@@ -109,7 +109,7 @@ fun SettingsScreen(
 
         Text(
             text = stringResource(R.string.settings_title),
-            color = Color.White,
+            color = MaterialTheme.colorScheme.onSurface,
             fontSize = 28.sp,
             fontWeight = FontWeight.Bold
         )
@@ -119,7 +119,7 @@ fun SettingsScreen(
         // Section: Account & Session
         Text(
             text = stringResource(R.string.settings_spotify_account),
-            color = Color(0xFFF2A385),
+            color = MaterialTheme.colorScheme.primary,
             fontSize = 12.sp,
             fontWeight = FontWeight.Bold,
             letterSpacing = 1.sp
@@ -128,8 +128,8 @@ fun SettingsScreen(
 
         Card(
             modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(16.dp),
-            colors = CardDefaults.cardColors(containerColor = Color(0xFF1E1816))
+            shape = RoundedCornerShape(17.dp),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh)
         ) {
             Column(modifier = Modifier.padding(16.dp)) {
                 Row(
@@ -140,20 +140,20 @@ fun SettingsScreen(
                         modifier = Modifier
                             .size(46.dp)
                             .clip(CircleShape)
-                            .background(Color(0xFF2B221F)),
+                            .background(MaterialTheme.colorScheme.surfaceContainerHighest),
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
                             imageVector = Icons.Rounded.Person,
                             contentDescription = null,
-                            tint = Color(0xFFF2A385),
+                            tint = MaterialTheme.colorScheme.primary,
                             modifier = Modifier.size(26.dp)
                         )
                     }
                     Spacer(modifier = Modifier.width(14.dp))
                     Column(modifier = Modifier.weight(1f)) {
-                        Text(stringResource(R.string.settings_connected_to_spotify), color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
-                        Text(stringResource(R.string.settings_premium_active), color = Color(0xFF8E837D), fontSize = 12.sp)
+                        Text(stringResource(R.string.settings_connected_to_spotify), color = MaterialTheme.colorScheme.onSurface, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+                        Text(stringResource(R.string.settings_premium_active), color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp)
                     }
                 }
 
@@ -165,51 +165,60 @@ fun SettingsScreen(
                 ) {
                     Button(
                         onClick = onReauthorize,
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2C2320)),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.surfaceContainerHighest,
+                            contentColor = MaterialTheme.colorScheme.onSurface
+                        ),
                         shape = RoundedCornerShape(12.dp),
                         modifier = Modifier.weight(1f)
                     ) {
-                        Text(stringResource(R.string.settings_reauthorize), color = Color(0xFFD6CBC5), fontSize = 13.sp, fontWeight = FontWeight.Medium)
+                        Text(stringResource(R.string.settings_reauthorize), fontSize = 13.sp, fontWeight = FontWeight.Medium)
                     }
 
                     var showLogoutConfirm by remember { mutableStateOf(false) }
                     Button(
                         onClick = { showLogoutConfirm = true },
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0x2BFF4D4D)),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.error.copy(alpha = 0.15f),
+                            contentColor = MaterialTheme.colorScheme.error
+                        ),
                         shape = RoundedCornerShape(12.dp),
                         modifier = Modifier.weight(1f)
                     ) {
                         Icon(
                             imageVector = Icons.Rounded.Logout,
                             contentDescription = null,
-                            tint = Color(0xFFFF6B6B),
+                            tint = MaterialTheme.colorScheme.error,
                             modifier = Modifier.size(16.dp)
                         )
                         Spacer(modifier = Modifier.width(6.dp))
-                        Text(stringResource(R.string.settings_logout), color = Color(0xFFFF6B6B), fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                        Text(stringResource(R.string.settings_logout), fontSize = 13.sp, fontWeight = FontWeight.Bold)
                     }
 
                     if (showLogoutConfirm) {
                         AlertDialog(
                             onDismissRequest = { showLogoutConfirm = false },
-                            title = { Text(stringResource(R.string.settings_logout_confirm_title), color = Color.White, fontWeight = FontWeight.Bold) },
-                            text = { Text(stringResource(R.string.settings_logout_confirm_desc), color = Color(0xFFA59B94)) },
-                            containerColor = Color(0xFF221C1A),
+                            title = { Text(stringResource(R.string.settings_logout_confirm_title), color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.Bold) },
+                            text = { Text(stringResource(R.string.settings_logout_confirm_desc), color = MaterialTheme.colorScheme.onSurfaceVariant) },
+                            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
                             confirmButton = {
                                 Button(
                                     onClick = {
                                         showLogoutConfirm = false
                                         onLogout?.invoke()
                                     },
-                                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFF4D4D)),
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = MaterialTheme.colorScheme.error,
+                                        contentColor = MaterialTheme.colorScheme.onError
+                                    ),
                                     shape = RoundedCornerShape(12.dp)
                                 ) {
-                                    Text(stringResource(R.string.settings_logout), color = Color.White, fontWeight = FontWeight.Bold)
+                                    Text(stringResource(R.string.settings_logout), fontWeight = FontWeight.Bold)
                                 }
                             },
                             dismissButton = {
                                 TextButton(onClick = { showLogoutConfirm = false }) {
-                                    Text(stringResource(R.string.cancel), color = Color(0xFFA59B94))
+                                    Text(stringResource(R.string.cancel), color = MaterialTheme.colorScheme.onSurfaceVariant)
                                 }
                             }
                         )
@@ -223,7 +232,7 @@ fun SettingsScreen(
         // Section: Audio Quality
         Text(
             text = "AUDIO QUALITY",
-            color = Color(0xFFF2A385),
+            color = MaterialTheme.colorScheme.primary,
             fontSize = 12.sp,
             fontWeight = FontWeight.Bold,
             letterSpacing = 1.sp
@@ -232,8 +241,8 @@ fun SettingsScreen(
 
         Card(
             modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(16.dp),
-            colors = CardDefaults.cardColors(containerColor = Color(0xFF1E1816))
+            shape = RoundedCornerShape(17.dp),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh)
         ) {
             Column(modifier = Modifier.padding(14.dp)) {
                 val qualities = listOf(
@@ -248,7 +257,7 @@ fun SettingsScreen(
                         modifier = Modifier
                             .fillMaxWidth()
                             .clip(RoundedCornerShape(10.dp))
-                            .background(if (isSelected) Color(0x22F2A385) else Color.Transparent)
+                            .background(if (isSelected) MaterialTheme.colorScheme.primary.copy(alpha = 0.12f) else Color.Transparent)
                             .clickable {
                                 selectedQuality = kbps
                                 prefs.edit().putInt("audio_quality_kbps", kbps).apply()
@@ -262,11 +271,11 @@ fun SettingsScreen(
                         Column {
                             Text(
                                 text = title,
-                                color = if (isSelected) Color(0xFFF2A385) else Color.White,
+                                color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
                                 fontSize = 15.sp,
                                 fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
                             )
-                            Text(text = desc, color = Color(0xFF8E837D), fontSize = 12.sp)
+                            Text(text = desc, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp)
                         }
                         RadioButton(
                             selected = isSelected,
@@ -276,13 +285,13 @@ fun SettingsScreen(
                                 SpotifyBridge.setStreamQuality(kbps)
                             },
                             colors = RadioButtonDefaults.colors(
-                                selectedColor = Color(0xFFF2A385),
-                                unselectedColor = Color(0xFF6B5F59)
+                                selectedColor = MaterialTheme.colorScheme.primary,
+                                unselectedColor = MaterialTheme.colorScheme.outline
                             )
                         )
                     }
                     if (index < qualities.size - 1) {
-                        Divider(color = Color(0x22FFFFFF), thickness = 0.5.dp, modifier = Modifier.padding(vertical = 4.dp))
+                        Divider(color = MaterialTheme.colorScheme.outlineVariant, thickness = 0.5.dp, modifier = Modifier.padding(vertical = 4.dp))
                     }
                 }
             }
@@ -293,7 +302,7 @@ fun SettingsScreen(
         // Section: Playback Options
         Text(
             text = stringResource(R.string.settings_playback_networking),
-            color = Color(0xFFF2A385),
+            color = MaterialTheme.colorScheme.primary,
             fontSize = 12.sp,
             fontWeight = FontWeight.Bold,
             letterSpacing = 1.sp
@@ -302,8 +311,8 @@ fun SettingsScreen(
 
         Card(
             modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(16.dp),
-            colors = CardDefaults.cardColors(containerColor = Color(0xFF1E1816))
+            shape = RoundedCornerShape(17.dp),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh)
         ) {
             Column(modifier = Modifier.padding(14.dp)) {
                 // Volume Normalization
@@ -313,8 +322,8 @@ fun SettingsScreen(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Column(modifier = Modifier.weight(1f)) {
-                        Text(stringResource(R.string.settings_volume_norm), color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
-                        Text(stringResource(R.string.settings_volume_norm_desc), color = Color(0xFF8E837D), fontSize = 12.sp)
+                        Text(stringResource(R.string.settings_volume_norm), color = MaterialTheme.colorScheme.onSurface, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+                        Text(stringResource(R.string.settings_volume_norm_desc), color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp)
                     }
                     Switch(
                         checked = normalizationEnabled,
@@ -324,13 +333,13 @@ fun SettingsScreen(
                             SpotifyBridge.setVolumeNormalization(it)
                         },
                         colors = SwitchDefaults.colors(
-                            checkedThumbColor = Color(0xFF13100E),
-                            checkedTrackColor = Color(0xFFF2A385)
+                            checkedThumbColor = MaterialTheme.colorScheme.onPrimary,
+                            checkedTrackColor = MaterialTheme.colorScheme.primary
                         )
                     )
                 }
 
-                Divider(color = Color(0x22FFFFFF), thickness = 0.5.dp, modifier = Modifier.padding(vertical = 6.dp))
+                Divider(color = MaterialTheme.colorScheme.outlineVariant, thickness = 0.5.dp, modifier = Modifier.padding(vertical = 6.dp))
 
                 // Crossfade
                 Row(
@@ -339,8 +348,8 @@ fun SettingsScreen(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Column(modifier = Modifier.weight(1f)) {
-                        Text(stringResource(R.string.settings_crossfade), color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
-                        Text(if (crossfadeEnabled) stringResource(R.string.settings_crossfade_overlap, crossfadeSeconds) else stringResource(R.string.settings_crossfade_gapless), color = Color(0xFF8E837D), fontSize = 12.sp)
+                        Text(stringResource(R.string.settings_crossfade), color = MaterialTheme.colorScheme.onSurface, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+                        Text(if (crossfadeEnabled) stringResource(R.string.settings_crossfade_overlap, crossfadeSeconds) else stringResource(R.string.settings_crossfade_gapless), color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp)
                     }
                     Switch(
                         checked = crossfadeEnabled,
@@ -350,8 +359,8 @@ fun SettingsScreen(
                             onCrossfadeChanged?.invoke(it, crossfadeSeconds)
                         },
                         colors = SwitchDefaults.colors(
-                            checkedThumbColor = Color(0xFF13100E),
-                            checkedTrackColor = Color(0xFFF2A385)
+                            checkedThumbColor = MaterialTheme.colorScheme.onPrimary,
+                            checkedTrackColor = MaterialTheme.colorScheme.primary
                         )
                     )
                 }
@@ -362,8 +371,8 @@ fun SettingsScreen(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceBetween
                         ) {
-                            Text(stringResource(R.string.settings_overlap_duration), color = Color(0xFF8E837D), fontSize = 12.sp)
-                            Text("${crossfadeSeconds}s", color = Color(0xFFF2A385), fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                            Text(stringResource(R.string.settings_overlap_duration), color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp)
+                            Text("${crossfadeSeconds}s", color = MaterialTheme.colorScheme.primary, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                         }
                         Slider(
                             value = crossfadeSeconds.toFloat(),
@@ -376,15 +385,15 @@ fun SettingsScreen(
                             valueRange = 1f..12f,
                             steps = 10,
                             colors = SliderDefaults.colors(
-                                thumbColor = Color(0xFFF2A385),
-                                activeTrackColor = Color(0xFFF2A385),
-                                inactiveTrackColor = Color(0x33F2A385)
+                                thumbColor = MaterialTheme.colorScheme.primary,
+                                activeTrackColor = MaterialTheme.colorScheme.primary,
+                                inactiveTrackColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.25f)
                             )
                         )
                     }
                 }
 
-                Divider(color = Color(0x22FFFFFF), thickness = 0.5.dp, modifier = Modifier.padding(vertical = 6.dp))
+                Divider(color = MaterialTheme.colorScheme.outlineVariant, thickness = 0.5.dp, modifier = Modifier.padding(vertical = 6.dp))
 
                 // Spotify Connect
                 Row(
@@ -393,15 +402,15 @@ fun SettingsScreen(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Column(modifier = Modifier.weight(1f)) {
-                        Text(stringResource(R.string.settings_spotify_connect), color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
-                        Text(stringResource(R.string.settings_spotify_connect_desc, deviceName), color = Color(0xFF8E837D), fontSize = 12.sp)
+                        Text(stringResource(R.string.settings_spotify_connect), color = MaterialTheme.colorScheme.onSurface, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+                        Text(stringResource(R.string.settings_spotify_connect_desc, deviceName), color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp)
                     }
                     Switch(
                         checked = connectEnabled,
                         onCheckedChange = onConnectToggle,
                         colors = SwitchDefaults.colors(
-                            checkedThumbColor = Color(0xFF13100E),
-                            checkedTrackColor = Color(0xFFF2A385)
+                            checkedThumbColor = MaterialTheme.colorScheme.onPrimary,
+                            checkedTrackColor = MaterialTheme.colorScheme.primary
                         )
                     )
                 }
@@ -413,7 +422,7 @@ fun SettingsScreen(
         // Section: 6-Band Equalizer & DSP
         Text(
             text = stringResource(R.string.settings_dsp),
-            color = Color(0xFFF2A385),
+            color = MaterialTheme.colorScheme.primary,
             fontSize = 12.sp,
             fontWeight = FontWeight.Bold,
             letterSpacing = 1.sp
@@ -422,8 +431,8 @@ fun SettingsScreen(
 
         Card(
             modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(16.dp),
-            colors = CardDefaults.cardColors(containerColor = Color(0xFF1E1816))
+            shape = RoundedCornerShape(17.dp),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh)
         ) {
             Column(modifier = Modifier.padding(16.dp)) {
                 // Master Equalizer Switch
@@ -433,8 +442,8 @@ fun SettingsScreen(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Column(modifier = Modifier.weight(1f)) {
-                        Text(stringResource(R.string.settings_parametric_eq), color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
-                        Text(if (equalizerEnabled) stringResource(R.string.settings_eq_active, selectedPreset) else stringResource(R.string.settings_eq_bypassed), color = Color(0xFF8E837D), fontSize = 12.sp)
+                        Text(stringResource(R.string.settings_parametric_eq), color = MaterialTheme.colorScheme.onSurface, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+                        Text(if (equalizerEnabled) stringResource(R.string.settings_eq_active, selectedPreset) else stringResource(R.string.settings_eq_bypassed), color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp)
                     }
                     Switch(
                         checked = equalizerEnabled,
@@ -448,16 +457,16 @@ fun SettingsScreen(
                             }
                         },
                         colors = SwitchDefaults.colors(
-                            checkedThumbColor = Color(0xFF13100E),
-                            checkedTrackColor = Color(0xFFF2A385)
+                            checkedThumbColor = MaterialTheme.colorScheme.onPrimary,
+                            checkedTrackColor = MaterialTheme.colorScheme.primary
                         )
                     )
                 }
 
                 if (equalizerEnabled) {
-                    Divider(color = Color(0x22FFFFFF), thickness = 0.5.dp, modifier = Modifier.padding(vertical = 8.dp))
+                    Divider(color = MaterialTheme.colorScheme.outlineVariant, thickness = 0.5.dp, modifier = Modifier.padding(vertical = 8.dp))
 
-                    Text(stringResource(R.string.settings_sound_presets), color = Color(0xFF8E837D), fontSize = 12.sp, fontWeight = FontWeight.Medium)
+                    Text(stringResource(R.string.settings_sound_presets), color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp, fontWeight = FontWeight.Medium)
                     Spacer(modifier = Modifier.height(6.dp))
 
                     // Preset Chips Row
@@ -469,8 +478,8 @@ fun SettingsScreen(
                             val isSel = selectedPreset == pName
                             Box(
                                 modifier = Modifier
-                                    .clip(RoundedCornerShape(10.dp))
-                                    .background(if (isSel) Color(0xFFF2A385) else Color(0xFF2B221F))
+                                    .clip(CircleShape)
+                                    .background(if (isSel) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceContainerHighest)
                                     .clickable {
                                         val pGains = eqPresets[pName] ?: defaultGains
                                         for (i in 0 until 6) {
@@ -478,11 +487,11 @@ fun SettingsScreen(
                                         }
                                         updateEq(pGains, pName)
                                     }
-                                    .padding(horizontal = 8.dp, vertical = 6.dp)
+                                    .padding(horizontal = 10.dp, vertical = 6.dp)
                                 ) {
                                 Text(
                                     text = pName,
-                                    color = if (isSel) Color(0xFF13100E) else Color.White,
+                                    color = if (isSel) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface,
                                     fontSize = 11.sp,
                                     fontWeight = if (isSel) FontWeight.Bold else FontWeight.Normal
                                 )
@@ -503,10 +512,10 @@ fun SettingsScreen(
                                 modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.SpaceBetween
                             ) {
-                                Text(freqLabel, color = Color(0xFFD6CBC5), fontSize = 13.sp, fontWeight = FontWeight.Medium)
+                                Text(freqLabel, color = MaterialTheme.colorScheme.onSurface, fontSize = 13.sp, fontWeight = FontWeight.Medium)
                                 Text(
                                     gainStr,
-                                    color = if (gain != 0f) Color(0xFFF2A385) else Color(0xFF8E837D),
+                                    color = if (gain != 0f) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
                                     fontSize = 13.sp,
                                     fontWeight = FontWeight.Bold
                                 )
@@ -521,9 +530,9 @@ fun SettingsScreen(
                                 valueRange = -12f..12f,
                                 steps = 47,
                                 colors = SliderDefaults.colors(
-                                    thumbColor = Color(0xFFF2A385),
-                                    activeTrackColor = Color(0xFFF2A385),
-                                    inactiveTrackColor = Color(0x33F2A385)
+                                    thumbColor = MaterialTheme.colorScheme.primary,
+                                    activeTrackColor = MaterialTheme.colorScheme.primary,
+                                    inactiveTrackColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.25f)
                                 )
                             )
                         }
@@ -537,7 +546,7 @@ fun SettingsScreen(
         // Section: Storage & Cache
         Text(
             text = stringResource(R.string.settings_storage_cache),
-            color = Color(0xFFF2A385),
+            color = MaterialTheme.colorScheme.primary,
             fontSize = 12.sp,
             fontWeight = FontWeight.Bold,
             letterSpacing = 1.sp
@@ -546,8 +555,8 @@ fun SettingsScreen(
 
         Card(
             modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(16.dp),
-            colors = CardDefaults.cardColors(containerColor = Color(0xFF1E1816))
+            shape = RoundedCornerShape(17.dp),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh)
         ) {
             Column(modifier = Modifier.padding(16.dp)) {
                 Row(
@@ -556,8 +565,8 @@ fun SettingsScreen(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Column {
-                        Text(stringResource(R.string.settings_audio_cache), color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
-                        Text(stringResource(R.string.settings_cache_usage, cacheSizeMb), color = Color(0xFF8E837D), fontSize = 13.sp)
+                        Text(stringResource(R.string.settings_audio_cache), color = MaterialTheme.colorScheme.onSurface, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+                        Text(stringResource(R.string.settings_cache_usage, cacheSizeMb), color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 13.sp)
                     }
                     Button(
                         onClick = {
@@ -566,8 +575,8 @@ fun SettingsScreen(
                             Toast.makeText(context, context.getString(R.string.settings_cache_cleared), Toast.LENGTH_SHORT).show()
                         },
                         colors = ButtonDefaults.buttonColors(
-                            containerColor = Color(0xFF2C2320),
-                            contentColor = Color(0xFFF2A385)
+                            containerColor = MaterialTheme.colorScheme.surfaceContainerHighest,
+                            contentColor = MaterialTheme.colorScheme.primary
                         ),
                         shape = RoundedCornerShape(12.dp)
                     ) {
@@ -582,7 +591,7 @@ fun SettingsScreen(
         // Section: Engine & System Info
         Text(
             text = stringResource(R.string.settings_system_engine),
-            color = Color(0xFFF2A385),
+            color = MaterialTheme.colorScheme.primary,
             fontSize = 12.sp,
             fontWeight = FontWeight.Bold,
             letterSpacing = 1.sp
@@ -591,29 +600,29 @@ fun SettingsScreen(
 
         Card(
             modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(16.dp),
-            colors = CardDefaults.cardColors(containerColor = Color(0xFF1E1816))
+            shape = RoundedCornerShape(17.dp),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh)
         ) {
             Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                    Text(stringResource(R.string.settings_audio_engine), color = Color(0xFF8E837D), fontSize = 13.sp)
-                    Text("Librespot Vorbis + AAudio", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Medium)
+                    Text(stringResource(R.string.settings_audio_engine), color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 13.sp)
+                    Text("Librespot Vorbis + AAudio", color = MaterialTheme.colorScheme.onSurface, fontSize = 13.sp, fontWeight = FontWeight.Medium)
                 }
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                    Text(stringResource(R.string.settings_output_backend), color = Color(0xFF8E837D), fontSize = 13.sp)
-                    Text("AAudio Low-Latency Stereo", color = Color(0xFF1DB954), fontSize = 13.sp, fontWeight = FontWeight.Medium)
+                    Text(stringResource(R.string.settings_output_backend), color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 13.sp)
+                    Text("AAudio Low-Latency Stereo", color = MaterialTheme.colorScheme.primary, fontSize = 13.sp, fontWeight = FontWeight.Medium)
                 }
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                    Text(stringResource(R.string.settings_target_device), color = Color(0xFF8E837D), fontSize = 13.sp)
-                    Text("$deviceName (API ${android.os.Build.VERSION.SDK_INT})", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Medium)
+                    Text(stringResource(R.string.settings_target_device), color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 13.sp)
+                    Text("$deviceName (API ${android.os.Build.VERSION.SDK_INT})", color = MaterialTheme.colorScheme.onSurface, fontSize = 13.sp, fontWeight = FontWeight.Medium)
                 }
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                    Text(stringResource(R.string.settings_architecture), color = Color(0xFF8E837D), fontSize = 13.sp)
-                    Text("${android.os.Build.SUPPORTED_ABIS.firstOrNull() ?: "arm64-v8a"}", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Medium)
+                    Text(stringResource(R.string.settings_architecture), color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 13.sp)
+                    Text("${android.os.Build.SUPPORTED_ABIS.firstOrNull() ?: "arm64-v8a"}", color = MaterialTheme.colorScheme.onSurface, fontSize = 13.sp, fontWeight = FontWeight.Medium)
                 }
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                    Text(stringResource(R.string.settings_swiftify_core), color = Color(0xFF8E837D), fontSize = 13.sp)
-                    Text("2.0-native", color = Color(0xFFF2A385), fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                    Text(stringResource(R.string.settings_swiftify_core), color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 13.sp)
+                    Text("2.0-native", color = MaterialTheme.colorScheme.primary, fontSize = 13.sp, fontWeight = FontWeight.Bold)
                 }
             }
         }

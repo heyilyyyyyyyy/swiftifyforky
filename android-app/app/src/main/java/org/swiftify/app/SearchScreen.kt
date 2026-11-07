@@ -181,18 +181,20 @@ fun SearchScreen(
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color(0xFF13100E))
+            .background(MaterialTheme.colorScheme.background)
             .padding(horizontal = 16.dp)
     ) {
         Spacer(modifier = Modifier.height(14.dp))
 
-        // Search Bar with Swiftify styling
+        // Search Bar with Swiftify styling (Height 48.dp, radius 17.dp, onSurfaceVariant icon, primary cursor)
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .clip(RoundedCornerShape(18.dp))
-                .background(Color(0xFF221C1A))
-                .padding(horizontal = 14.dp, vertical = 12.dp)
+                .height(48.dp)
+                .clip(RoundedCornerShape(17.dp))
+                .background(MaterialTheme.colorScheme.surfaceContainerHigh)
+                .padding(horizontal = 14.dp),
+            contentAlignment = Alignment.CenterStart
         ) {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
@@ -201,7 +203,7 @@ fun SearchScreen(
                 Icon(
                     imageVector = Icons.Rounded.Search,
                     contentDescription = null,
-                    tint = Color(0xFFF2A385),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.size(20.dp)
                 )
                 Spacer(modifier = Modifier.width(10.dp))
@@ -212,18 +214,18 @@ fun SearchScreen(
                         doSearch(it)
                     },
                     textStyle = TextStyle(
-                        color = Color.White,
-                        fontSize = 15.sp,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        fontSize = 16.sp,
                         fontWeight = FontWeight.Medium
                     ),
-                    cursorBrush = SolidColor(Color(0xFFF2A385)),
+                    cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
                     modifier = Modifier.weight(1f),
                     decorationBox = { innerTextField ->
                         if (query.isEmpty()) {
                             Text(
                                 text = "Artists, songs, or playlists...",
-                                color = Color(0xFF7A706A),
-                                fontSize = 15.sp
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                fontSize = 16.sp
                             )
                         }
                         innerTextField()
@@ -232,7 +234,7 @@ fun SearchScreen(
                 if (query.isNotEmpty()) {
                     Text(
                         text = "✕",
-                        color = Color(0xFFA59B94),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                         fontSize = 16.sp,
                         fontWeight = FontWeight.Bold,
                         modifier = Modifier
@@ -254,14 +256,14 @@ fun SearchScreen(
                 val isSelected = (selectedCategory == category)
                 Box(
                     modifier = Modifier
-                        .clip(RoundedCornerShape(999.dp))
-                        .background(if (isSelected) Color(0xFFF2A385) else Color(0xFF221C1A))
+                        .clip(CircleShape)
+                        .background(if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceContainerHigh)
                         .clickable { selectedCategory = category }
                         .padding(horizontal = 16.dp, vertical = 8.dp)
                 ) {
                     Text(
                         text = category,
-                        color = if (isSelected) Color(0xFF13100E) else Color(0xFFCDC2BB),
+                        color = if (isSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
                         fontSize = 13.sp,
                         fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
                     )
@@ -275,7 +277,7 @@ fun SearchScreen(
         if (query.isEmpty()) {
             Text(
                 text = "Browse all",
-                color = Color.White,
+                color = MaterialTheme.colorScheme.onSurface,
                 fontSize = 18.sp,
                 fontWeight = FontWeight.Bold
             )
@@ -292,7 +294,7 @@ fun SearchScreen(
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(96.dp)
-                            .clip(RoundedCornerShape(16.dp))
+                            .clip(RoundedCornerShape(12.dp))
                             .background(
                                 Brush.linearGradient(
                                     listOf(genre.startColor, genre.endColor)
@@ -325,7 +327,7 @@ fun SearchScreen(
         } else {
             if (isSearching) {
                 Box(modifier = Modifier.fillMaxWidth().padding(top = 32.dp), contentAlignment = Alignment.Center) {
-                    CircularProgressIndicator(color = Color(0xFFF2A385), strokeWidth = 2.5.dp)
+                    CircularProgressIndicator(color = MaterialTheme.colorScheme.primary, strokeWidth = 2.5.dp)
                 }
             } else {
                 LazyColumn(
@@ -340,12 +342,12 @@ fun SearchScreen(
                     if (selectedCategory == "All") {
                         if (isArtistTopResult && topArtist != null) {
                             item(key = "top_result_artist_${topArtist.uri}", contentType = "top_result") {
-                                Text("Top result", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(vertical = 10.dp))
+                                Text("Top result", color = MaterialTheme.colorScheme.onSurface, fontSize = 18.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(vertical = 10.dp))
                                 Row(
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .clip(RoundedCornerShape(18.dp))
-                                        .background(Color(0xFF221C1A))
+                                        .clip(RoundedCornerShape(17.dp))
+                                        .background(MaterialTheme.colorScheme.surfaceContainerHigh)
                                         .clickable { onArtistSelect(topArtist) }
                                         .padding(16.dp),
                                     verticalAlignment = Alignment.CenterVertically
@@ -358,8 +360,22 @@ fun SearchScreen(
                                     )
                                     Spacer(modifier = Modifier.width(16.dp))
                                     Column(modifier = Modifier.weight(1f)) {
-                                        Text(topArtist.name, color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold)
-                                        Text("ARTIST", color = Color(0xFFF2A385), fontSize = 12.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 4.dp))
+                                        Text(topArtist.name, color = MaterialTheme.colorScheme.onSurface, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                                        Spacer(modifier = Modifier.height(4.dp))
+                                        Box(
+                                            modifier = Modifier
+                                                .clip(CircleShape)
+                                                .background(MaterialTheme.colorScheme.primaryContainer)
+                                                .padding(horizontal = 8.dp, vertical = 2.dp)
+                                        ) {
+                                            Text(
+                                                "ARTIST",
+                                                color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                                fontSize = 11.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                letterSpacing = 1.sp
+                                            )
+                                        }
                                     }
                                 }
                                 Spacer(modifier = Modifier.height(14.dp))
@@ -367,12 +383,12 @@ fun SearchScreen(
                         } else if (searchResultsTracks.isNotEmpty()) {
                             val topSong = searchResultsTracks.first()
                             item(key = "top_result_song_${topSong.uri}", contentType = "top_result") {
-                                Text("Top result", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(vertical = 10.dp))
+                                Text("Top result", color = MaterialTheme.colorScheme.onSurface, fontSize = 18.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(vertical = 10.dp))
                                 Row(
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .clip(RoundedCornerShape(18.dp))
-                                        .background(Color(0xFF221C1A))
+                                        .clip(RoundedCornerShape(17.dp))
+                                        .background(MaterialTheme.colorScheme.surfaceContainerHigh)
                                         .clickable { onTrackSelect(topSong) }
                                         .padding(16.dp),
                                     verticalAlignment = Alignment.CenterVertically
@@ -385,9 +401,23 @@ fun SearchScreen(
                                     )
                                     Spacer(modifier = Modifier.width(16.dp))
                                     Column(modifier = Modifier.weight(1f)) {
-                                        Text(topSong.title, color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                                        Text(topSong.artist, color = Color(0xFFA59B94), fontSize = 14.sp, modifier = Modifier.padding(top = 2.dp))
-                                        Text("SONG", color = Color(0xFFF2A385), fontSize = 11.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 4.dp))
+                                        Text(topSong.title, color = MaterialTheme.colorScheme.onSurface, fontSize = 18.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                        Text(topSong.artist, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 14.sp, modifier = Modifier.padding(top = 2.dp))
+                                        Spacer(modifier = Modifier.height(4.dp))
+                                        Box(
+                                            modifier = Modifier
+                                                .clip(CircleShape)
+                                                .background(MaterialTheme.colorScheme.primaryContainer)
+                                                .padding(horizontal = 8.dp, vertical = 2.dp)
+                                        ) {
+                                            Text(
+                                                "SONG",
+                                                color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                                fontSize = 11.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                letterSpacing = 1.sp
+                                            )
+                                        }
                                     }
                                 }
                                 Spacer(modifier = Modifier.height(14.dp))
@@ -400,7 +430,7 @@ fun SearchScreen(
                         item(key = "songs_header", contentType = "header") {
                             Text(
                                 "Songs",
-                                color = Color.White,
+                                color = MaterialTheme.colorScheme.onSurface,
                                 fontSize = 18.sp,
                                 fontWeight = FontWeight.Bold,
                                 modifier = Modifier.padding(vertical = 10.dp)
@@ -419,26 +449,26 @@ fun SearchScreen(
                             Box(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .background(Color(0xFF231C1A), RoundedCornerShape(14.dp))
+                                    .background(MaterialTheme.colorScheme.surfaceContainerHigh, RoundedCornerShape(8.dp))
                             ) {
                                 if (offsetX > 10f) {
                                     Row(
                                         modifier = Modifier
                                             .matchParentSize()
-                                            .background(Color(0xFF2B201C), RoundedCornerShape(14.dp))
+                                            .background(MaterialTheme.colorScheme.surfaceContainerHighest, RoundedCornerShape(8.dp))
                                             .padding(start = 16.dp),
                                         verticalAlignment = Alignment.CenterVertically
                                     ) {
                                         Icon(
                                             imageVector = Icons.Rounded.QueueMusic,
                                             contentDescription = null,
-                                            tint = Color(0xFFF2A385),
+                                            tint = MaterialTheme.colorScheme.primary,
                                             modifier = Modifier.size(20.dp)
                                         )
                                         Spacer(modifier = Modifier.width(8.dp))
                                         Text(
                                             text = if (swipeArmed) "Add to Queue" else "Swipe to queue",
-                                            color = Color(0xFFF2A385),
+                                            color = MaterialTheme.colorScheme.primary,
                                             fontSize = 13.sp,
                                             fontWeight = FontWeight.Bold
                                         )
@@ -450,8 +480,8 @@ fun SearchScreen(
                                         .fillMaxWidth()
                                         .offset { IntOffset(offsetX.roundToInt(), 0) }
                                         .background(
-                                            if (isCurrent) Color(0xFF281E1B) else Color(0xFF13100E),
-                                            RoundedCornerShape(14.dp)
+                                            if (isCurrent) MaterialTheme.colorScheme.primary.copy(alpha = 0.12f) else MaterialTheme.colorScheme.surfaceContainerLow,
+                                            RoundedCornerShape(8.dp)
                                         )
                                         .clickable {
                                             if (offsetX == 0f) {
@@ -480,11 +510,11 @@ fun SearchScreen(
                                         .padding(vertical = 8.dp, horizontal = 6.dp),
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    Box(modifier = Modifier.size(46.dp)) {
+                                    Box(modifier = Modifier.size(44.dp)) {
                                         AsyncImage(
                                             model = track.artworkUrl,
                                             contentDescription = null,
-                                            modifier = Modifier.fillMaxSize().clip(RoundedCornerShape(8.dp)),
+                                            modifier = Modifier.fillMaxSize().clip(RoundedCornerShape(7.dp)),
                                             contentScale = ContentScale.Crop
                                         )
                                         if (isCurrent && isPlaying) {
@@ -495,7 +525,7 @@ fun SearchScreen(
                                                 Icon(
                                                     imageVector = Icons.Rounded.VolumeUp,
                                                     contentDescription = null,
-                                                    tint = Color(0xFFF2A385),
+                                                    tint = MaterialTheme.colorScheme.primary,
                                                     modifier = Modifier.size(16.dp)
                                                 )
                                             }
@@ -505,7 +535,7 @@ fun SearchScreen(
                                     Column(modifier = Modifier.weight(1f)) {
                                         Text(
                                             text = track.title,
-                                            color = if (isCurrent) Color(0xFFF2A385) else Color.White,
+                                            color = if (isCurrent) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
                                             fontSize = 15.sp,
                                             fontWeight = FontWeight.SemiBold,
                                             maxLines = 1,
@@ -513,7 +543,7 @@ fun SearchScreen(
                                         )
                                         Text(
                                             text = "${track.artist} • ${track.album}",
-                                            color = Color(0xFF9E948E),
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
                                             fontSize = 13.sp,
                                             maxLines = 1,
                                             overflow = TextOverflow.Ellipsis
@@ -521,7 +551,7 @@ fun SearchScreen(
                                     }
                                     Text(
                                         text = formatTime(track.durationMs),
-                                        color = Color(0xFF7A706A),
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                                         fontSize = 12.sp
                                     )
                                 }
@@ -534,7 +564,7 @@ fun SearchScreen(
                         item(key = "artists_header", contentType = "header") {
                             Text(
                                 "Artists",
-                                color = Color.White,
+                                color = MaterialTheme.colorScheme.onSurface,
                                 fontSize = 18.sp,
                                 fontWeight = FontWeight.Bold,
                                 modifier = Modifier.padding(top = 16.dp, bottom = 10.dp)
@@ -548,7 +578,7 @@ fun SearchScreen(
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .clip(RoundedCornerShape(12.dp))
+                                    .clip(RoundedCornerShape(8.dp))
                                     .clickable { onArtistSelect(artist) }
                                     .padding(vertical = 8.dp, horizontal = 6.dp),
                                 verticalAlignment = Alignment.CenterVertically
@@ -557,7 +587,7 @@ fun SearchScreen(
                                     model = artist.artworkUrl,
                                     contentDescription = artist.name,
                                     modifier = Modifier
-                                        .size(46.dp)
+                                        .size(44.dp)
                                         .clip(CircleShape),
                                     contentScale = ContentScale.Crop
                                 )
@@ -565,13 +595,13 @@ fun SearchScreen(
                                 Column(modifier = Modifier.weight(1f)) {
                                     Text(
                                         text = artist.name,
-                                        color = Color.White,
+                                        color = MaterialTheme.colorScheme.onSurface,
                                         fontSize = 15.sp,
                                         fontWeight = FontWeight.SemiBold
                                     )
                                     Text(
                                         text = "Artist",
-                                        color = Color(0xFF9E948E),
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                                         fontSize = 13.sp
                                     )
                                 }
@@ -584,7 +614,7 @@ fun SearchScreen(
                         item(key = "playlists_header", contentType = "header") {
                             Text(
                                 "Playlists",
-                                color = Color.White,
+                                color = MaterialTheme.colorScheme.onSurface,
                                 fontSize = 18.sp,
                                 fontWeight = FontWeight.Bold,
                                 modifier = Modifier.padding(top = 16.dp, bottom = 10.dp)
@@ -598,7 +628,7 @@ fun SearchScreen(
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .clip(RoundedCornerShape(12.dp))
+                                    .clip(RoundedCornerShape(8.dp))
                                     .clickable { onPlaylistSelect(playlist) }
                                     .padding(vertical = 8.dp, horizontal = 6.dp),
                                 verticalAlignment = Alignment.CenterVertically
@@ -607,15 +637,15 @@ fun SearchScreen(
                                     model = playlist.artworkUrl,
                                     contentDescription = playlist.name,
                                     modifier = Modifier
-                                        .size(46.dp)
-                                        .clip(RoundedCornerShape(8.dp)),
+                                        .size(44.dp)
+                                        .clip(RoundedCornerShape(7.dp)),
                                     contentScale = ContentScale.Crop
                                 )
                                 Spacer(modifier = Modifier.width(12.dp))
                                 Column(modifier = Modifier.weight(1f)) {
                                     Text(
                                         text = playlist.name,
-                                        color = Color.White,
+                                        color = MaterialTheme.colorScheme.onSurface,
                                         fontSize = 15.sp,
                                         fontWeight = FontWeight.SemiBold,
                                         maxLines = 1,
@@ -623,7 +653,7 @@ fun SearchScreen(
                                     )
                                     Text(
                                         text = "Playlist • ${playlist.owner}",
-                                        color = Color(0xFF9E948E),
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                                         fontSize = 13.sp,
                                         maxLines = 1,
                                         overflow = TextOverflow.Ellipsis
@@ -645,14 +675,14 @@ fun SearchScreen(
                                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                                     Text(
                                         text = "No results found for \"$query\"",
-                                        color = Color.White,
+                                        color = MaterialTheme.colorScheme.onSurface,
                                         fontSize = 16.sp,
                                         fontWeight = FontWeight.Bold
                                     )
                                     Spacer(modifier = Modifier.height(6.dp))
                                     Text(
                                         text = "Please check spelling or try another search",
-                                        color = Color(0xFFA59B94),
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                                         fontSize = 13.sp
                                     )
                                 }

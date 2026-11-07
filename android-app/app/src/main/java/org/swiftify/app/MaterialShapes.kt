@@ -97,8 +97,8 @@ fun buildExpressivePath(shape: String, width: Float, height: Float, steps: Int =
             "clover4" -> reach * sampleRadii(clover4Radii, theta)
             "cookie4" -> reach * sampleRadii(cookie4Radii, theta)
             "cookie6" -> reach * sampleRadii(cookie6Radii, theta)
-            "arrowRight" -> reach * sampleRadii(arrowRadii, theta)
-            "arrowLeft" -> reach * sampleRadii(arrowRadii, theta + PI.toFloat())
+            "arrowRight" -> reach * sampleRadii(arrowRadii, theta + (275f * PI.toFloat() / 180f))
+            "arrowLeft" -> reach * sampleRadii(arrowRadii, theta + (275f * PI.toFloat() / 180f) + PI.toFloat())
             "heart" -> reach * sampleRadii(heartRadii, theta)
             "bun" -> reach * sampleRadii(bunRadii, theta)
             "clamShell" -> reach * sampleRadii(clamShellRadii, theta)
@@ -141,7 +141,7 @@ fun buildExpressivePath(shape: String, width: Float, height: Float, steps: Int =
 fun MaterialExpressiveShape(
     shape: String,
     modifier: Modifier = Modifier,
-    color: Color = Color(0xFFF2A385),
+    color: Color = Color(0xFF1ED760),
     spinAngleRad: Float = 0f,
     content: (@Composable () -> Unit)? = null
 ) {
@@ -223,7 +223,7 @@ fun buildSquigglePath(
 @Composable
 fun SquiggleAvatarRing(
     modifier: Modifier = Modifier,
-    color: Color = Color(0xFFF2A385),
+    color: Color = Color(0xFF1ED760),
     waves: Int = 20,
     amplitude: Dp = 2.2.dp,
     strokeWidth: Dp = 2.5.dp,
@@ -288,7 +288,7 @@ fun SquiggleAvatar(
     imageUrl: String,
     contentDescription: String?,
     modifier: Modifier = Modifier,
-    ringColor: Color = Color(0xFFF2A385),
+    ringColor: Color = Color(0xFF1ED760),
     waves: Int = 20,
     amplitude: Dp = 2.0.dp,
     strokeWidth: Dp = 2.4.dp,
@@ -342,7 +342,7 @@ fun ShapeBadge(
     iconSize: Dp = 18.dp,
     shapeAlpha: Float = 0.28f,
     glyphAlpha: Float = 0.90f,
-    tint: Color = Color(0xFFF2A385)
+    tint: Color = Color(0xFF1ED760)
 ) {
     MaterialExpressiveShape(
         shape = shape,
@@ -459,8 +459,8 @@ fun WavyPillButton(
     icon: ImageVector,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
-    backgroundColor: Color = Color(0xFFF2A385),
-    contentColor: Color = Color(0xFF13100E),
+    backgroundColor: Color = Color(0xFF1ED760),
+    contentColor: Color = Color(0xFF000000),
     enabled: Boolean = true,
     amplitudeDp: Float = 2.8f,
     wavelengthDp: Float = 14f

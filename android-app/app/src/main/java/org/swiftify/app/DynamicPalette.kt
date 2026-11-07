@@ -14,10 +14,10 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
 data class TrackThemePalette(
-    val dominant: Color = Color(0xFF221A17),
-    val secondary: Color = Color(0xFF15100E),
-    val accent: Color = Color(0xFFF2A385),
-    val onAccent: Color = Color(0xFF1B110E),
+    val dominant: Color = Color(0xFF181818),
+    val secondary: Color = Color(0xFF121212),
+    val accent: Color = Color(0xFF1ED760),
+    val onAccent: Color = Color(0xFF000000),
     val surface: Color = Color(0x33FFFFFF)
 )
 
@@ -41,9 +41,9 @@ fun rememberTrackPalette(context: Context, artworkUrl: String?): TrackThemePalet
                     val bitmap = (result.drawable as? android.graphics.drawable.BitmapDrawable)?.bitmap
                     if (bitmap != null) {
                         val p = Palette.from(bitmap).generate()
-                        val dominantRgb = p.getDominantColor(0xFF221A17.toInt())
-                        val vibrantRgb = p.getVibrantColor(0xFFF2A385.toInt())
-                        val mutedDarkRgb = p.getDarkMutedColor(0xFF15100E.toInt())
+                        val dominantRgb = p.getDominantColor(0xFF181818.toInt())
+                        val vibrantRgb = p.getVibrantColor(0xFF1ED760.toInt())
+                        val mutedDarkRgb = p.getDarkMutedColor(0xFF121212.toInt())
 
                         // Muted dark background tone
                         val bgDominant = Color(dominantRgb).copy(alpha = 1f)
@@ -54,8 +54,8 @@ fun rememberTrackPalette(context: Context, artworkUrl: String?): TrackThemePalet
                             palette = TrackThemePalette(
                                 dominant = bgDominant,
                                 secondary = bgSecondary,
-                                accent = if (accentCol == bgDominant) Color(0xFFF2A385) else accentCol,
-                                onAccent = Color(0xFF120E0D),
+                                accent = if (accentCol == bgDominant) Color(0xFF1ED760) else accentCol,
+                                onAccent = Color(0xFF000000),
                                 surface = Color(0x22FFFFFF)
                             )
                         }
@@ -65,10 +65,10 @@ fun rememberTrackPalette(context: Context, artworkUrl: String?): TrackThemePalet
         }
     }
 
-    // Smoothly animate colors when track changes
-    val animatedDominant by animateColorAsState(palette.dominant, animationSpec = tween(600), label = "dom")
-    val animatedSecondary by animateColorAsState(palette.secondary, animationSpec = tween(600), label = "sec")
-    val animatedAccent by animateColorAsState(palette.accent, animationSpec = tween(600), label = "acc")
+    // Smoothly animate colors when track changes (450ms per desktop motion specs)
+    val animatedDominant by animateColorAsState(palette.dominant, animationSpec = tween(450), label = "dom")
+    val animatedSecondary by animateColorAsState(palette.secondary, animationSpec = tween(450), label = "sec")
+    val animatedAccent by animateColorAsState(palette.accent, animationSpec = tween(450), label = "acc")
 
     return TrackThemePalette(
         dominant = animatedDominant,
