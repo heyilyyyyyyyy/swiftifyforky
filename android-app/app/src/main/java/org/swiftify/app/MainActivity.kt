@@ -16,6 +16,7 @@ import androidx.compose.animation.core.*
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
@@ -30,8 +31,9 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.*
 import androidx.compose.ui.geometry.Offset
@@ -1093,6 +1095,23 @@ val openArtistScreen: (String, String) -> Unit = { artName, artUri ->
                     // Floating Mini Player (Independent floating box above navigation)
                     if (currentTrack != null) {
                         val miniPalette = rememberTrackPalette(androidx.compose.ui.platform.LocalContext.current, currentTrack.artworkUrl)
+                        val miniSpinTransition = rememberInfiniteTransition(label = "miniSpinTransition")
+                        val miniSpinAngle by miniSpinTransition.animateFloat(
+                            initialValue = 0f,
+                            targetValue = if (isPlaying) (2f * Math.PI.toFloat()) else 0f,
+                            animationSpec = infiniteRepeatable(
+                                animation = tween(durationMillis = 14000, easing = LinearEasing),
+                                repeatMode = RepeatMode.Restart
+                            ),
+                            label = "miniSpinAngle"
+                        )
+                        var isMiniPlayPressed by remember { mutableStateOf(false) }
+                        val miniPlayScale by animateFloatAsState(
+                            targetValue = if (isMiniPlayPressed) 0.88f else 1.0f,
+                            animationSpec = spring(dampingRatio = 0.6f, stiffness = 400f),
+                            label = "miniPlayScale"
+                        )
+
                         Box(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -1141,38 +1160,40 @@ val openArtistScreen: (String, String) -> Unit = { artName, artUri ->
                                         overflow = TextOverflow.Ellipsis
                                     )
                                 }
-                                IconButton(
-                                    onClick = onPlayPause,
+                                MaterialExpressiveShape(
+                                    shape = if (isPlaying) "cookie9" else "softCookie",
+                                    color = miniPalette.accent,
+                                    spinAngleRad = if (isPlaying) miniSpinAngle else 0f,
                                     modifier = Modifier
-                                        .size(40.dp)
-                                        .clip(CircleShape)
-                                        .background(miniPalette.accent)
+                                        .size(42.dp)
+                                        .scale(miniPlayScale)
+                                        .pointerInput(Unit) {
+                                            detectTapGestures(
+                                                onPress = {
+                                                    isMiniPlayPressed = true
+                                                    tryAwaitRelease()
+                                                    isMiniPlayPressed = false
+                                                    onPlayPause()
+                                                }
+                                            )
+                                        }
                                 ) {
                                     Icon(
                                         imageVector = if (isPlaying) Icons.Rounded.Pause else Icons.Rounded.PlayArrow,
                                         contentDescription = if (isPlaying) "Pause" else "Play",
                                         tint = miniPalette.onAccent,
-                                        modifier = Modifier.size(22.dp)
+                                        modifier = Modifier.size(24.dp)
                                     )
                                 }
                             }
                         }
                     }
 
-                    // Compact Translucent Navigation Bar (Glass effect bleeding off screen)
+                    // Compact Translucent Navigation Bar (Glass effect bleeding off screen, no outline)
                     Surface(
                         color = Color(0xD9161311),
                         shape = RectangleShape,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .drawBehind {
-                                drawLine(
-                                    color = Color(0x28FFFFFF),
-                                    start = Offset(0f, 0f),
-                                    end = Offset(size.width, 0f),
-                                    strokeWidth = 1.dp.toPx()
-                                )
-                            }
+                        modifier = Modifier.fillMaxWidth()
                     ) {
                         Column(
                             modifier = Modifier
