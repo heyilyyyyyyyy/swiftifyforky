@@ -317,6 +317,7 @@ fun AlbumDetailScreen(
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
+                            .height(64.dp)
                             .offset { IntOffset(offsetX.roundToInt(), 0) }
                             .clip(RoundedCornerShape(8.dp))
                             .background(
@@ -350,7 +351,7 @@ fun AlbumDetailScreen(
                                     }
                                 }
                             )
-                            .padding(horizontal = 8.dp, vertical = 10.dp),
+                            .padding(horizontal = 8.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
@@ -358,7 +359,8 @@ fun AlbumDetailScreen(
                             color = if (isCurrent) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
                             fontSize = 15.sp,
                             fontWeight = FontWeight.Bold,
-                            modifier = Modifier.width(28.dp)
+                            textAlign = TextAlign.Center,
+                            modifier = Modifier.width(30.dp)
                         )
 
                         Column(modifier = Modifier.weight(1f)) {

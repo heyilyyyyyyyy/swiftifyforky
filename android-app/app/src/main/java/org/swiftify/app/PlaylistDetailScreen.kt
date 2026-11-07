@@ -709,6 +709,7 @@ fun PlaylistDetailScreen(
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
+                            .height(64.dp)
                             .offset { IntOffset(offsetX.roundToInt(), 0) }
                             .clip(RoundedCornerShape(8.dp))
                             .background(
@@ -742,7 +743,7 @@ fun PlaylistDetailScreen(
                                     }
                                 }
                             )
-                            .padding(vertical = 10.dp, horizontal = 8.dp),
+                            .padding(horizontal = 8.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                     Text(
@@ -750,8 +751,11 @@ fun PlaylistDetailScreen(
                         color = if (isCurrent) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
                         fontSize = 14.sp,
                         fontWeight = FontWeight.Medium,
-                        modifier = Modifier.width(28.dp)
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.width(30.dp)
                     )
+
+                    Spacer(modifier = Modifier.width(6.dp))
 
                     Box(modifier = Modifier.size(44.dp)) {
                         AsyncImage(
@@ -777,7 +781,10 @@ fun PlaylistDetailScreen(
 
                     Spacer(modifier = Modifier.width(12.dp))
 
-                    Column(modifier = Modifier.weight(1f)) {
+                    Column(
+                        modifier = Modifier.weight(1f),
+                        verticalArrangement = Arrangement.Center
+                    ) {
                         Text(
                             text = track.title,
                             color = if (isCurrent) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
@@ -786,6 +793,7 @@ fun PlaylistDetailScreen(
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
                         )
+                        Spacer(modifier = Modifier.height(2.dp))
                         Text(
                             text = track.artist,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -796,48 +804,56 @@ fun PlaylistDetailScreen(
                     }
 
                     // Star button (Save / Liked Track)
-                    IconButton(
-                        onClick = {
-                            val next = !isTrackSaved
-                            savedTrackUris.value = if (next) {
-                                savedTrackUris.value + track.uri
-                            } else {
-                                savedTrackUris.value - track.uri
-                            }
-                            coroutineScope.launch {
-                                val success = SpotifyApi.setTrackSaved(context, track.uri, next)
-                                if (!success) {
-                                    savedTrackUris.value = if (next) {
-                                        savedTrackUris.value - track.uri
-                                    } else {
-                                        savedTrackUris.value + track.uri
-                                    }
-                                    Toast.makeText(context, "Failed to update Saved Tracks", Toast.LENGTH_SHORT).show()
-                                }
-                            }
-                        },
-                        modifier = Modifier.size(32.dp)
+                    Box(
+                        modifier = Modifier.size(36.dp),
+                        contentAlignment = Alignment.Center
                     ) {
-                        Icon(
-                            imageVector = if (isTrackSaved) Icons.Rounded.Star else Icons.Rounded.StarBorder,
-                            contentDescription = "Save",
-                            tint = if (isTrackSaved) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.size(18.dp)
-                        )
+                        IconButton(
+                            onClick = {
+                                val next = !isTrackSaved
+                                savedTrackUris.value = if (next) {
+                                    savedTrackUris.value + track.uri
+                                } else {
+                                    savedTrackUris.value - track.uri
+                                }
+                                coroutineScope.launch {
+                                    val success = SpotifyApi.setTrackSaved(context, track.uri, next)
+                                    if (!success) {
+                                        savedTrackUris.value = if (next) {
+                                            savedTrackUris.value - track.uri
+                                        } else {
+                                            savedTrackUris.value + track.uri
+                                        }
+                                        Toast.makeText(context, "Failed to update Saved Tracks", Toast.LENGTH_SHORT).show()
+                                    }
+                                }
+                            },
+                            modifier = Modifier.size(36.dp)
+                        ) {
+                            Icon(
+                                imageVector = if (isTrackSaved) Icons.Rounded.Star else Icons.Rounded.StarBorder,
+                                contentDescription = "Save",
+                                tint = if (isTrackSaved) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
                     }
 
                     // Track more options dropdown
-                    Box {
+                    Box(
+                        modifier = Modifier.size(36.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
                         var isTrackMenuOpen by remember { mutableStateOf(false) }
                         IconButton(
                             onClick = { isTrackMenuOpen = true },
-                            modifier = Modifier.size(32.dp)
+                            modifier = Modifier.size(36.dp)
                         ) {
                             Icon(
                                 imageVector = Icons.Rounded.MoreVert,
                                 contentDescription = "Track options",
                                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.size(18.dp)
+                                modifier = Modifier.size(20.dp)
                             )
                         }
 

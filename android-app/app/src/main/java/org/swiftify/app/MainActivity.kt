@@ -11,7 +11,9 @@ import android.os.Bundle
 import android.util.Log
 import android.widget.Toast
 import androidx.activity.ComponentActivity
+import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
+import androidx.activity.enableEdgeToEdge
 import androidx.lifecycle.lifecycleScope
 import androidx.browser.customtabs.CustomTabsIntent
 import androidx.compose.animation.*
@@ -231,6 +233,10 @@ class MainActivity : ComponentActivity() {
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        enableEdgeToEdge(
+            statusBarStyle = SystemBarStyle.dark(android.graphics.Color.TRANSPARENT),
+            navigationBarStyle = SystemBarStyle.dark(android.graphics.Color.TRANSPARENT)
+        )
         super.onCreate(savedInstanceState)
         prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
 
@@ -1240,6 +1246,16 @@ sealed class AuthState {
     object LoggedIn : AuthState()
 }
 
+sealed class ScreenDestination {
+    data class Home(val id: Int = 0) : ScreenDestination()
+    data class Search(val id: Int = 0) : ScreenDestination()
+    data class Settings(val id: Int = 0) : ScreenDestination()
+    data class AllPlaylists(val id: Int = 0) : ScreenDestination()
+    data class Artist(val artist: ArtistItem) : ScreenDestination()
+    data class Album(val uri: String, val title: String, val artworkUrl: String) : ScreenDestination()
+    data class Playlist(val playlist: PlaylistItem) : ScreenDestination()
+}
+
 // ─── Composable UI ────────────────────────────────────────────────────────────
 
 @Composable
@@ -1562,21 +1578,45 @@ val openArtistScreen: (String, String) -> Unit = { artName, artUri ->
             }
         ) { padding ->
             Box(modifier = Modifier.fillMaxSize().padding(top = padding.calculateTopPadding())) {
-                val currentScreen = when {
-                    activeArtist != null -> "artist"
-                    activeAlbumUri != null -> "album"
-                    activePlaylist != null -> "playlist"
-                    showAllPlaylists -> "all_playlists"
-                    else -> "tab_$selectedTab"
+                val currentDestination: ScreenDestination = when {
+                    activeArtist != null -> ScreenDestination.Artist(activeArtist!!)
+                    activeAlbumUri != null -> ScreenDestination.Album(activeAlbumUri!!, activeAlbumTitle, activeAlbumArtwork)
+                    activePlaylist != null -> ScreenDestination.Playlist(activePlaylist!!)
+                    showAllPlaylists -> ScreenDestination.AllPlaylists()
+                    selectedTab == 1 -> ScreenDestination.Search()
+                    selectedTab == 2 -> ScreenDestination.Settings()
+                    else -> ScreenDestination.Home()
                 }
 
                 AnimatedContent(
-                    targetState = currentScreen,
+                    targetState = currentDestination,
                     transitionSpec = {
-                        val isEnteringDetail = targetState == "artist" || targetState == "album" || targetState == "playlist" || targetState == "all_playlists"
-                        val isExitingDetail = initialState == "artist" || initialState == "album" || initialState == "playlist" || initialState == "all_playlists"
+                        val isEnteringDetail = targetState is ScreenDestination.Artist || targetState is ScreenDestination.Album || targetState is ScreenDestination.Playlist || targetState is ScreenDestination.AllPlaylists
+                        val isExitingDetail = initialState is ScreenDestination.Artist || initialState is ScreenDestination.Album || initialState is ScreenDestination.Playlist || initialState is ScreenDestination.AllPlaylists
 
-                        if (isEnteringDetail && !isExitingDetail) {
+                        if (initialState is ScreenDestination.Playlist && targetState is ScreenDestination.AllPlaylists) {
+                            (slideInHorizontally(
+                                initialOffsetX = { -(it * 0.15f).toInt() },
+                                animationSpec = tween(durationMillis = SwiftifyMotion.DurationMotionFastMs, easing = SwiftifyMotion.EmphasizedDecel)
+                            ) + fadeIn(animationSpec = tween(SwiftifyMotion.DurationMotionFastMs)))
+                            .togetherWith(
+                                slideOutHorizontally(
+                                    targetOffsetX = { (it * 0.22f).toInt() },
+                                    animationSpec = tween(durationMillis = SwiftifyMotion.DurationMotionDefaultMs, easing = SwiftifyMotion.ExpressiveDefaultSpatial)
+                                ) + fadeOut(animationSpec = tween(SwiftifyMotion.DurationMotionDefaultMs))
+                            )
+                        } else if (initialState is ScreenDestination.AllPlaylists && targetState is ScreenDestination.Playlist) {
+                            (slideInHorizontally(
+                                initialOffsetX = { (it * 0.22f).toInt() },
+                                animationSpec = tween(durationMillis = SwiftifyMotion.DurationMotionDefaultMs, easing = SwiftifyMotion.ExpressiveDefaultSpatial)
+                            ) + fadeIn(animationSpec = tween(SwiftifyMotion.DurationMotionDefaultMs)))
+                            .togetherWith(
+                                slideOutHorizontally(
+                                    targetOffsetX = { -(it * 0.15f).toInt() },
+                                    animationSpec = tween(durationMillis = SwiftifyMotion.DurationMotionFastMs, easing = SwiftifyMotion.EmphasizedDecel)
+                                ) + fadeOut(animationSpec = tween(SwiftifyMotion.DurationMotionFastMs))
+                            )
+                        } else if (isEnteringDetail && !isExitingDetail) {
                             (slideInHorizontally(
                                 initialOffsetX = { (it * 0.22f).toInt() },
                                 animationSpec = tween(durationMillis = SwiftifyMotion.DurationMotionDefaultMs, easing = SwiftifyMotion.ExpressiveDefaultSpatial)
@@ -1604,11 +1644,11 @@ val openArtistScreen: (String, String) -> Unit = { artName, artUri ->
                         }
                     },
                     label = "screenTransition"
-                ) { screen ->
-                    when {
-                        screen == "artist" && activeArtist != null -> {
+                ) { dest ->
+                    when (dest) {
+                        is ScreenDestination.Artist -> {
                             ArtistDetailScreen(
-                                artist = activeArtist!!,
+                                artist = dest.artist,
                                 livePlayingTrack = livePlayingTrack,
                                 isPlaying = isPlaying,
                                 onBack = { activeArtist = null },
@@ -1628,11 +1668,11 @@ val openArtistScreen: (String, String) -> Unit = { artName, artUri ->
                                 }
                             )
                         }
-                        screen == "album" && activeAlbumUri != null -> {
+                        is ScreenDestination.Album -> {
                             AlbumDetailScreen(
-                                albumUri = activeAlbumUri!!,
-                                initialTitle = activeAlbumTitle,
-                                initialArtworkUrl = activeAlbumArtwork,
+                                albumUri = dest.uri,
+                                initialTitle = dest.title,
+                                initialArtworkUrl = dest.artworkUrl,
                                 livePlayingTrack = livePlayingTrack,
                                 isPlaying = isPlaying,
                                 onBack = { activeAlbumUri = null },
@@ -1652,9 +1692,9 @@ val openArtistScreen: (String, String) -> Unit = { artName, artUri ->
                                 }
                             )
                         }
-                        screen == "playlist" && activePlaylist != null -> {
+                        is ScreenDestination.Playlist -> {
                             PlaylistDetailScreen(
-                                playlist = activePlaylist!!,
+                                playlist = dest.playlist,
                                 tracks = tracks,
                                 livePlayingTrack = livePlayingTrack,
                                 isPlaying = isPlaying,
@@ -1686,7 +1726,7 @@ val openArtistScreen: (String, String) -> Unit = { artName, artUri ->
                                 onRemoveTrackFromPlaylist = onRemoveTrackFromPlaylist
                             )
                         }
-                        screen == "all_playlists" -> {
+                        is ScreenDestination.AllPlaylists -> {
                             AllPlaylistsScreen(
                                 playlists = if (userPlaylists.isNotEmpty()) userPlaylists else samplePlaylists,
                                 onBack = {
@@ -1700,53 +1740,55 @@ val openArtistScreen: (String, String) -> Unit = { artName, artUri ->
                                 onCreatePlaylist = onCreatePlaylist
                             )
                         }
-                        else -> {
-                            when (selectedTab) {
-                                0 -> HomeScreen(
-                                    authState = authState,
-                                    tracks = tracks,
-                                    currentTrackIndex = currentTrackIndex,
-                                    livePlayingTrack = livePlayingTrack,
-                                    isPlaying = isPlaying,
-                                    statusMsg = statusMsg,
-                                    onLoginClick = onLoginClick,
-                                    onTrackClick = onTrackClick,
-                                    onPlayPause = onPlayPause,
-                                    userPlaylists = userPlaylists,
-                                    onPlaylistClick = {
-                                        openedFromAllPlaylists = false
-                                        activePlaylist = it
-                                    },
-                                    onArtistClick = { activeArtist = it },
-                                    onSeeAllPlaylists = { showAllPlaylists = true }
-                                )
-                                1 -> SearchScreen(
-                                    accessToken = accessToken,
-                                    allTracks = tracks,
-                                    currentTrackIndex = currentTrackIndex,
-                                    livePlayingTrack = livePlayingTrack,
-                                    isPlaying = isPlaying,
-                                    onTrackSelect = { track -> onTrackSelect(track, null) },
-                                    onAddToQueue = onAddToQueue,
-                                    onArtistSelect = { artist ->
-                                        activeArtist = artist
-                                    },
-                                    onAlbumSelect = { track ->
-                                        openAlbumByTrack(track)
-                                    },
-                                    onPlaylistSelect = {
-                                        openedFromAllPlaylists = false
-                                        activePlaylist = it
-                                    }
-                                )
-                                2 -> SettingsScreen(
-                                    connectEnabled = connectEnabled,
-                                    onConnectToggle = onConnectToggle,
-                                    onReauthorize = onLoginClick,
-                                    onCrossfadeChanged = onCrossfadeChanged,
-                                    onLogout = onLogout
-                                )
-                            }
+                        is ScreenDestination.Home -> {
+                            HomeScreen(
+                                authState = authState,
+                                tracks = tracks,
+                                currentTrackIndex = currentTrackIndex,
+                                livePlayingTrack = livePlayingTrack,
+                                isPlaying = isPlaying,
+                                statusMsg = statusMsg,
+                                onLoginClick = onLoginClick,
+                                onTrackClick = onTrackClick,
+                                onPlayPause = onPlayPause,
+                                userPlaylists = userPlaylists,
+                                onPlaylistClick = {
+                                    openedFromAllPlaylists = false
+                                    activePlaylist = it
+                                },
+                                onArtistClick = { activeArtist = it },
+                                onSeeAllPlaylists = { showAllPlaylists = true }
+                            )
+                        }
+                        is ScreenDestination.Search -> {
+                            SearchScreen(
+                                accessToken = accessToken,
+                                allTracks = tracks,
+                                currentTrackIndex = currentTrackIndex,
+                                livePlayingTrack = livePlayingTrack,
+                                isPlaying = isPlaying,
+                                onTrackSelect = { track -> onTrackSelect(track, null) },
+                                onAddToQueue = onAddToQueue,
+                                onArtistSelect = { artist ->
+                                    activeArtist = artist
+                                },
+                                onAlbumSelect = { track ->
+                                    openAlbumByTrack(track)
+                                },
+                                onPlaylistSelect = {
+                                    openedFromAllPlaylists = false
+                                    activePlaylist = it
+                                }
+                            )
+                        }
+                        is ScreenDestination.Settings -> {
+                            SettingsScreen(
+                                connectEnabled = connectEnabled,
+                                onConnectToggle = onConnectToggle,
+                                onReauthorize = onLoginClick,
+                                onCrossfadeChanged = onCrossfadeChanged,
+                                onLogout = onLogout
+                            )
                         }
                     }
                 }
