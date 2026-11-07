@@ -78,7 +78,9 @@ data class TrackItem(
     val album: String,
     val artworkUrl: String,
     val durationMs: Long,
-    val uri: String
+    val uri: String,
+    val albumUri: String = "",
+    val artistUri: String = ""
 )
 
 data class PlaylistItem(
@@ -619,13 +621,17 @@ class MainActivity : ComponentActivity() {
                     val alb = track.optJSONObject("album")
                     val images = alb?.optJSONArray("images")
                     val artUrl = getBestArtworkUrl(images)
+                    val albumUri = alb?.optString("uri") ?: ""
+                    val artistUri = artistsArr?.optJSONObject(0)?.optString("uri") ?: ""
                     TrackItem(
                         title = track.optString("name"),
                         artist = artists,
                         album = alb?.optString("name") ?: "",
                         artworkUrl = artUrl,
                         durationMs = track.optLong("duration_ms"),
-                        uri = track.optString("uri")
+                        uri = track.optString("uri"),
+                        albumUri = albumUri,
+                        artistUri = artistUri
                     )
                 }
             }
@@ -1012,43 +1018,51 @@ fun SwiftifyApp(
 
     
     val openAlbumByTrack: (TrackItem) -> Unit = { t ->
-        // Search album or if album is present
         val albTitle = if (t.album.isNotEmpty()) t.album else t.title
-        // Search album or fetch album uri
-        SpotifyBridge.searchTracks(albTitle) { ok, json ->
-            var albUri = ""
-            var albArt = t.artworkUrl
-            if (ok && json.isNotEmpty()) {
-                try {
-                    val obj = org.json.JSONObject(json)
-                    val arr = obj.optJSONArray("tracks")
-                    if (arr != null && arr.length() > 0) {
-                        for (i in 0 until arr.length()) {
-                            val item = arr.getJSONObject(i)
-                            val albObj = item.optJSONObject("album")
-                            if (albObj != null) {
-                                val uri = albObj.optString("uri")
-                                if (uri.isNotEmpty()) {
-                                    albUri = uri
-                                    val imgs = albObj.optJSONArray("images")
-                                    val best = getBestArtworkUrl(imgs)
-                                    if (best.isNotEmpty()) {
-                                        albArt = best
+        if (t.albumUri.isNotEmpty()) {
+            activePlaylist = null
+            activeArtist = null
+            showAllPlaylists = false
+            activeAlbumUri = t.albumUri
+            activeAlbumTitle = albTitle
+            activeAlbumArtwork = t.artworkUrl
+        } else {
+            // Search album or if album is present
+            SpotifyBridge.searchTracks(albTitle) { ok, json ->
+                var albUri = ""
+                var albArt = t.artworkUrl
+                if (ok && json.isNotEmpty()) {
+                    try {
+                        val obj = org.json.JSONObject(json)
+                        val arr = obj.optJSONArray("tracks")
+                        if (arr != null && arr.length() > 0) {
+                            for (i in 0 until arr.length()) {
+                                val item = arr.getJSONObject(i)
+                                val albObj = item.optJSONObject("album")
+                                if (albObj != null) {
+                                    val uri = albObj.optString("uri")
+                                    if (uri.isNotEmpty()) {
+                                        albUri = uri
+                                        val imgs = albObj.optJSONArray("images")
+                                        val best = getBestArtworkUrl(imgs)
+                                        if (best.isNotEmpty()) {
+                                            albArt = best
+                                        }
+                                        break
                                     }
-                                    break
                                 }
                             }
                         }
-                    }
-                } catch (_: Exception) {}
-            }
-            if (albUri.isNotEmpty()) {
-                activePlaylist = null
-                activeArtist = null
-                showAllPlaylists = false
-                activeAlbumUri = albUri
-                activeAlbumTitle = albTitle
-                activeAlbumArtwork = albArt
+                    } catch (_: Exception) {}
+                }
+                if (albUri.isNotEmpty()) {
+                    activePlaylist = null
+                    activeArtist = null
+                    showAllPlaylists = false
+                    activeAlbumUri = albUri
+                    activeAlbumTitle = albTitle
+                    activeAlbumArtwork = albArt
+                }
             }
         }
     }

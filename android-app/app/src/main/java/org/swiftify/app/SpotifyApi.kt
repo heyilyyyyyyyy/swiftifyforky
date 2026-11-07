@@ -149,4 +149,53 @@ object SpotifyApi {
         if (saved) set.add(trackUri) else set.remove(trackUri)
         prefs.edit().putStringSet("saved_track_uris", set).apply()
     }
+
+    suspend fun searchPlaylists(context: Context, query: String): List<PlaylistItem> = withContext(Dispatchers.IO) {
+        val trimmed = query.trim()
+        if (trimmed.isEmpty()) return@withContext emptyList()
+        var token = getValidToken(context)
+        if (token.isNullOrEmpty()) return@withContext emptyList()
+
+        for (attempt in 0..1) {
+            try {
+                val encodedQuery = Uri.encode(trimmed)
+                val url = URL("https://api.spotify.com/v1/search?q=$encodedQuery&type=playlist&limit=20")
+                val conn = url.openConnection() as HttpURLConnection
+                conn.connectTimeout = 8000
+                conn.readTimeout = 8000
+                conn.setRequestProperty("Authorization", "Bearer $token")
+                val code = conn.responseCode
+                if (code in 200..299) {
+                    val text = conn.inputStream.bufferedReader().readText()
+                    conn.disconnect()
+                    val root = JSONObject(text)
+                    val playlistsObj = root.optJSONObject("playlists")
+                    val items = playlistsObj?.optJSONArray("items") ?: return@withContext emptyList()
+                    val list = mutableListOf<PlaylistItem>()
+                    for (i in 0 until items.length()) {
+                        val p = items.optJSONObject(i) ?: continue
+                        val name = p.optString("name")
+                        val uri = p.optString("uri")
+                        val ownerObj = p.optJSONObject("owner")
+                        val owner = ownerObj?.optString("display_name", "Spotify") ?: "Spotify"
+                        val images = p.optJSONArray("images")
+                        val artUrl = getBestArtworkUrl(images)
+                        if (name.isNotEmpty() && uri.isNotEmpty()) {
+                            list.add(PlaylistItem(name = name, owner = owner, artworkUrl = artUrl, uri = uri))
+                        }
+                    }
+                    return@withContext list
+                } else if (code == 401 && attempt == 0) {
+                    conn.disconnect()
+                    token = getValidToken(context, forceRefresh = true)
+                    continue
+                }
+                conn.disconnect()
+            } catch (e: Exception) {
+                Log.e(TAG, "searchPlaylists error: ${e.message}")
+            }
+            break
+        }
+        return@withContext emptyList()
+    }
 }

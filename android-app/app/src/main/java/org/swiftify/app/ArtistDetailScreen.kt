@@ -96,6 +96,7 @@ fun ArtistDetailScreen(
                         }
                     } else artist.name
 
+                    val albumUri = albumObj?.optString("uri") ?: ""
                     if (title.isNotEmpty() && uri.isNotEmpty()) {
                         parsedTracks.add(
                             TrackItem(
@@ -104,7 +105,9 @@ fun ArtistDetailScreen(
                                 album = albumName,
                                 artworkUrl = artworkUrl,
                                 durationMs = durationMs,
-                                uri = uri
+                                uri = uri,
+                                albumUri = albumUri,
+                                artistUri = artist.uri
                             )
                         )
                     }

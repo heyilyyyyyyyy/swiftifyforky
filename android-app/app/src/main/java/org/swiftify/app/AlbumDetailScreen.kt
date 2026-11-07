@@ -94,6 +94,7 @@ fun AlbumDetailScreen(
                                 }
                             } else artistName
 
+                            val artistUri = if (artArr != null && artArr.length() > 0) artArr.getJSONObject(0).optString("uri") else ""
                             if (title.isNotEmpty() && uri.isNotEmpty()) {
                                 parsed.add(
                                     TrackItem(
@@ -102,7 +103,9 @@ fun AlbumDetailScreen(
                                         album = albumTitle,
                                         artworkUrl = itemArt,
                                         durationMs = durationMs,
-                                        uri = uri
+                                        uri = uri,
+                                        albumUri = albumUri,
+                                        artistUri = artistUri
                                     )
                                 )
                             }

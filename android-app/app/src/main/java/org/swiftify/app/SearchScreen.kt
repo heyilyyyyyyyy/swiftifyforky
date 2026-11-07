@@ -85,6 +85,7 @@ fun SearchScreen(
 
     val coroutineScope = rememberCoroutineScope()
     var searchJob by remember { mutableStateOf<Job?>(null) }
+    val currentContext = LocalContext.current
 
     fun doSearch(q: String) {
         val trimmed = q.trim()
@@ -101,9 +102,20 @@ fun SearchScreen(
             delay(300) // debounce
             isSearching = true
 
+            // Fetch playlists via Spotify Web API
+            launch {
+                try {
+                    val pList = SpotifyApi.searchPlaylists(currentContext, trimmed)
+                    if (query.trim() == trimmed) {
+                        searchResultsPlaylists.clear()
+                        searchResultsPlaylists.addAll(pList)
+                    }
+                } catch (_: Exception) {}
+            }
+
             // Fetch tracks
             SpotifyBridge.searchTracks(trimmed) { okTracks, jsonTracks ->
-                if (okTracks && jsonTracks.isNotEmpty()) {
+                if (query.trim() == trimmed && okTracks && jsonTracks.isNotEmpty()) {
                     try {
                         val obj = JSONObject(jsonTracks)
                         val tracksArr = obj.optJSONArray("tracks")
@@ -116,15 +128,17 @@ fun SearchScreen(
                                 val duration = item.optLong("duration_ms")
                                 val albumObj = item.optJSONObject("album")
                                 val albumName = albumObj?.optString("name") ?: ""
+                                val albumUri = albumObj?.optString("uri") ?: ""
                                 val images = albumObj?.optJSONArray("images")
                                 val artUrl = getBestArtworkUrl(images)
                                 val artistsArr = item.optJSONArray("artists")
+                                val artistUri = if (artistsArr != null && artistsArr.length() > 0) artistsArr.getJSONObject(0).optString("uri") else ""
                                 val artistName = if (artistsArr != null && artistsArr.length() > 0) {
                                     (0 until artistsArr.length()).joinToString(", ") { j ->
                                         artistsArr.getJSONObject(j).optString("name")
                                     }
                                 } else "Unknown"
-                                list.add(TrackItem(name, artistName, albumName, artUrl, duration, uri))
+                                list.add(TrackItem(name, artistName, albumName, artUrl, duration, uri, albumUri, artistUri))
                             }
                             searchResultsTracks.clear()
                             searchResultsTracks.addAll(list)
@@ -134,7 +148,7 @@ fun SearchScreen(
 
                 // Fetch artists
                 SpotifyBridge.searchArtists(trimmed) { okArtists, jsonArtists ->
-                    if (okArtists && jsonArtists.isNotEmpty()) {
+                    if (query.trim() == trimmed && okArtists && jsonArtists.isNotEmpty()) {
                         try {
                             val obj = JSONObject(jsonArtists)
                             val artArr = obj.optJSONArray("artists")
@@ -522,6 +536,83 @@ fun SearchScreen(
                                     Text(
                                         text = "Artist",
                                         color = Color(0xFF9E948E),
+                                        fontSize = 13.sp
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    // Playlists Section
+                    if (selectedCategory in listOf("All", "Playlists") && searchResultsPlaylists.isNotEmpty()) {
+                        item {
+                            Text(
+                                "Playlists",
+                                color = Color.White,
+                                fontSize = 18.sp,
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier.padding(top = 16.dp, bottom = 10.dp)
+                            )
+                        }
+                        items(searchResultsPlaylists) { playlist ->
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .clickable { onPlaylistSelect(playlist) }
+                                    .padding(vertical = 8.dp, horizontal = 6.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                AsyncImage(
+                                    model = playlist.artworkUrl,
+                                    contentDescription = playlist.name,
+                                    modifier = Modifier
+                                        .size(46.dp)
+                                        .clip(RoundedCornerShape(8.dp)),
+                                    contentScale = ContentScale.Crop
+                                )
+                                Spacer(modifier = Modifier.width(12.dp))
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = playlist.name,
+                                        color = Color.White,
+                                        fontSize = 15.sp,
+                                        fontWeight = FontWeight.SemiBold,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                    Text(
+                                        text = "Playlist • ${playlist.owner}",
+                                        color = Color(0xFF9E948E),
+                                        fontSize = 13.sp,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    // Empty State
+                    if (searchResultsTracks.isEmpty() && searchResultsArtists.isEmpty() && searchResultsPlaylists.isEmpty() && !isSearching) {
+                        item {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(top = 60.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                    Text(
+                                        text = "No results found for \"$query\"",
+                                        color = Color.White,
+                                        fontSize = 16.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                    Spacer(modifier = Modifier.height(6.dp))
+                                    Text(
+                                        text = "Please check spelling or try another search",
+                                        color = Color(0xFFA59B94),
                                         fontSize = 13.sp
                                     )
                                 }

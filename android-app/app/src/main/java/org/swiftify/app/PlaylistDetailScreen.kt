@@ -76,7 +76,9 @@ fun PlaylistDetailScreen(
                                     val artistName = if (artistsArr != null && artistsArr.length() > 0) {
                                         artistsArr.getJSONObject(0).optString("name")
                                     } else "Unknown"
-                                    loaded.add(TrackItem(name, artistName, albumName, artUrl, duration, uri))
+                                    val albumUri = albumObj?.optString("uri") ?: ""
+                                    val artistUri = if (artistsArr != null && artistsArr.length() > 0) artistsArr.getJSONObject(0).optString("uri") else ""
+                                    loaded.add(TrackItem(name, artistName, albumName, artUrl, duration, uri, albumUri, artistUri))
                                 }
                                 playlistTracks.clear()
                                 playlistTracks.addAll(loaded)
@@ -123,7 +125,9 @@ fun PlaylistDetailScreen(
                                     val artistName = if (artistsArr != null && artistsArr.length() > 0) {
                                         artistsArr.getJSONObject(0).optString("name")
                                     } else "Unknown"
-                                    loaded.add(TrackItem(name, artistName, albumName, artUrl, duration, uri))
+                                    val albumUri = albumObj?.optString("uri") ?: ""
+                                    val artistUri = if (artistsArr != null && artistsArr.length() > 0) artistsArr.getJSONObject(0).optString("uri") else ""
+                                    loaded.add(TrackItem(name, artistName, albumName, artUrl, duration, uri, albumUri, artistUri))
                                 }
                                 playlistTracks.clear()
                                 playlistTracks.addAll(loaded)
