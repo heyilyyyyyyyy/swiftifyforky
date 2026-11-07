@@ -253,9 +253,6 @@ fun ArtistDetailScreen(
                                     Rect(pos.x, pos.y, pos.x + coords.size.width, pos.y + coords.size.height)
                                 )
                             }
-                        }
-                        .graphicsLayer {
-                            alpha = if (isHeroFlying) 0f else 1f
                         },
                     ringColor = MaterialTheme.colorScheme.primary,
                     waves = 20,

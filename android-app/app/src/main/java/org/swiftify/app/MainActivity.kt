@@ -1279,21 +1279,21 @@ fun HeroFlightOverlay(
     LaunchedEffect(flightData) {
         progress.animateTo(
             targetValue = 1f,
-            animationSpec = spring(
-                dampingRatio = 0.74f,
-                stiffness = 380f
+            animationSpec = tween(
+                durationMillis = 360,
+                easing = SwiftifyMotion.EmphasizedDecel
             )
         )
+        kotlinx.coroutines.delay(100)
         onFlightFinished()
     }
 
-    val currentProgress = progress.value
-    if (currentProgress <= 1f) {
-        val density = androidx.compose.ui.platform.LocalDensity.current
-        val config = androidx.compose.ui.platform.LocalConfiguration.current
-        val screenWidthPx = with(density) { config.screenWidthDp.dp.toPx() }
-        val targetSizePx = with(density) { 150.dp.toPx() }
-        val defaultTargetY = with(density) { 145.dp.toPx() }
+    val currentProgress = progress.value.coerceIn(0f, 1f)
+    val density = androidx.compose.ui.platform.LocalDensity.current
+    val config = androidx.compose.ui.platform.LocalConfiguration.current
+    val screenWidthPx = with(density) { config.screenWidthDp.dp.toPx() }
+    val targetSizePx = with(density) { 150.dp.toPx() }
+    val defaultTargetY = with(density) { 145.dp.toPx() }
 
         val destX = targetRect?.left ?: ((screenWidthPx - targetSizePx) / 2f)
         val destY = targetRect?.top ?: defaultTargetY
@@ -1328,7 +1328,6 @@ fun HeroFlightOverlay(
             }
         }
     }
-}
 
 // ─── Composable UI ────────────────────────────────────────────────────────────
 
@@ -1673,10 +1672,20 @@ val openArtistScreen: (String, String) -> Unit = { artName, artUri ->
                         val isExitingDetail = initialState is ScreenDestination.Artist || initialState is ScreenDestination.Album || initialState is ScreenDestination.Playlist || initialState is ScreenDestination.AllPlaylists
 
                         if (targetState is ScreenDestination.Artist && heroFlightData != null) {
-                            fadeIn(animationSpec = tween(durationMillis = 350, easing = SwiftifyMotion.EmphasizedDecel))
-                                .togetherWith(
-                                    fadeOut(animationSpec = tween(durationMillis = 180))
+                            fadeIn(
+                                animationSpec = tween(
+                                    durationMillis = 280,
+                                    delayMillis = 220,
+                                    easing = SwiftifyMotion.EmphasizedDecel
                                 )
+                            ).togetherWith(
+                                fadeOut(
+                                    animationSpec = tween(
+                                        durationMillis = 180,
+                                        easing = LinearEasing
+                                    )
+                                )
+                            )
                         } else if (initialState is ScreenDestination.Playlist && targetState is ScreenDestination.AllPlaylists) {
                             (slideInHorizontally(
                                 initialOffsetX = { -(it * 0.15f).toInt() },
