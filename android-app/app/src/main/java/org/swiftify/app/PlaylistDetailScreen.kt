@@ -911,12 +911,14 @@ fun PlaylistDetailScreen(
                         }
                     }
 
-                    Spacer(modifier = Modifier.width(4.dp))
+                    Spacer(modifier = Modifier.width(6.dp))
 
                     Text(
                         text = formatTime(track.durationMs),
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        fontSize = 13.sp
+                        fontSize = 13.sp,
+                        textAlign = TextAlign.End,
+                        modifier = Modifier.width(44.dp)
                     )
                 }
             }

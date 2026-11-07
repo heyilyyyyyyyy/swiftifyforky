@@ -567,7 +567,9 @@ fun SearchScreen(
                                     Text(
                                         text = formatTime(track.durationMs),
                                         color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        fontSize = 12.sp
+                                        fontSize = 12.sp,
+                                        textAlign = androidx.compose.ui.text.style.TextAlign.End,
+                                        modifier = Modifier.width(44.dp)
                                     )
                                 }
                             }

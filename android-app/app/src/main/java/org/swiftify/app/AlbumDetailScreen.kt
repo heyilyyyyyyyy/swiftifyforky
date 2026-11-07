@@ -404,7 +404,9 @@ fun AlbumDetailScreen(
                             Text(
                                 text = formatTime(track.durationMs),
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                fontSize = 13.sp
+                                fontSize = 13.sp,
+                                textAlign = androidx.compose.ui.text.style.TextAlign.End,
+                                modifier = Modifier.width(44.dp)
                             )
                         }
                     }
