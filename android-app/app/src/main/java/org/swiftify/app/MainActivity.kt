@@ -1214,10 +1214,10 @@ val openArtistScreen: (String, String) -> Unit = { artName, artUri ->
                                 .fillMaxWidth()
                                 .windowInsetsPadding(WindowInsets.navigationBars)
                         ) {
+                            Spacer(modifier = Modifier.height(10.dp))
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .height(58.dp)
                                     .padding(horizontal = 16.dp),
                                 horizontalArrangement = Arrangement.SpaceAround,
                                 verticalAlignment = Alignment.CenterVertically
@@ -1259,7 +1259,7 @@ val openArtistScreen: (String, String) -> Unit = { artName, artUri ->
                                     }
                                 )
                             }
-                            Spacer(modifier = Modifier.height(16.dp))
+                            Spacer(modifier = Modifier.height(10.dp))
                         }
                     }
                 }
