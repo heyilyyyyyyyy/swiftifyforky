@@ -345,13 +345,13 @@ fun buildWavyPillPath(
     width: Float,
     height: Float,
     amplitude: Float = 3.0f,
-    wavelength: Float = 15f,
+    wavelength: Float = 14f,
     phase: Float = 0f
 ): Path {
     val path = Path()
     if (width <= 0f || height <= 0f) return path
 
-    val margin = amplitude + 1f
+    val margin = amplitude + 1.5f
     val availH = (height - 2f * margin).coerceAtLeast(0f)
     val r = availH / 2f
     val availW = (width - 2f * margin).coerceAtLeast(0f)
@@ -359,52 +359,56 @@ fun buildWavyPillPath(
 
     if (availH <= 0f || availW <= 0f) return path
 
-    // Symmetrical scallop allocation:
-    // Ensure an integer number of wave cycles on top/bottom straight edges and left/right curved ends.
-    // Each section starts and ends at wave = 0 with zero derivative, completely eliminating any cut-offs or seams!
-    val nStraight = max(1, kotlin.math.round(straightW / max(wavelength, 1f)).toInt())
-    val nCap = max(1, kotlin.math.round((PI.toFloat() * r) / max(wavelength, 1f)).toInt())
+    val leftCenterX = margin + r
+    val rightCenterX = margin + r + straightW
+    val centerY = margin + r
 
-    val stepsPerSection = 64
+    // Perimeter of the base pill
+    val quarter = 0.5f * PI.toFloat() * r
+    val perimeter = 2f * straightW + 4f * quarter
 
-    // 1. Top straight edge: left to right (y = margin, wave goes upwards: -ny)
-    for (i in 0..stepsPerSection) {
-        val u = i.toFloat() / stepsPerSection
-        val s = u * straightW
-        val wave = amplitude * (0.5f - 0.5f * cos(2f * PI.toFloat() * nStraight * u - phase))
-        val px = margin + r + s
-        val py = margin - wave
-        if (i == 0) path.moveTo(px, py) else path.lineTo(px, py)
-    }
+    // Continuous scallop wave count matching desktop Swiftify wavy_pill.frag
+    val scallops = max(1f, kotlin.math.round(perimeter / max(wavelength, 1f)))
 
-    // 2. Right cap: top to bottom (-PI/2 to PI/2)
-    for (i in 0..stepsPerSection) {
-        val v = i.toFloat() / stepsPerSection
-        val angle = -PI.toFloat() / 2f + v * PI.toFloat()
-        val wave = amplitude * (0.5f - 0.5f * cos(2f * PI.toFloat() * nCap * v - phase))
-        val px = (width - margin - r) + (r + wave) * cos(angle)
-        val py = (margin + r) + (r + wave) * sin(angle)
-        path.lineTo(px, py)
-    }
+    // Sampling steps proportionally to perimeter (1 step per ~1.5px for silky smooth curves)
+    val totalSteps = (perimeter / 1.5f).toInt().coerceIn(120, 360)
 
-    // 3. Bottom straight edge: right to left (y = height - margin, wave goes downwards: +ny)
-    for (i in 0..stepsPerSection) {
-        val u = i.toFloat() / stepsPerSection
-        val s = u * straightW
-        val wave = amplitude * (0.5f - 0.5f * cos(2f * PI.toFloat() * nStraight * u - phase))
-        val px = (width - margin - r) - s
-        val py = (height - margin) + wave
-        path.lineTo(px, py)
-    }
+    for (step in 0..totalSteps) {
+        val s = (step.toFloat() / totalSteps) * perimeter
+        val wave = amplitude * (0.5f + 0.5f * cos(2f * PI.toFloat() * scallops * (s / perimeter) - phase))
 
-    // 4. Left cap: bottom to top (PI/2 to 3*PI/2)
-    for (i in 0..stepsPerSection) {
-        val v = i.toFloat() / stepsPerSection
-        val angle = PI.toFloat() / 2f + v * PI.toFloat()
-        val wave = amplitude * (0.5f - 0.5f * cos(2f * PI.toFloat() * nCap * v - phase))
-        val px = (margin + r) + (r + wave) * cos(angle)
-        val py = (margin + r) + (r + wave) * sin(angle)
-        path.lineTo(px, py)
+        val px: Float
+        val py: Float
+
+        if (s <= straightW) {
+            // 1. Top straight edge: left to right (y = margin, outward normal is (0, -1))
+            val u = s / straightW
+            px = leftCenterX + u * straightW
+            py = margin - wave
+        } else if (s <= straightW + 2f * quarter) {
+            // 2. Right cap: top to bottom (angle sweeps from -PI/2 to +PI/2)
+            val capDist = s - straightW
+            val theta = -0.5f * PI.toFloat() + (capDist / (2f * quarter)) * PI.toFloat()
+            px = rightCenterX + (r + wave) * cos(theta)
+            py = centerY + (r + wave) * sin(theta)
+        } else if (s <= 2f * straightW + 2f * quarter) {
+            // 3. Bottom straight edge: right to left (y = height - margin, outward normal is (0, 1))
+            val u = (s - straightW - 2f * quarter) / straightW
+            px = rightCenterX - u * straightW
+            py = (height - margin) + wave
+        } else {
+            // 4. Left cap: bottom to top (angle sweeps from +PI/2 to +3*PI/2)
+            val capDist = s - 2f * straightW - 2f * quarter
+            val theta = 0.5f * PI.toFloat() + (capDist / (2f * quarter)) * PI.toFloat()
+            px = leftCenterX + (r + wave) * cos(theta)
+            py = centerY + (r + wave) * sin(theta)
+        }
+
+        if (step == 0) {
+            path.moveTo(px, py)
+        } else {
+            path.lineTo(px, py)
+        }
     }
 
     path.close()
