@@ -44,6 +44,12 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.*
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.unit.IntOffset
+import kotlin.math.roundToInt
+import androidx.compose.ui.layout.positionInRoot
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.LayoutCoordinates
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -1256,6 +1262,74 @@ sealed class ScreenDestination {
     data class Playlist(val playlist: PlaylistItem) : ScreenDestination()
 }
 
+data class HeroFlightData(
+    val imageUrl: String,
+    val name: String,
+    val fromRect: Rect
+)
+
+@Composable
+fun HeroFlightOverlay(
+    flightData: HeroFlightData,
+    targetRect: Rect?,
+    onFlightFinished: () -> Unit
+) {
+    val progress = remember { Animatable(0f) }
+
+    LaunchedEffect(flightData) {
+        progress.animateTo(
+            targetValue = 1f,
+            animationSpec = spring(
+                dampingRatio = 0.74f,
+                stiffness = 380f
+            )
+        )
+        onFlightFinished()
+    }
+
+    val currentProgress = progress.value
+    if (currentProgress < 1f) {
+        val density = androidx.compose.ui.platform.LocalDensity.current
+        val config = androidx.compose.ui.platform.LocalConfiguration.current
+        val screenWidthPx = with(density) { config.screenWidthDp.dp.toPx() }
+        val targetSizePx = with(density) { 150.dp.toPx() }
+        val defaultTargetY = with(density) { 145.dp.toPx() }
+
+        val destX = targetRect?.left ?: ((screenWidthPx - targetSizePx) / 2f)
+        val destY = targetRect?.top ?: defaultTargetY
+        val destSize = targetRect?.width ?: targetSizePx
+
+        val currentX = flightData.fromRect.left + (destX - flightData.fromRect.left) * currentProgress
+        val currentY = flightData.fromRect.top + (destY - flightData.fromRect.top) * currentProgress
+        val currentSize = flightData.fromRect.width + (destSize - flightData.fromRect.width) * currentProgress
+        val currentSizeDp = with(density) { currentSize.toDp() }
+
+        Box(modifier = Modifier.fillMaxSize()) {
+            Box(
+                modifier = Modifier
+                    .offset { IntOffset(currentX.roundToInt(), currentY.roundToInt()) }
+                    .size(currentSizeDp)
+                    .shadow(
+                        elevation = (14 * (1f - currentProgress * 0.35f)).dp,
+                        shape = CircleShape,
+                        spotColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.45f)
+                    )
+            ) {
+                SquiggleAvatar(
+                    imageUrl = flightData.imageUrl,
+                    contentDescription = flightData.name,
+                    modifier = Modifier.fillMaxSize(),
+                    ringColor = MaterialTheme.colorScheme.primary,
+                    waves = 20,
+                    amplitude = (1.3 + (1.4 - 1.3) * currentProgress).dp,
+                    strokeWidth = (2.0 + (2.4 - 2.0) * currentProgress).dp,
+                    gap = (4.0 + (4.2 - 4.0) * currentProgress).dp
+                )
+            }
+        }
+    }
+}
+
 // ─── Composable UI ────────────────────────────────────────────────────────────
 
 @Composable
@@ -1302,6 +1376,8 @@ fun SwiftifyApp(
     var isPlayerExpanded by remember { mutableStateOf(false) }
     var activePlaylist by remember { mutableStateOf<PlaylistItem?>(null) }
     var activeArtist by remember { mutableStateOf<ArtistItem?>(null) }
+    var heroFlightData by remember { mutableStateOf<HeroFlightData?>(null) }
+    var heroTargetRect by remember { mutableStateOf<Rect?>(null) }
     var showAllPlaylists by remember { mutableStateOf(false) }
     var openedFromAllPlaylists by remember { mutableStateOf(false) }
     var activeAlbumUri by remember { mutableStateOf<String?>(null) }
@@ -1387,6 +1463,8 @@ val openArtistScreen: (String, String) -> Unit = { artName, artUri ->
             }
         } else if (activeArtist != null) {
             activeArtist = null
+            heroFlightData = null
+            heroTargetRect = null
         } else if (showAllPlaylists) {
             showAllPlaylists = false
             openedFromAllPlaylists = false
@@ -1594,7 +1672,12 @@ val openArtistScreen: (String, String) -> Unit = { artName, artUri ->
                         val isEnteringDetail = targetState is ScreenDestination.Artist || targetState is ScreenDestination.Album || targetState is ScreenDestination.Playlist || targetState is ScreenDestination.AllPlaylists
                         val isExitingDetail = initialState is ScreenDestination.Artist || initialState is ScreenDestination.Album || initialState is ScreenDestination.Playlist || initialState is ScreenDestination.AllPlaylists
 
-                        if (initialState is ScreenDestination.Playlist && targetState is ScreenDestination.AllPlaylists) {
+                        if (targetState is ScreenDestination.Artist && heroFlightData != null) {
+                            fadeIn(animationSpec = tween(durationMillis = 350, easing = SwiftifyMotion.EmphasizedDecel))
+                                .togetherWith(
+                                    fadeOut(animationSpec = tween(durationMillis = 180))
+                                )
+                        } else if (initialState is ScreenDestination.Playlist && targetState is ScreenDestination.AllPlaylists) {
                             (slideInHorizontally(
                                 initialOffsetX = { -(it * 0.15f).toInt() },
                                 animationSpec = tween(durationMillis = SwiftifyMotion.DurationMotionFastMs, easing = SwiftifyMotion.EmphasizedDecel)
@@ -1651,7 +1734,11 @@ val openArtistScreen: (String, String) -> Unit = { artName, artUri ->
                                 artist = dest.artist,
                                 livePlayingTrack = livePlayingTrack,
                                 isPlaying = isPlaying,
-                                onBack = { activeArtist = null },
+                                onBack = {
+                                    activeArtist = null
+                                    heroFlightData = null
+                                    heroTargetRect = null
+                                },
                                 onTrackSelect = { selectedTrack, playlistTracks ->
                                     onTrackSelect(selectedTrack, playlistTracks)
                                 },
@@ -1665,7 +1752,11 @@ val openArtistScreen: (String, String) -> Unit = { artName, artUri ->
                                     activeAlbumUri = albUri
                                     activeAlbumTitle = albTitle
                                     activeAlbumArtwork = albArt
-                                }
+                                },
+                                onAvatarPositioned = { rect ->
+                                    heroTargetRect = rect
+                                },
+                                isHeroFlying = heroFlightData != null
                             )
                         }
                         is ScreenDestination.Album -> {
@@ -1757,6 +1848,17 @@ val openArtistScreen: (String, String) -> Unit = { artName, artUri ->
                                     activePlaylist = it
                                 },
                                 onArtistClick = { activeArtist = it },
+                                onArtistClickWithRect = { artist, rect ->
+                                    if (rect != null) {
+                                        heroFlightData = HeroFlightData(
+                                            imageUrl = artist.artworkUrl,
+                                            name = artist.name,
+                                            fromRect = rect
+                                        )
+                                        heroTargetRect = null
+                                    }
+                                    activeArtist = artist
+                                },
                                 onSeeAllPlaylists = { showAllPlaylists = true }
                             )
                         }
@@ -1848,6 +1950,17 @@ val openArtistScreen: (String, String) -> Unit = { artName, artUri ->
                     }
                 )
             }
+        }
+
+        // Hero Flight Overlay
+        heroFlightData?.let { flight ->
+            HeroFlightOverlay(
+                flightData = flight,
+                targetRect = heroTargetRect,
+                onFlightFinished = {
+                    heroFlightData = null
+                }
+            )
         }
     }
 }
@@ -1965,6 +2078,7 @@ fun HomeScreen(
     onPlayPause: () -> Unit,
     onPlaylistClick: (PlaylistItem) -> Unit,
     onArtistClick: (ArtistItem) -> Unit,
+    onArtistClickWithRect: ((ArtistItem, Rect?) -> Unit)? = null,
     onSeeAllPlaylists: () -> Unit
 ) {
     val scrollState = rememberScrollState()
@@ -2466,18 +2580,31 @@ fun HomeScreen(
 
         LazyRow(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
             items(sampleArtists) { artist ->
+                var avatarCoordinates by remember { mutableStateOf<LayoutCoordinates?>(null) }
                 Column(
                     modifier = Modifier
                         .width(136.dp)
                         .clickable {
-                            onArtistClick(artist)
+                            val rect = avatarCoordinates?.takeIf { it.isAttached }?.let { coords ->
+                                val pos = coords.positionInRoot()
+                                Rect(pos.x, pos.y, pos.x + coords.size.width, pos.y + coords.size.height)
+                            }
+                            if (onArtistClickWithRect != null) {
+                                onArtistClickWithRect(artist, rect)
+                            } else {
+                                onArtistClick(artist)
+                            }
                         },
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     SquiggleAvatar(
                         imageUrl = artist.artworkUrl,
                         contentDescription = artist.name,
-                        modifier = Modifier.size(136.dp),
+                        modifier = Modifier
+                            .size(136.dp)
+                            .onGloballyPositioned { coords ->
+                                avatarCoordinates = coords
+                            },
                         ringColor = MaterialTheme.colorScheme.primary,
                         waves = 20,
                         amplitude = 1.3.dp,

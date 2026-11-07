@@ -31,6 +31,12 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.layout.positionInRoot
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -59,7 +65,9 @@ fun ArtistDetailScreen(
     onTrackSelect: (TrackItem, List<TrackItem>) -> Unit,
     onPlayAll: (List<TrackItem>) -> Unit,
     onAddToQueue: ((TrackItem) -> Unit)? = null,
-    onAlbumSelect: ((albumUri: String, title: String, artworkUrl: String) -> Unit)? = null
+    onAlbumSelect: ((albumUri: String, title: String, artworkUrl: String) -> Unit)? = null,
+    onAvatarPositioned: ((Rect) -> Unit)? = null,
+    isHeroFlying: Boolean = false
 ) {
     val topTracks = remember { mutableStateListOf<TrackItem>() }
     val releases = remember { mutableStateListOf<ReleaseItem>() }
@@ -233,10 +241,27 @@ fun ArtistDetailScreen(
                     .padding(24.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
+                val avatarAlpha by animateFloatAsState(
+                    targetValue = if (isHeroFlying) 0f else 1f,
+                    animationSpec = tween(durationMillis = 150),
+                    label = "avatarAlpha"
+                )
                 SquiggleAvatar(
                     imageUrl = artistAvatar,
                     contentDescription = artist.name,
-                    modifier = Modifier.size(150.dp),
+                    modifier = Modifier
+                        .size(150.dp)
+                        .onGloballyPositioned { coords ->
+                            if (coords.isAttached) {
+                                val pos = coords.positionInRoot()
+                                onAvatarPositioned?.invoke(
+                                    Rect(pos.x, pos.y, pos.x + coords.size.width, pos.y + coords.size.height)
+                                )
+                            }
+                        }
+                        .graphicsLayer {
+                            alpha = avatarAlpha
+                        },
                     ringColor = MaterialTheme.colorScheme.primary,
                     waves = 20,
                     amplitude = 1.4.dp,
