@@ -17,6 +17,7 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -43,6 +44,12 @@ import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import org.json.JSONObject
 
+data class LyricLine(
+    val startTimeMs: Long,
+    val endTimeMs: Long,
+    val words: String
+)
+
 @Composable
 fun ExpandedPlayer(
     track: TrackItem,
@@ -60,7 +67,11 @@ fun ExpandedPlayer(
     isShuffle: Boolean = false,
     repeatMode: Int = 0, // 0 = off, 1 = repeat all, 2 = repeat one
     onToggleShuffle: () -> Unit = {},
-    onToggleRepeat: () -> Unit = {}
+    onToggleRepeat: () -> Unit = {},
+    customQueue: List<TrackItem> = emptyList(),
+    onRemoveFromCustomQueue: ((Int) -> Unit)? = null,
+    onClearCustomQueue: (() -> Unit)? = null,
+    queueContextName: String = "Swiftify"
 ) {
     val context = LocalContext.current
     val palette = rememberTrackPalette(context, track.artworkUrl)
@@ -81,33 +92,48 @@ fun ExpandedPlayer(
     }
     var selectedTab by remember { mutableIntStateOf(0) } // 0: Artwork, 1: Lyrics, 2: Queue
 
-    var lyricsText by remember { mutableStateOf("Loading lyrics...") }
+    var lyricLines by remember { mutableStateOf<List<LyricLine>>(emptyList()) }
+    var isLineSynced by remember { mutableStateOf(false) }
     var lyricsLoadedForUri by remember { mutableStateOf("") }
+    var lyricsErrorMsg by remember { mutableStateOf<String?>(null) }
+    var isLoadingLyrics by remember { mutableStateOf(false) }
 
-    // Fetch lyrics when lyrics drawer is opened
+    // Fetch lyrics when lyrics tab is opened
     LaunchedEffect(selectedTab, track.uri) {
         if (selectedTab == 1 && lyricsLoadedForUri != track.uri) {
-            lyricsText = "Loading lyrics from Spotify..."
+            isLoadingLyrics = true
+            lyricsErrorMsg = null
             SpotifyBridge.fetchLyrics(track.uri) { ok, payload ->
+                isLoadingLyrics = false
                 if (ok && payload.isNotEmpty()) {
                     try {
                         val obj = JSONObject(payload)
+                        val syncTypeStr = obj.optString("syncType", "unsynced")
                         val linesArr = obj.optJSONArray("lines")
-                        if (linesArr != null && linesArr.length() > 0) {
-                            val sb = StringBuilder()
+                        val parsed = mutableListOf<LyricLine>()
+                        if (linesArr != null) {
                             for (i in 0 until linesArr.length()) {
                                 val lineObj = linesArr.getJSONObject(i)
-                                sb.append(lineObj.optString("words", "")).append("\n\n")
+                                val s = lineObj.optLong("startTimeMs", 0L)
+                                val e = lineObj.optLong("endTimeMs", 0L)
+                                val w = lineObj.optString("words", "").trim()
+                                if (w.isNotEmpty()) {
+                                    parsed.add(LyricLine(s, e, w))
+                                }
                             }
-                            lyricsText = sb.toString().trim()
-                        } else {
-                            lyricsText = obj.optString("syncType", "Instrumental or lyrics unavailable")
                         }
-                    } catch (_: Exception) {
-                        lyricsText = payload
+                        lyricLines = parsed
+                        isLineSynced = (syncTypeStr == "lineSynced") && parsed.isNotEmpty()
+                        if (parsed.isEmpty()) {
+                            lyricsErrorMsg = obj.optString("syncType", "Instrumental or lyrics unavailable")
+                        }
+                    } catch (e: Exception) {
+                        lyricsErrorMsg = payload
+                        isLineSynced = false
                     }
                 } else {
-                    lyricsText = "Lyrics are unavailable for this track."
+                    lyricsErrorMsg = "Lyrics are unavailable for this track."
+                    isLineSynced = false
                 }
                 lyricsLoadedForUri = track.uri
             }
@@ -205,72 +231,156 @@ fun ExpandedPlayer(
             ) {
                 when (selectedTab) {
                     1 -> {
-                        // Lyrics View
-                        Box(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .clip(RoundedCornerShape(26.dp))
-                                .background(Color(0x3B000000))
-                                .padding(20.dp)
-                        ) {
-                            Column(
+                        // Lyrics View (Synced & Plain with auto-scroll and seek)
+                        if (isLoadingLyrics) {
+                            Box(
                                 modifier = Modifier
                                     .fillMaxSize()
-                                    .verticalScroll(rememberScrollState()),
-                                horizontalAlignment = Alignment.CenterHorizontally
+                                    .clip(RoundedCornerShape(26.dp))
+                                    .background(Color(0x3B000000)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                CircularProgressIndicator(color = palette.accent, strokeWidth = 3.dp)
+                            }
+                        } else if (lyricLines.isNotEmpty()) {
+                            val activeLineIdx = remember(progressMs, lyricLines) {
+                                var idx = -1
+                                for (i in lyricLines.indices) {
+                                    if (progressMs >= lyricLines[i].startTimeMs) {
+                                        idx = i
+                                    } else {
+                                        break
+                                    }
+                                }
+                                idx
+                            }
+                            val lyricsListState = rememberLazyListState()
+
+                            LaunchedEffect(activeLineIdx) {
+                                if (activeLineIdx >= 0 && isLineSynced) {
+                                    lyricsListState.animateScrollToItem((activeLineIdx - 1).coerceAtLeast(0))
+                                }
+                            }
+
+                            LazyColumn(
+                                state = lyricsListState,
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .clip(RoundedCornerShape(26.dp))
+                                    .background(Color(0x3B000000))
+                                    .padding(horizontal = 20.dp),
+                                contentPadding = PaddingValues(top = 28.dp, bottom = 48.dp),
+                                verticalArrangement = Arrangement.spacedBy(14.dp)
+                            ) {
+                                item {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Text(
+                                            text = if (isLineSynced) "SYNCED LYRICS" else "LYRICS",
+                                            color = palette.accent,
+                                            fontSize = 12.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            letterSpacing = 1.2.sp
+                                        )
+                                        if (isLineSynced) {
+                                            Text(
+                                                text = "Tap line to seek",
+                                                color = Color(0x88FFFFFF),
+                                                fontSize = 11.sp
+                                            )
+                                        }
+                                    }
+                                }
+                                itemsIndexed(lyricLines) { index, line ->
+                                    val isCurrent = isLineSynced && (index == activeLineIdx)
+                                    val isPast = isLineSynced && (index < activeLineIdx)
+
+                                    val fontSize = if (isCurrent) 22.sp else 17.sp
+                                    val textColor = when {
+                                        !isLineSynced -> Color.White
+                                        isCurrent -> Color.White
+                                        isPast -> Color(0x66FFFFFF)
+                                        else -> Color(0x88FFFFFF)
+                                    }
+                                    val fontWeight = if (isCurrent) FontWeight.ExtraBold else FontWeight.SemiBold
+
+                                    Text(
+                                        text = line.words,
+                                        color = textColor,
+                                        fontSize = fontSize,
+                                        fontWeight = fontWeight,
+                                        lineHeight = if (isCurrent) 32.sp else 26.sp,
+                                        textAlign = TextAlign.Start,
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .clip(RoundedCornerShape(12.dp))
+                                            .clickable {
+                                                if (line.startTimeMs > 0L) {
+                                                    onSeek(line.startTimeMs)
+                                                }
+                                            }
+                                            .padding(vertical = 4.dp, horizontal = 6.dp)
+                                    )
+                                }
+                            }
+                        } else {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .clip(RoundedCornerShape(26.dp))
+                                    .background(Color(0x3B000000))
+                                    .padding(24.dp),
+                                contentAlignment = Alignment.Center
                             ) {
                                 Text(
-                                    text = "Synced Lyrics",
-                                    color = palette.accent,
-                                    fontSize = 17.sp,
-                                    fontWeight = FontWeight.Bold
-                                )
-                                Spacer(modifier = Modifier.height(16.dp))
-                                Text(
-                                    text = lyricsText,
-                                    color = Color.White,
-                                    fontSize = 18.sp,
-                                    lineHeight = 28.sp,
-                                    textAlign = TextAlign.Center,
-                                    fontWeight = FontWeight.SemiBold
+                                    text = lyricsErrorMsg ?: "No lyrics available for this song.",
+                                    color = Color(0xCCFFFFFF),
+                                    fontSize = 16.sp,
+                                    textAlign = TextAlign.Center
                                 )
                             }
                         }
                     }
                     2 -> {
-                        // Queue View
+                        // Queue View (Now Playing, Play Next / Custom Queue, and Upcoming Tracks)
                         Box(
                             modifier = Modifier
                                 .fillMaxSize()
                                 .clip(RoundedCornerShape(26.dp))
                                 .background(Color(0x3B000000))
-                                .padding(18.dp)
+                                .padding(16.dp)
                         ) {
-                            Column(modifier = Modifier.fillMaxSize()) {
-                                Text(
-                                    text = "Up Next in Queue",
-                                    color = palette.accent,
-                                    fontSize = 18.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    modifier = Modifier.padding(bottom = 12.dp)
-                                )
-                                LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                    itemsIndexed(allTracks) { idx, qTrack ->
-                                        val isCurrent = qTrack.uri == track.uri
-                                        Row(
-                                            modifier = Modifier
-                                                .fillMaxWidth()
-                                                .clip(RoundedCornerShape(14.dp))
-                                                .background(if (isCurrent) palette.accent.copy(alpha = 0.25f) else Color.Transparent)
-                                            .clickable {
-                                                onSelectTrack(qTrack)
-                                                selectedTab = 0
-                                            }
-                                            .padding(8.dp),
+                            LazyColumn(
+                                modifier = Modifier.fillMaxSize(),
+                                verticalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                // Now Playing Header
+                                item {
+                                    Text(
+                                        text = "NOW PLAYING",
+                                        color = palette.accent,
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        letterSpacing = 1.2.sp,
+                                        modifier = Modifier.padding(bottom = 4.dp)
+                                    )
+                                }
+
+                                // Now Playing Card
+                                item {
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .clip(RoundedCornerShape(14.dp))
+                                            .background(palette.accent.copy(alpha = 0.22f))
+                                            .padding(10.dp),
                                         verticalAlignment = Alignment.CenterVertically
                                     ) {
                                         AsyncImage(
-                                            model = qTrack.artworkUrl,
+                                            model = track.artworkUrl,
                                             contentDescription = null,
                                             modifier = Modifier
                                                 .size(46.dp)
@@ -280,27 +390,172 @@ fun ExpandedPlayer(
                                         Spacer(modifier = Modifier.width(12.dp))
                                         Column(modifier = Modifier.weight(1f)) {
                                             Text(
-                                                qTrack.title,
-                                                color = if (isCurrent) palette.accent else Color.White,
+                                                track.title,
+                                                color = palette.accent,
                                                 fontSize = 14.sp,
-                                                fontWeight = FontWeight.SemiBold,
+                                                fontWeight = FontWeight.Bold,
                                                 maxLines = 1,
                                                 overflow = TextOverflow.Ellipsis
                                             )
                                             Text(
-                                                qTrack.artist,
-                                                color = Color(0xAAFFFFFF),
+                                                track.artist,
+                                                color = Color.White,
                                                 fontSize = 12.sp,
                                                 maxLines = 1,
                                                 overflow = TextOverflow.Ellipsis
                                             )
                                         }
-                                        if (isCurrent) {
-                                            Icon(
-                                                imageVector = Icons.Rounded.VolumeUp,
+                                        Icon(
+                                            imageVector = Icons.Rounded.VolumeUp,
+                                            contentDescription = null,
+                                            tint = palette.accent,
+                                            modifier = Modifier.size(20.dp)
+                                        )
+                                    }
+                                }
+
+                                // Custom Queue Section ("Play Next")
+                                if (customQueue.isNotEmpty()) {
+                                    item {
+                                        Row(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .padding(top = 12.dp, bottom = 4.dp),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Text(
+                                                text = "NEXT IN QUEUE (${customQueue.size})",
+                                                color = Color.White,
+                                                fontSize = 11.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                letterSpacing = 1.1.sp
+                                            )
+                                            if (onClearCustomQueue != null) {
+                                                Text(
+                                                    text = "Clear",
+                                                    color = palette.accent,
+                                                    fontSize = 12.sp,
+                                                    fontWeight = FontWeight.Bold,
+                                                    modifier = Modifier
+                                                        .clip(RoundedCornerShape(6.dp))
+                                                        .clickable { onClearCustomQueue() }
+                                                        .padding(horizontal = 6.dp, vertical = 2.dp)
+                                                )
+                                            }
+                                        }
+                                    }
+
+                                    itemsIndexed(customQueue) { idx, qTrack ->
+                                        Row(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .clip(RoundedCornerShape(12.dp))
+                                                .background(Color(0x22FFFFFF))
+                                                .clickable {
+                                                    onSelectTrack(qTrack)
+                                                    selectedTab = 0
+                                                }
+                                                .padding(8.dp),
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            AsyncImage(
+                                                model = qTrack.artworkUrl,
                                                 contentDescription = null,
-                                                tint = palette.accent,
-                                                modifier = Modifier.size(20.dp)
+                                                modifier = Modifier
+                                                    .size(40.dp)
+                                                    .clip(RoundedCornerShape(8.dp)),
+                                                contentScale = ContentScale.Crop
+                                            )
+                                            Spacer(modifier = Modifier.width(10.dp))
+                                            Column(modifier = Modifier.weight(1f)) {
+                                                Text(
+                                                    qTrack.title,
+                                                    color = Color.White,
+                                                    fontSize = 13.sp,
+                                                    fontWeight = FontWeight.SemiBold,
+                                                    maxLines = 1,
+                                                    overflow = TextOverflow.Ellipsis
+                                                )
+                                                Text(
+                                                    qTrack.artist,
+                                                    color = Color(0xAAFFFFFF),
+                                                    fontSize = 11.sp,
+                                                    maxLines = 1,
+                                                    overflow = TextOverflow.Ellipsis
+                                                )
+                                            }
+                                            IconButton(
+                                                onClick = { onRemoveFromCustomQueue?.invoke(idx) },
+                                                modifier = Modifier.size(28.dp)
+                                            ) {
+                                                Icon(
+                                                    imageVector = Icons.Rounded.Close,
+                                                    contentDescription = "Remove",
+                                                    tint = Color(0xAAFFFFFF),
+                                                    modifier = Modifier.size(16.dp)
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+
+                                // Upcoming from Context
+                                val upcomingFromContext = allTracks.filter { it.uri != track.uri }
+                                if (upcomingFromContext.isNotEmpty()) {
+                                    item {
+                                        Text(
+                                            text = "NEXT FROM: ${queueContextName.uppercase()}",
+                                            color = Color.White,
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            letterSpacing = 1.1.sp,
+                                            modifier = Modifier.padding(top = 12.dp, bottom = 4.dp)
+                                        )
+                                    }
+
+                                    itemsIndexed(upcomingFromContext) { _, qTrack ->
+                                        Row(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .clip(RoundedCornerShape(12.dp))
+                                                .clickable {
+                                                    onSelectTrack(qTrack)
+                                                    selectedTab = 0
+                                                }
+                                                .padding(8.dp),
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            AsyncImage(
+                                                model = qTrack.artworkUrl,
+                                                contentDescription = null,
+                                                modifier = Modifier
+                                                    .size(40.dp)
+                                                    .clip(RoundedCornerShape(8.dp)),
+                                                contentScale = ContentScale.Crop
+                                            )
+                                            Spacer(modifier = Modifier.width(10.dp))
+                                            Column(modifier = Modifier.weight(1f)) {
+                                                Text(
+                                                    qTrack.title,
+                                                    color = Color.White,
+                                                    fontSize = 13.sp,
+                                                    fontWeight = FontWeight.Medium,
+                                                    maxLines = 1,
+                                                    overflow = TextOverflow.Ellipsis
+                                                )
+                                                Text(
+                                                    qTrack.artist,
+                                                    color = Color(0x99FFFFFF),
+                                                    fontSize = 11.sp,
+                                                    maxLines = 1,
+                                                    overflow = TextOverflow.Ellipsis
+                                                )
+                                            }
+                                            Text(
+                                                text = formatTime(qTrack.durationMs),
+                                                color = Color(0x88FFFFFF),
+                                                fontSize = 12.sp
                                             )
                                         }
                                     }
@@ -308,8 +563,7 @@ fun ExpandedPlayer(
                             }
                         }
                     }
-                }
-                else -> {
+                    else -> {
                     // Album Artwork with Material 3 Expressive Glow & Squircle curvature
                     Box(
                         modifier = Modifier

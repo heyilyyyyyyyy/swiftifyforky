@@ -64,7 +64,11 @@ fun PlaylistDetailScreen(
     onPlayAll: (List<TrackItem>) -> Unit,
     onAddToQueue: ((TrackItem) -> Unit)? = null,
     onTrackTitleClick: ((TrackItem) -> Unit)? = null,
-    onArtistClick: ((String) -> Unit)? = null
+    onArtistClick: ((String) -> Unit)? = null,
+    userPlaylists: List<PlaylistItem> = emptyList(),
+    onDeletePlaylist: ((PlaylistItem) -> Unit)? = null,
+    onAddTrackToPlaylist: ((PlaylistItem, TrackItem) -> Unit)? = null,
+    onRemoveTrackFromPlaylist: ((PlaylistItem, TrackItem) -> Unit)? = null
 ) {
     var isShuffle by remember { mutableStateOf(false) }
     val playlistTracks = remember { mutableStateListOf<TrackItem>() }
@@ -73,6 +77,14 @@ fun PlaylistDetailScreen(
     var errorMessage by remember { mutableStateOf<String?>(null) }
     var reloadTrigger by remember { mutableIntStateOf(0) }
     val context = androidx.compose.ui.platform.LocalContext.current
+    val coroutineScope = rememberCoroutineScope()
+    val prefs = remember { context.getSharedPreferences("swiftify_prefs", android.content.Context.MODE_PRIVATE) }
+    val savedTrackUris = remember {
+        val cached = prefs.getStringSet("saved_track_uris", emptySet()) ?: emptySet()
+        mutableStateListOf<String>().apply { addAll(cached) }
+    }
+    var showDeleteConfirmation by remember { mutableStateOf(false) }
+    var targetTrackForAddToPlaylist by remember { mutableStateOf<TrackItem?>(null) }
 
     // Fetch playlist tracks from SpotifyBridge or Web API fallback
     LaunchedEffect(playlist.uri, reloadTrigger) {
@@ -405,8 +417,43 @@ fun PlaylistDetailScreen(
                             reloadTrigger++
                         }
                     )
+                    if (playlist.uri.startsWith("spotify:playlist:") && onDeletePlaylist != null) {
+                        DropdownMenuItem(
+                            text = { Text("Delete Playlist", color = Color(0xFFFF6B6B), fontSize = 13.sp) },
+                            onClick = {
+                                isMoreMenuOpen = false
+                                showDeleteConfirmation = true
+                            }
+                        )
+                    }
                 }
             }
+        }
+
+        if (showDeleteConfirmation) {
+            AlertDialog(
+                onDismissRequest = { showDeleteConfirmation = false },
+                title = { Text("Delete Playlist", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 18.sp) },
+                text = { Text("Are you sure you want to delete '${playlist.name}'? This cannot be undone.", color = Color(0xFFA59B94), fontSize = 14.sp) },
+                containerColor = Color(0xFF221C1A),
+                confirmButton = {
+                    Button(
+                        onClick = {
+                            showDeleteConfirmation = false
+                            onDeletePlaylist?.invoke(playlist)
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFF4D4D)),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Text("Delete", color = Color.White, fontWeight = FontWeight.Bold)
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showDeleteConfirmation = false }) {
+                        Text("Cancel", color = Color(0xFFA59B94))
+                    }
+                }
+            )
         }
 
         LazyColumn(
@@ -697,6 +744,89 @@ fun PlaylistDetailScreen(
                         )
                     }
 
+                    // Star button (Save / Liked Track)
+                    val isTrackSaved = savedTrackUris.contains(track.uri)
+                    IconButton(
+                        onClick = {
+                            val next = !isTrackSaved
+                            if (next) savedTrackUris.add(track.uri) else savedTrackUris.remove(track.uri)
+                            coroutineScope.launch {
+                                SpotifyApi.setTrackSaved(context, track.uri, next)
+                            }
+                        },
+                        modifier = Modifier.size(32.dp)
+                    ) {
+                        Icon(
+                            imageVector = if (isTrackSaved) Icons.Rounded.Star else Icons.Rounded.StarBorder,
+                            contentDescription = "Save",
+                            tint = if (isTrackSaved) Color(0xFFF2A385) else Color(0xFF6E635E),
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
+
+                    // Track more options dropdown
+                    Box {
+                        var isTrackMenuOpen by remember { mutableStateOf(false) }
+                        IconButton(
+                            onClick = { isTrackMenuOpen = true },
+                            modifier = Modifier.size(32.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Rounded.MoreVert,
+                                contentDescription = "Track options",
+                                tint = Color(0xFF9E948E),
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
+
+                        DropdownMenu(
+                            expanded = isTrackMenuOpen,
+                            onDismissRequest = { isTrackMenuOpen = false },
+                            modifier = Modifier.background(Color(0xFF221C1A))
+                        ) {
+                            DropdownMenuItem(
+                                text = { Text("Add to Queue", color = Color.White, fontSize = 13.sp) },
+                                onClick = {
+                                    isTrackMenuOpen = false
+                                    onAddToQueue?.invoke(track)
+                                    Toast.makeText(context, "Added '${track.title}' to queue", Toast.LENGTH_SHORT).show()
+                                }
+                            )
+                            DropdownMenuItem(
+                                text = { Text("Add to Playlist...", color = Color.White, fontSize = 13.sp) },
+                                onClick = {
+                                    isTrackMenuOpen = false
+                                    targetTrackForAddToPlaylist = track
+                                }
+                            )
+                            if (playlist.uri.startsWith("spotify:playlist:") && onRemoveTrackFromPlaylist != null) {
+                                DropdownMenuItem(
+                                    text = { Text("Remove from this Playlist", color = Color(0xFFFF6B6B), fontSize = 13.sp) },
+                                    onClick = {
+                                        isTrackMenuOpen = false
+                                        playlistTracks.remove(track)
+                                        onRemoveTrackFromPlaylist.invoke(playlist, track)
+                                    }
+                                )
+                            }
+                            DropdownMenuItem(
+                                text = { Text("Share Song", color = Color.White, fontSize = 13.sp) },
+                                onClick = {
+                                    isTrackMenuOpen = false
+                                    val cleanTrackId = track.uri.removePrefix("spotify:track:").trim()
+                                    val sendIntent = Intent().apply {
+                                        action = Intent.ACTION_SEND
+                                        putExtra(Intent.EXTRA_TEXT, "Listen to '${track.title}' by ${track.artist}: https://open.spotify.com/track/$cleanTrackId")
+                                        type = "text/plain"
+                                    }
+                                    context.startActivity(Intent.createChooser(sendIntent, "Share Track"))
+                                }
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.width(4.dp))
+
                     Text(
                         text = formatTime(track.durationMs),
                         color = Color(0xFF7A706A),
@@ -707,5 +837,127 @@ fun PlaylistDetailScreen(
         }
     }
 }
+
+    if (targetTrackForAddToPlaylist != null) {
+        val target = targetTrackForAddToPlaylist!!
+        AddToPlaylistBottomSheet(
+            track = target,
+            userPlaylists = userPlaylists,
+            onDismiss = { targetTrackForAddToPlaylist = null },
+            onPlaylistSelect = { selectedPlaylist ->
+                targetTrackForAddToPlaylist = null
+                onAddTrackToPlaylist?.invoke(selectedPlaylist, target)
+            }
+        )
+    }
 }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun AddToPlaylistBottomSheet(
+    track: TrackItem,
+    userPlaylists: List<PlaylistItem>,
+    onDismiss: () -> Unit,
+    onPlaylistSelect: (PlaylistItem) -> Unit
+) {
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        containerColor = Color(0xFF1D1715),
+        dragHandle = { BottomSheetDefaults.DragHandle(color = Color(0xFF6E625D)) }
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 20.dp, vertical = 10.dp)
+        ) {
+            Text(
+                text = "Add to playlist",
+                color = Color.White,
+                fontSize = 18.sp,
+                fontWeight = FontWeight.Bold
+            )
+            Spacer(modifier = Modifier.height(2.dp))
+            Text(
+                text = track.title,
+                color = Color(0xFFA59B94),
+                fontSize = 13.sp,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            if (userPlaylists.isEmpty()) {
+                Text(
+                    text = "No user playlists found",
+                    color = Color(0xFF887D77),
+                    fontSize = 14.sp,
+                    modifier = Modifier.padding(vertical = 20.dp)
+                )
+            } else {
+                LazyColumn(
+                    modifier = Modifier.fillMaxWidth().heightIn(max = 350.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    items(userPlaylists.size) { idx ->
+                        val p = userPlaylists[idx]
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(Color(0xFF261F1D))
+                                .clickable {
+                                    onPlaylistSelect(p)
+                                }
+                                .padding(12.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(42.dp)
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .background(Color(0xFF332A27)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                if (p.artworkUrl.isNotEmpty()) {
+                                    AsyncImage(
+                                        model = p.artworkUrl,
+                                        contentDescription = null,
+                                        modifier = Modifier.fillMaxSize(),
+                                        contentScale = ContentScale.Crop
+                                    )
+                                } else {
+                                    Icon(
+                                        imageVector = Icons.Rounded.MusicNote,
+                                        contentDescription = null,
+                                        tint = Color(0xFFF2A385),
+                                        modifier = Modifier.size(22.dp)
+                                    )
+                                }
+                            }
+                            Spacer(modifier = Modifier.width(14.dp))
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = p.name,
+                                    color = Color.White,
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                                Text(
+                                    text = p.owner,
+                                    color = Color(0xFF9E948E),
+                                    fontSize = 12.sp,
+                                    maxLines = 1
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+            Spacer(modifier = Modifier.height(24.dp))
+        }
+    }
 }

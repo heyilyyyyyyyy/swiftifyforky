@@ -289,4 +289,211 @@ object SpotifyApi {
         }
         return list
     }
+
+    suspend fun getCurrentUser(context: Context): Pair<String, String>? = withContext(Dispatchers.IO) {
+        var token = getValidToken(context)
+        if (token.isNullOrEmpty()) return@withContext null
+
+        for (attempt in 0..1) {
+            try {
+                val url = URL("https://api.spotify.com/v1/me")
+                val conn = url.openConnection() as HttpURLConnection
+                conn.connectTimeout = 8000
+                conn.readTimeout = 8000
+                conn.setRequestProperty("Authorization", "Bearer $token")
+                val code = conn.responseCode
+                if (code in 200..299) {
+                    val text = conn.inputStream.bufferedReader().readText()
+                    conn.disconnect()
+                    val obj = JSONObject(text)
+                    val id = obj.optString("id")
+                    val name = obj.optString("display_name", id)
+                    return@withContext Pair(id, name)
+                } else if (code == 401 && attempt == 0) {
+                    conn.disconnect()
+                    token = getValidToken(context, forceRefresh = true)
+                    continue
+                }
+                conn.disconnect()
+            } catch (e: Exception) {
+                Log.e(TAG, "getCurrentUser error: ${e.message}")
+            }
+            break
+        }
+        return@withContext null
+    }
+
+    suspend fun createPlaylist(context: Context, name: String, description: String = ""): PlaylistItem? = withContext(Dispatchers.IO) {
+        val trimmed = name.trim()
+        if (trimmed.isEmpty()) return@withContext null
+
+        var token = getValidToken(context)
+        if (token.isNullOrEmpty()) return@withContext null
+
+        val payload = JSONObject().apply {
+            put("name", trimmed)
+            put("description", description.trim())
+            put("public", false)
+        }.toString()
+
+        for (attempt in 0..1) {
+            try {
+                val url = URL("https://api.spotify.com/v1/me/playlists")
+                val conn = url.openConnection() as HttpURLConnection
+                conn.connectTimeout = 8000
+                conn.readTimeout = 8000
+                conn.requestMethod = "POST"
+                conn.setRequestProperty("Authorization", "Bearer $token")
+                conn.setRequestProperty("Content-Type", "application/json; charset=UTF-8")
+                conn.doOutput = true
+                conn.outputStream.write(payload.toByteArray(Charsets.UTF_8))
+                val code = conn.responseCode
+                Log.d(TAG, "createPlaylist '$trimmed' -> HTTP $code")
+                if (code in 200..299) {
+                    val res = conn.inputStream.bufferedReader().readText()
+                    conn.disconnect()
+                    val obj = JSONObject(res)
+                    val pName = obj.optString("name", trimmed)
+                    val pUri = obj.optString("uri", "")
+                    val ownerObj = obj.optJSONObject("owner")
+                    val owner = ownerObj?.optString("display_name", "You") ?: "You"
+                    val images = obj.optJSONArray("images")
+                    val artUrl = getBestArtworkUrl(images)
+                    if (pUri.isNotEmpty()) {
+                        return@withContext PlaylistItem(pName, owner, artUrl, pUri)
+                    }
+                } else if (code == 401 && attempt == 0) {
+                    conn.disconnect()
+                    token = getValidToken(context, forceRefresh = true)
+                    continue
+                }
+                conn.disconnect()
+            } catch (e: Exception) {
+                Log.e(TAG, "createPlaylist error", e)
+            }
+            break
+        }
+        return@withContext null
+    }
+
+    suspend fun addTrackToPlaylist(context: Context, playlistUri: String, trackUri: String): Boolean = withContext(Dispatchers.IO) {
+        val cleanId = playlistUri.removePrefix("spotify:playlist:").trim()
+        if (cleanId.isEmpty() || trackUri.isEmpty()) return@withContext false
+
+        var token = getValidToken(context)
+        if (token.isNullOrEmpty()) return@withContext false
+
+        val payload = JSONObject().apply {
+            val arr = JSONArray()
+            arr.put(trackUri)
+            put("uris", arr)
+        }.toString()
+
+        for (attempt in 0..1) {
+            try {
+                val url = URL("https://api.spotify.com/v1/playlists/$cleanId/tracks")
+                val conn = url.openConnection() as HttpURLConnection
+                conn.connectTimeout = 8000
+                conn.readTimeout = 8000
+                conn.requestMethod = "POST"
+                conn.setRequestProperty("Authorization", "Bearer $token")
+                conn.setRequestProperty("Content-Type", "application/json; charset=UTF-8")
+                conn.doOutput = true
+                conn.outputStream.write(payload.toByteArray(Charsets.UTF_8))
+                val code = conn.responseCode
+                Log.d(TAG, "addTrackToPlaylist $cleanId track=$trackUri -> HTTP $code")
+                if (code in 200..299) {
+                    conn.disconnect()
+                    return@withContext true
+                } else if (code == 401 && attempt == 0) {
+                    conn.disconnect()
+                    token = getValidToken(context, forceRefresh = true)
+                    continue
+                }
+                conn.disconnect()
+            } catch (e: Exception) {
+                Log.e(TAG, "addTrackToPlaylist error", e)
+            }
+            break
+        }
+        return@withContext false
+    }
+
+    suspend fun removeTrackFromPlaylist(context: Context, playlistUri: String, trackUri: String): Boolean = withContext(Dispatchers.IO) {
+        val cleanId = playlistUri.removePrefix("spotify:playlist:").trim()
+        if (cleanId.isEmpty() || trackUri.isEmpty()) return@withContext false
+
+        var token = getValidToken(context)
+        if (token.isNullOrEmpty()) return@withContext false
+
+        val payload = JSONObject().apply {
+            val arr = JSONArray()
+            arr.put(JSONObject().apply { put("uri", trackUri) })
+            put("tracks", arr)
+        }.toString()
+
+        for (attempt in 0..1) {
+            try {
+                val url = URL("https://api.spotify.com/v1/playlists/$cleanId/tracks")
+                val conn = url.openConnection() as HttpURLConnection
+                conn.connectTimeout = 8000
+                conn.readTimeout = 8000
+                conn.requestMethod = "DELETE"
+                conn.setRequestProperty("Authorization", "Bearer $token")
+                conn.setRequestProperty("Content-Type", "application/json; charset=UTF-8")
+                conn.doOutput = true
+                conn.outputStream.write(payload.toByteArray(Charsets.UTF_8))
+                val code = conn.responseCode
+                Log.d(TAG, "removeTrackFromPlaylist $cleanId track=$trackUri -> HTTP $code")
+                if (code in 200..299) {
+                    conn.disconnect()
+                    return@withContext true
+                } else if (code == 401 && attempt == 0) {
+                    conn.disconnect()
+                    token = getValidToken(context, forceRefresh = true)
+                    continue
+                }
+                conn.disconnect()
+            } catch (e: Exception) {
+                Log.e(TAG, "removeTrackFromPlaylist error", e)
+            }
+            break
+        }
+        return@withContext false
+    }
+
+    suspend fun deletePlaylist(context: Context, playlistUri: String): Boolean = withContext(Dispatchers.IO) {
+        val cleanId = playlistUri.removePrefix("spotify:playlist:").trim()
+        if (cleanId.isEmpty()) return@withContext false
+
+        var token = getValidToken(context)
+        if (token.isNullOrEmpty()) return@withContext false
+
+        for (attempt in 0..1) {
+            try {
+                // In Spotify Web API, unfollowing removes a playlist from user's library / deletes owned playlist
+                val url = URL("https://api.spotify.com/v1/playlists/$cleanId/followers")
+                val conn = url.openConnection() as HttpURLConnection
+                conn.connectTimeout = 8000
+                conn.readTimeout = 8000
+                conn.requestMethod = "DELETE"
+                conn.setRequestProperty("Authorization", "Bearer $token")
+                val code = conn.responseCode
+                Log.d(TAG, "deletePlaylist $cleanId -> HTTP $code")
+                if (code in 200..299) {
+                    conn.disconnect()
+                    return@withContext true
+                } else if (code == 401 && attempt == 0) {
+                    conn.disconnect()
+                    token = getValidToken(context, forceRefresh = true)
+                    continue
+                }
+                conn.disconnect()
+            } catch (e: Exception) {
+                Log.e(TAG, "deletePlaylist error", e)
+            }
+            break
+        }
+        return@withContext false
+    }
 }

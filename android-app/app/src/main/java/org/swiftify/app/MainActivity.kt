@@ -8,6 +8,7 @@ import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.util.Log
+import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.browser.customtabs.CustomTabsIntent
@@ -158,7 +159,8 @@ class MainActivity : ComponentActivity() {
     private val accessTokenState = mutableStateOf<String?>(null)
     private val tracksState = mutableStateListOf<TrackItem>()
     private val playlistQueue = mutableListOf<TrackItem>()
-    private val customQueue = mutableListOf<TrackItem>()
+    private val customQueue = mutableStateListOf<TrackItem>()
+    private val queueContextName = mutableStateOf("Swiftify")
     private var currentPlaylistIndex: Int = 0
     private val userPlaylistsState = mutableStateListOf<PlaylistItem>()
     private val currentTrackIndex = mutableIntStateOf(0)
@@ -308,7 +310,15 @@ class MainActivity : ComponentActivity() {
                             crossfadeEnabled.value = enabled
                             crossfadeSeconds.intValue = secs
                             preloadUpcomingTrack()
-                        }
+                        },
+                        customQueue = customQueue,
+                        onRemoveFromCustomQueue = { idx -> removeFromCustomQueue(idx) },
+                        onClearCustomQueue = { clearCustomQueue() },
+                        queueContextName = queueContextName.value,
+                        onCreatePlaylist = { n, d -> createPlaylist(n, d) },
+                        onDeletePlaylist = { p -> deletePlaylist(p) },
+                        onAddTrackToPlaylist = { p, t -> addTrackToPlaylist(p, t) },
+                        onRemoveTrackFromPlaylist = { p, t -> removeTrackFromPlaylist(p, t) }
                     )
                 }
             }
@@ -795,8 +805,75 @@ class MainActivity : ComponentActivity() {
         Log.d("Queue", "Added '${item.title}' to custom queue (total: ${customQueue.size})")
     }
 
-    private fun playTrackItem(item: TrackItem, queueContext: List<TrackItem>? = null) {
+    private fun removeFromCustomQueue(index: Int) {
+        if (index in customQueue.indices) {
+            val removed = customQueue.removeAt(index)
+            syncVisibleQueue()
+            preloadUpcomingTrack()
+            Log.d("Queue", "Removed '${removed.title}' from custom queue")
+        }
+    }
+
+    private fun clearCustomQueue() {
+        customQueue.clear()
+        syncVisibleQueue()
+        preloadUpcomingTrack()
+        Log.d("Queue", "Cleared custom queue")
+    }
+
+    private fun createPlaylist(name: String, description: String) {
+        scope.launch {
+            val newPl = SpotifyApi.createPlaylist(this@MainActivity, name, description)
+            if (newPl != null) {
+                userPlaylistsState.add(0, newPl)
+                Toast.makeText(this@MainActivity, "Created playlist '${newPl.name}'", Toast.LENGTH_SHORT).show()
+            } else {
+                Toast.makeText(this@MainActivity, "Failed to create playlist", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
+    private fun deletePlaylist(playlist: PlaylistItem) {
+        scope.launch {
+            val ok = SpotifyApi.deletePlaylist(this@MainActivity, playlist.uri)
+            if (ok) {
+                userPlaylistsState.removeAll { it.uri == playlist.uri }
+                Toast.makeText(this@MainActivity, "Deleted playlist '${playlist.name}'", Toast.LENGTH_SHORT).show()
+            } else {
+                Toast.makeText(this@MainActivity, "Failed to delete playlist", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
+    private fun addTrackToPlaylist(playlist: PlaylistItem, track: TrackItem) {
+        scope.launch {
+            val ok = SpotifyApi.addTrackToPlaylist(this@MainActivity, playlist.uri, track.uri)
+            if (ok) {
+                Toast.makeText(this@MainActivity, "Added '${track.title}' to ${playlist.name}", Toast.LENGTH_SHORT).show()
+            } else {
+                Toast.makeText(this@MainActivity, "Failed to add track to playlist", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
+    private fun removeTrackFromPlaylist(playlist: PlaylistItem, track: TrackItem) {
+        scope.launch {
+            val ok = SpotifyApi.removeTrackFromPlaylist(this@MainActivity, playlist.uri, track.uri)
+            if (ok) {
+                Toast.makeText(this@MainActivity, "Removed '${track.title}' from ${playlist.name}", Toast.LENGTH_SHORT).show()
+            } else {
+                Toast.makeText(this@MainActivity, "Failed to remove track from playlist", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
+    private fun playTrackItem(item: TrackItem, queueContext: List<TrackItem>? = null, contextName: String? = null) {
         stopAtEndOfQueue.value = false
+        if (!contextName.isNullOrEmpty()) {
+            queueContextName.value = contextName
+        } else if (item.album.isNotEmpty()) {
+            queueContextName.value = item.album
+        }
         if (!queueContext.isNullOrEmpty()) {
             playlistQueue.clear()
             playlistQueue.addAll(queueContext)
@@ -995,7 +1072,15 @@ fun SwiftifyApp(
     repeatMode: Int = 0,
     onToggleShuffle: () -> Unit = {},
     onToggleRepeat: () -> Unit = {},
-    onCrossfadeChanged: ((Boolean, Int) -> Unit)? = null
+    onCrossfadeChanged: ((Boolean, Int) -> Unit)? = null,
+    customQueue: List<TrackItem> = emptyList(),
+    onRemoveFromCustomQueue: ((Int) -> Unit)? = null,
+    onClearCustomQueue: (() -> Unit)? = null,
+    queueContextName: String = "Swiftify",
+    onCreatePlaylist: ((String, String) -> Unit)? = null,
+    onDeletePlaylist: ((PlaylistItem) -> Unit)? = null,
+    onAddTrackToPlaylist: ((PlaylistItem, TrackItem) -> Unit)? = null,
+    onRemoveTrackFromPlaylist: ((PlaylistItem, TrackItem) -> Unit)? = null
 ) {
     var selectedTab by remember { mutableIntStateOf(0) }
     var isPlayerExpanded by remember { mutableStateOf(false) }
@@ -1334,7 +1419,14 @@ val openArtistScreen: (String, String) -> Unit = { artName, artUri ->
                         },
                         onAddToQueue = onAddToQueue,
                         onTrackTitleClick = { track -> openAlbumByTrack(track) },
-                        onArtistClick = { artistName -> openArtistScreen(artistName, "") }
+                        onArtistClick = { artistName -> openArtistScreen(artistName, "") },
+                        userPlaylists = userPlaylists,
+                        onDeletePlaylist = { p ->
+                            activePlaylist = null
+                            onDeletePlaylist?.invoke(p)
+                        },
+                        onAddTrackToPlaylist = onAddTrackToPlaylist,
+                        onRemoveTrackFromPlaylist = onRemoveTrackFromPlaylist
                     )
                 } else if (showAllPlaylists) {
                     AllPlaylistsScreen(
@@ -1346,7 +1438,8 @@ val openArtistScreen: (String, String) -> Unit = { artName, artUri ->
                         onPlaylistClick = {
                             openedFromAllPlaylists = true
                             activePlaylist = it
-                        }
+                        },
+                        onCreatePlaylist = onCreatePlaylist
                     )
                 } else {
                     when (selectedTab) {
@@ -1421,7 +1514,11 @@ val openArtistScreen: (String, String) -> Unit = { artName, artUri ->
                     isShuffle = isShuffle,
                     repeatMode = repeatMode,
                     onToggleShuffle = onToggleShuffle,
-                    onToggleRepeat = onToggleRepeat
+                    onToggleRepeat = onToggleRepeat,
+                    customQueue = customQueue,
+                    onRemoveFromCustomQueue = onRemoveFromCustomQueue,
+                    onClearCustomQueue = onClearCustomQueue,
+                    queueContextName = queueContextName
                 )
             }
 
