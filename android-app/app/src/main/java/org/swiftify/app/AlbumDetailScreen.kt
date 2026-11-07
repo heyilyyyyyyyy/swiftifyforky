@@ -2,6 +2,9 @@ package org.swiftify.app
 
 import android.content.Context
 import android.widget.Toast
+import kotlinx.coroutines.launch
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.spring
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.Orientation
@@ -53,6 +56,7 @@ fun AlbumDetailScreen(
     var albumYear by remember { mutableStateOf(0) }
     var artworkUrl by remember { mutableStateOf(initialArtworkUrl) }
     val albumTracks = remember { mutableStateListOf<TrackItem>() }
+    val coroutineScope = rememberCoroutineScope()
     var isLoading by remember { mutableStateOf(true) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
 
@@ -261,42 +265,60 @@ fun AlbumDetailScreen(
             itemsIndexed(albumTracks) { idx, track ->
                 val isCurrent = livePlayingTrack?.uri == track.uri
                 val context = LocalContext.current
-                var offsetX by remember { mutableStateOf(0f) }
+                val offsetX = remember { Animatable(0f) }
 
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clip(RoundedCornerShape(12.dp))
-                        .background(if (isCurrent) Color(0x33F2A385) else Color.Transparent)
+                        .clip(RoundedCornerShape(14.dp))
+                        .background(Color(0xFF231C1A))
                 ) {
-                    // Swipe hint
-                    if (offsetX > 20f) {
+                    if (offsetX.value > 10f) {
                         Row(
                             modifier = Modifier
                                 .matchParentSize()
-                                .background(Color(0xFF2C221E))
+                                .background(Color(0xFF2B201C))
                                 .padding(start = 16.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Text("➕ Add to Queue", color = Color(0xFFF2A385), fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                            Icon(
+                                imageVector = Icons.Rounded.QueueMusic,
+                                contentDescription = null,
+                                tint = Color(0xFFF2A385),
+                                modifier = Modifier.size(20.dp)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = if (offsetX.value > 110f) "Add to Queue" else "Swipe to queue",
+                                color = Color(0xFFF2A385),
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Bold
+                            )
                         }
                     }
 
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .offset { IntOffset(offsetX.roundToInt(), 0) }
+                            .offset { IntOffset(offsetX.value.roundToInt(), 0) }
+                            .shadow(if (offsetX.value > 5f) 8.dp else 0.dp, RoundedCornerShape(14.dp))
+                            .clip(RoundedCornerShape(14.dp))
+                            .background(if (isCurrent) Color(0xFF281E1B) else Color(0xFF13100E))
                             .draggable(
                                 orientation = Orientation.Horizontal,
                                 state = rememberDraggableState { delta ->
-                                    offsetX = (offsetX + delta).coerceIn(0f, 250f)
+                                    coroutineScope.launch {
+                                        offsetX.snapTo((offsetX.value + delta).coerceIn(0f, 240f))
+                                    }
                                 },
                                 onDragStopped = {
-                                    if (offsetX > 120f) {
+                                    if (offsetX.value > 110f) {
                                         onAddToQueue?.invoke(track)
                                         Toast.makeText(context, "Added '${track.title}' to queue", Toast.LENGTH_SHORT).show()
                                     }
-                                    offsetX = 0f
+                                    coroutineScope.launch {
+                                        offsetX.animateTo(0f, spring(dampingRatio = 0.7f, stiffness = 600f))
+                                    }
                                 }
                             )
                             .clickable { onTrackSelect(track, albumTracks) }
