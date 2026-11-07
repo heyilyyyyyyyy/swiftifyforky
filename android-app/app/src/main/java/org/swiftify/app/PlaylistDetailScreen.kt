@@ -677,16 +677,15 @@ fun PlaylistDetailScreen(
                 val isTrackSaved = savedTrackUris.value.contains(track.uri)
 
                 Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .background(MaterialTheme.colorScheme.surfaceContainerHigh, RoundedCornerShape(8.dp))
+                    modifier = Modifier.fillMaxWidth()
                 ) {
                     // Background revealed when swiping right
                     if (showSwipeHint) {
                         Row(
                             modifier = Modifier
                                 .matchParentSize()
-                                .background(MaterialTheme.colorScheme.surfaceContainerHighest, RoundedCornerShape(8.dp))
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(MaterialTheme.colorScheme.surfaceContainerHighest)
                                 .padding(start = 16.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
@@ -706,14 +705,18 @@ fun PlaylistDetailScreen(
                         }
                     }
 
-                    // Foreground song card (opaque background so text never overlaps!)
+                    // Foreground song card (clipped to rounded corners, transparent at rest)
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
                             .offset { IntOffset(offsetX.roundToInt(), 0) }
+                            .clip(RoundedCornerShape(8.dp))
                             .background(
-                                if (isCurrent) MaterialTheme.colorScheme.primary.copy(alpha = 0.12f) else MaterialTheme.colorScheme.surfaceContainerLow,
-                                RoundedCornerShape(8.dp)
+                                when {
+                                    isCurrent -> MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)
+                                    showSwipeHint -> MaterialTheme.colorScheme.background
+                                    else -> Color.Transparent
+                                }
                             )
                             .clickable {
                                 if (offsetX == 0f) {

@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.animation.core.animateFloatAsState
@@ -544,7 +545,7 @@ fun StyledBackButton(
             .size(38.dp)
             .scale(scale)
             .clip(androidx.compose.foundation.shape.RoundedCornerShape(14.dp))
-            .background(Color(0xFF261F1C))
+            .background(MaterialTheme.colorScheme.surfaceContainerHigh)
             .clickable(
                 interactionSource = interactionSource,
                 indication = null,
@@ -556,7 +557,7 @@ fun StyledBackButton(
         Icon(
             imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
             contentDescription = "Back",
-            tint = Color.White,
+            tint = MaterialTheme.colorScheme.onSurface,
             modifier = Modifier.size(20.dp)
         )
     }

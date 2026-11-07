@@ -2169,8 +2169,8 @@ fun HomeScreen(
             Box(
                 modifier = Modifier
                     .weight(1f)
-                    .clip(RoundedCornerShape(18.dp))
-                    .background(Color(0xFF26201E))
+                    .clip(RoundedCornerShape(17.dp))
+                    .background(MaterialTheme.colorScheme.surfaceContainerHigh)
                     .clickable {
                         onPlaylistClick(
                             PlaylistItem(
@@ -2194,15 +2194,20 @@ fun HomeScreen(
                     )
                     Spacer(modifier = Modifier.width(10.dp))
                     Column(modifier = Modifier.weight(1f)) {
-                        Text(stringResource(R.string.fav_songs), color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold, maxLines = 1)
+                        Text(stringResource(R.string.fav_songs), color = MaterialTheme.colorScheme.onSurface, fontSize = 13.sp, fontWeight = FontWeight.Bold, maxLines = 1)
                         Text(
                             text = if (savedTrackCount > 0) "Tracks: $savedTrackCount" else "Collection",
-                            color = Color(0xFF9E948E),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
                             fontSize = 11.sp,
                             maxLines = 1
                         )
                     }
-                    Text("›", color = Color(0xFF8F8580), fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                    Icon(
+                        imageVector = Icons.Rounded.ChevronRight,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(18.dp)
+                    )
                 }
             }
 
@@ -2210,8 +2215,8 @@ fun HomeScreen(
             Box(
                 modifier = Modifier
                     .weight(1f)
-                    .clip(RoundedCornerShape(18.dp))
-                    .background(Color(0xFF26201E))
+                    .clip(RoundedCornerShape(17.dp))
+                    .background(MaterialTheme.colorScheme.surfaceContainerHigh)
                     .clickable { onSeeAllPlaylists() }
                     .padding(12.dp)
             ) {
@@ -2226,11 +2231,16 @@ fun HomeScreen(
                     )
                     Spacer(modifier = Modifier.width(10.dp))
                     Column(modifier = Modifier.weight(1f)) {
-                        Text(stringResource(R.string.your_playlists), color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold, maxLines = 1)
+                        Text(stringResource(R.string.your_playlists), color = MaterialTheme.colorScheme.onSurface, fontSize = 13.sp, fontWeight = FontWeight.Bold, maxLines = 1)
                         val count = if (userPlaylists.isNotEmpty()) userPlaylists.size else 5
-                        Text("Collections: $count", color = Color(0xFF9E948E), fontSize = 11.sp, maxLines = 1)
+                        Text("Collections: $count", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 11.sp, maxLines = 1)
                     }
-                    Text("›", color = Color(0xFF8F8580), fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                    Icon(
+                        imageVector = Icons.Rounded.ChevronRight,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(18.dp)
+                    )
                 }
             }
         }
@@ -2329,7 +2339,12 @@ fun HomeScreen(
         LazyRow(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
             itemsIndexed(tracks) { index, track ->
                 val isCurrent = (livePlayingTrack != null && livePlayingTrack.uri == track.uri) || (livePlayingTrack == null && index == currentTrackIndex)
-                Column(modifier = Modifier.width(136.dp).clickable { onTrackClick(index) }) {
+                Column(
+                    modifier = Modifier
+                        .width(136.dp)
+                        .clip(RoundedCornerShape(12.dp))
+                        .clickable { onTrackClick(index) }
+                ) {
                     Box(
                         modifier = Modifier
                             .size(136.dp)

@@ -287,15 +287,14 @@ fun AlbumDetailScreen(
                 val swipeArmed by remember { derivedStateOf { offsetX > 110f } }
 
                 Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .background(MaterialTheme.colorScheme.surfaceContainerHigh, RoundedCornerShape(8.dp))
+                    modifier = Modifier.fillMaxWidth()
                 ) {
                     if (offsetX > 10f) {
                         Row(
                             modifier = Modifier
                                 .matchParentSize()
-                                .background(MaterialTheme.colorScheme.surfaceContainerHighest, RoundedCornerShape(8.dp))
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(MaterialTheme.colorScheme.surfaceContainerHighest)
                                 .padding(start = 16.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
@@ -319,9 +318,13 @@ fun AlbumDetailScreen(
                         modifier = Modifier
                             .fillMaxWidth()
                             .offset { IntOffset(offsetX.roundToInt(), 0) }
+                            .clip(RoundedCornerShape(8.dp))
                             .background(
-                                if (isCurrent) MaterialTheme.colorScheme.primary.copy(alpha = 0.12f) else MaterialTheme.colorScheme.surfaceContainerLow,
-                                RoundedCornerShape(8.dp)
+                                when {
+                                    isCurrent -> MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)
+                                    offsetX > 10f -> MaterialTheme.colorScheme.background
+                                    else -> Color.Transparent
+                                }
                             )
                             .clickable {
                                 if (offsetX == 0f) {
