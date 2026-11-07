@@ -86,7 +86,7 @@ fun ArtistDetailScreen(
         try {
             val obj = JSONObject(payload)
             val av = obj.optString("avatar_url")
-            if (av.isNotEmpty()) artistAvatar = av
+            if (av.isNotEmpty() && artistAvatar.isEmpty()) artistAvatar = av
 
             // Parse top tracks
             val tracksArr = obj.optJSONArray("tracks") ?: obj.optJSONArray("items")
@@ -253,6 +253,9 @@ fun ArtistDetailScreen(
                                     Rect(pos.x, pos.y, pos.x + coords.size.width, pos.y + coords.size.height)
                                 )
                             }
+                        }
+                        .graphicsLayer {
+                            alpha = if (isHeroFlying) 0f else 1f
                         },
                     ringColor = MaterialTheme.colorScheme.primary,
                     waves = 20,

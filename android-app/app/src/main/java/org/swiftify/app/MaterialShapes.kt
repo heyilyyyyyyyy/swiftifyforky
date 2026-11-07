@@ -321,28 +321,44 @@ fun SquiggleAvatar(
     phase: Float = 0f,
     continuousRotation: Boolean = true
 ) {
+    val infiniteTransition = rememberInfiniteTransition(label = "squiggleSpin")
+    val ringAngle by infiniteTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = 360f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 20000, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "ringAngle"
+    )
+
     Box(
         modifier = modifier,
         contentAlignment = Alignment.Center
     ) {
-        // Outer Squiggle Ring
+        // Outer Squiggle Ring (rotates with ringAngle)
         SquiggleAvatarRing(
-            modifier = Modifier.fillMaxSize(),
+            modifier = Modifier
+                .fillMaxSize()
+                .graphicsLayer {
+                    if (continuousRotation) rotationZ = ringAngle
+                },
             color = ringColor,
             waves = waves,
             amplitude = amplitude,
             strokeWidth = strokeWidth,
             phase = phase,
-            continuousRotation = continuousRotation
+            continuousRotation = false
         )
 
-        // Inner Avatar image clipped to the exact wavy cloud outline
+        // Inner Avatar: container rotates with ringAngle (so its SquiggleShape wavy dimples rotate in perfect sync with the ring)
         val innerOffset = -(strokeWidth.value + gap.value)
-        coil.compose.AsyncImage(
-            model = imageUrl,
-            contentDescription = contentDescription,
+        Box(
             modifier = Modifier
                 .fillMaxSize()
+                .graphicsLayer {
+                    if (continuousRotation) rotationZ = ringAngle
+                }
                 .clip(
                     SquiggleShape(
                         waves = waves,
@@ -351,8 +367,21 @@ fun SquiggleAvatar(
                         phase = phase
                     )
                 ),
-            contentScale = ContentScale.Crop
-        )
+            contentAlignment = Alignment.Center
+        ) {
+            // Photo inside counter-rotates by -ringAngle with slight scale, keeping artist's face upright and covering all angles
+            coil.compose.AsyncImage(
+                model = imageUrl,
+                contentDescription = contentDescription,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .scale(1.1f)
+                    .graphicsLayer {
+                        if (continuousRotation) rotationZ = -ringAngle
+                    },
+                contentScale = ContentScale.Crop
+            )
+        }
     }
 }
 
