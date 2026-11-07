@@ -19,13 +19,13 @@ object SecureStorage {
     @Volatile
     private var securePrefs: SharedPreferences? = null
 
-    fun getSecurePrefs(context: Context): SharedPreferences {
+    fun getSecurePrefs(context: Context): SharedPreferences? {
         return securePrefs ?: synchronized(this) {
             securePrefs ?: initSecurePrefs(context).also { securePrefs = it }
         }
     }
 
-    private fun initSecurePrefs(context: Context): SharedPreferences {
+    private fun initSecurePrefs(context: Context): SharedPreferences? {
         val standardPrefs = context.getSharedPreferences(STANDARD_PREFS_NAME, Context.MODE_PRIVATE)
         try {
             val masterKey = MasterKey.Builder(context.applicationContext)
@@ -45,8 +45,24 @@ object SecureStorage {
             Log.d(TAG, "EncryptedSharedPreferences initialized and active ✓")
             return encrypted
         } catch (e: Exception) {
-            Log.e(TAG, "Failed to initialize EncryptedSharedPreferences, fallback to standard", e)
-            return standardPrefs
+            Log.e(TAG, "Failed to initialize EncryptedSharedPreferences, attempting clean recovery", e)
+            try {
+                // Recover from corrupted/invalidated Keystore by recreating clean encrypted store
+                context.deleteSharedPreferences(SECURE_PREFS_NAME)
+                val masterKey = MasterKey.Builder(context.applicationContext)
+                    .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
+                    .build()
+                return EncryptedSharedPreferences.create(
+                    context.applicationContext,
+                    SECURE_PREFS_NAME,
+                    masterKey,
+                    EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
+                    EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
+                )
+            } catch (recoveryEx: Exception) {
+                Log.e(TAG, "Fail-closed: Plaintext fallback rejected to protect user credentials.", recoveryEx)
+                return null
+            }
         }
     }
 
@@ -76,24 +92,24 @@ object SecureStorage {
     }
 
     fun getLoginBlob(context: Context): String? =
-        getSecurePrefs(context).getString(KEY_LOGIN_BLOB, null)
+        getSecurePrefs(context)?.getString(KEY_LOGIN_BLOB, null)
 
     fun setLoginBlob(context: Context, blob: String) {
-        getSecurePrefs(context).edit().putString(KEY_LOGIN_BLOB, blob).apply()
+        getSecurePrefs(context)?.edit()?.putString(KEY_LOGIN_BLOB, blob)?.apply()
     }
 
     fun getAccessToken(context: Context): String? =
-        getSecurePrefs(context).getString(KEY_ACCESS_TOKEN, null)
+        getSecurePrefs(context)?.getString(KEY_ACCESS_TOKEN, null)
 
     fun getRefreshToken(context: Context): String? =
-        getSecurePrefs(context).getString(KEY_REFRESH_TOKEN, null)
+        getSecurePrefs(context)?.getString(KEY_REFRESH_TOKEN, null)
 
     fun getTokenExpiresAt(context: Context): Long =
-        getSecurePrefs(context).getLong(KEY_TOKEN_EXPIRES_AT, 0L)
+        getSecurePrefs(context)?.getLong(KEY_TOKEN_EXPIRES_AT, 0L) ?: 0L
 
     fun saveTokens(context: Context, accessToken: String, refreshToken: String?, expiresInSeconds: Long) {
-        val editor = getSecurePrefs(context).edit()
-            .putString(KEY_ACCESS_TOKEN, accessToken)
+        val editor = getSecurePrefs(context)?.edit() ?: return
+        editor.putString(KEY_ACCESS_TOKEN, accessToken)
             .putLong(KEY_TOKEN_EXPIRES_AT, System.currentTimeMillis() + (expiresInSeconds - 60) * 1000)
         if (!refreshToken.isNullOrEmpty()) {
             editor.putString(KEY_REFRESH_TOKEN, refreshToken)
@@ -102,12 +118,12 @@ object SecureStorage {
     }
 
     fun clearAuth(context: Context) {
-        getSecurePrefs(context).edit()
-            .remove(KEY_LOGIN_BLOB)
-            .remove(KEY_ACCESS_TOKEN)
-            .remove(KEY_REFRESH_TOKEN)
-            .remove(KEY_TOKEN_EXPIRES_AT)
-            .apply()
+        getSecurePrefs(context)?.edit()
+            ?.remove(KEY_LOGIN_BLOB)
+            ?.remove(KEY_ACCESS_TOKEN)
+            ?.remove(KEY_REFRESH_TOKEN)
+            ?.remove(KEY_TOKEN_EXPIRES_AT)
+            ?.apply()
         context.getSharedPreferences(STANDARD_PREFS_NAME, Context.MODE_PRIVATE).edit()
             .remove(KEY_LOGIN_BLOB)
             .remove(KEY_ACCESS_TOKEN)

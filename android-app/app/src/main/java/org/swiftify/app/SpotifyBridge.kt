@@ -227,13 +227,15 @@ object SpotifyBridge {
         }
     }
 
-    fun setSpotifyConnect(enabled: Boolean, deviceName: String = "Swiftify") {
+    fun setSpotifyConnect(enabled: Boolean, deviceId: String) {
         coreHandle?.let { h ->
-            val err = SwiftifyCoreLib.INSTANCE.swiftify_core_set_spotify_connect(h, enabled, deviceName)
+            val err = SwiftifyCoreLib.INSTANCE.swiftify_core_set_spotify_connect(h, enabled, deviceId)
             if (err != null) {
                 val msg = err.getString(0, "UTF-8")
                 SwiftifyCoreLib.INSTANCE.swiftify_string_free(err)
                 Log.w(TAG, "setSpotifyConnect error: $msg")
+            } else {
+                Log.d(TAG, "setSpotifyConnect(enabled=$enabled, deviceId=$deviceId) applied ✓")
             }
         }
     }

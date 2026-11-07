@@ -340,7 +340,7 @@ class MainActivity : ComponentActivity() {
                         onConnectToggle = { v ->
                             connectEnabled.value = v
                             prefs.edit().putBoolean("spotify_connect_enabled", v).apply()
-                            SpotifyBridge.setSpotifyConnect(v, devName)
+                            SpotifyBridge.setSpotifyConnect(v, getSpotifyDeviceId())
                         },
                         onSetStopAtEnd = { stopAtEndOfQueue.value = it },
                         isShuffle = isShuffle.value,
@@ -373,6 +373,9 @@ class MainActivity : ComponentActivity() {
         val storedLogin = SecureStorage.getLoginBlob(this)
         val storedToken = SecureStorage.getAccessToken(this)
         accessTokenState.value = storedToken
+        SpotifyApi.onTokenUpdated = { token ->
+            accessTokenState.value = token
+        }
         refreshAccessToken()
 
         if (storedLogin != null) {
@@ -385,49 +388,17 @@ class MainActivity : ComponentActivity() {
             SpotifyBridge.connect(storedToken)
         } else {
             authState.value = AuthState.LoggedOut
-            loadSampleTracks()
         }
     }
 
     fun refreshAccessToken(force: Boolean = false, onComplete: ((String?) -> Unit)? = null) {
-        val refreshToken = SecureStorage.getRefreshToken(this)
-        if (refreshToken.isNullOrEmpty()) {
-            onComplete?.invoke(accessTokenState.value)
-            return
-        }
-        val expiresAt = SecureStorage.getTokenExpiresAt(this)
-        if (!force && System.currentTimeMillis() < expiresAt) {
-            onComplete?.invoke(accessTokenState.value)
-            return
-        }
-        scope.launch(Dispatchers.IO) {
-            try {
-                val conn = URL("https://accounts.spotify.com/api/token").openConnection() as HttpURLConnection
-                conn.requestMethod = "POST"
-                conn.setRequestProperty("Content-Type", "application/x-www-form-urlencoded")
-                conn.connectTimeout = 10000
-                conn.readTimeout = 10000
-                conn.doOutput = true
-                val body = "grant_type=refresh_token&refresh_token=${Uri.encode(refreshToken)}&client_id=$CLIENT_ID"
-                conn.outputStream.write(body.toByteArray())
-                if (conn.responseCode in 200..299) {
-                    val res = conn.inputStream.bufferedReader().readText()
-                    val json = JSONObject(res)
-                    val newToken = json.getString("access_token")
-                    val newRefresh = json.optString("refresh_token")
-                    val expiresIn = json.optLong("expires_in", 3600L)
-                    SecureStorage.saveTokens(this@MainActivity, newToken, newRefresh, expiresIn)
-                    withContext(Dispatchers.Main) {
-                        accessTokenState.value = newToken
-                        onComplete?.invoke(newToken)
-                    }
-                } else {
-                    withContext(Dispatchers.Main) { onComplete?.invoke(accessTokenState.value) }
+        scope.launch {
+            val token = SpotifyApi.getValidToken(this@MainActivity, forceRefresh = force)
+            withContext(Dispatchers.Main) {
+                if (token != null) {
+                    accessTokenState.value = token
                 }
-                conn.disconnect()
-            } catch (e: Exception) {
-                Log.e("Auth", "Token refresh error", e)
-                withContext(Dispatchers.Main) { onComplete?.invoke(accessTokenState.value) }
+                onComplete?.invoke(token)
             }
         }
     }
@@ -485,13 +456,24 @@ class MainActivity : ComponentActivity() {
                 val uri = Uri.parse("http://127.0.0.1$urlPart")
                 val code = uri.getQueryParameter("code")
                 val error = uri.getQueryParameter("error")
+                val returnedState = uri.getQueryParameter("state")
+                val isStateValid = returnedState != null && returnedState == oauthStateParam
 
-                val responseHtml = """
+                val responseHtml = if (isStateValid && code != null) {
+                    """
                     <!doctype html><html><head><meta charset="utf-8">
                     <title>Swiftify</title>
                     <style>body{font-family:sans-serif;background:#161413;color:#fff;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;text-align:center;}h2{color:#F2A385;}</style>
                     </head><body><div><h2>✓ Signed In to Swiftify!</h2><p>You can return to the Swiftify app now.</p></div></body></html>
-                """.trimIndent()
+                    """.trimIndent()
+                } else {
+                    """
+                    <!doctype html><html><head><meta charset="utf-8">
+                    <title>Swiftify</title>
+                    <style>body{font-family:sans-serif;background:#161413;color:#fff;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;text-align:center;}h2{color:#FF6B6B;}</style>
+                    </head><body><div><h2>✕ Authentication Failed</h2><p>${if (!isStateValid) "Invalid security state (CSRF verification failed)" else (error ?: "Cancelled")}</p></div></body></html>
+                    """.trimIndent()
+                }
 
                 val responseBytes = responseHtml.toByteArray(Charsets.UTF_8)
                 val out = socket.getOutputStream()
@@ -505,8 +487,13 @@ class MainActivity : ComponentActivity() {
                 server.close()
 
                 withContext(Dispatchers.Main) {
-                    if (code != null) {
-                        Log.d("AuthServer", "Captured authorization code!")
+                    if (!isStateValid) {
+                        Log.e("AuthServer", "Auth failed: state mismatch (expected $oauthStateParam, got $returnedState)")
+                        authState.value = AuthState.LoggedOut
+                        statusMsg.value = "Security error: invalid OAuth state parameter"
+                        Toast.makeText(this@MainActivity, "Authentication rejected: invalid state", Toast.LENGTH_LONG).show()
+                    } else if (code != null) {
+                        Log.d("AuthServer", "Captured authorization code with validated CSRF state ✓")
                         statusMsg.value = "Exchanging code for token..."
                         scope.launch { exchangeCodeForToken(code) }
                     } else {
@@ -569,8 +556,8 @@ class MainActivity : ComponentActivity() {
             SecureStorage.setLoginBlob(this@MainActivity, loginBlob)
             authState.value = AuthState.LoggedIn
             statusMsg.value = "Connected to Spotify ✓"
-            // Enable Spotify Connect now that session is authenticated
-            SpotifyBridge.setSpotifyConnect(connectEnabled.value, getDeviceName())
+            // Enable Spotify Connect with persistent unique device ID
+            SpotifyBridge.setSpotifyConnect(connectEnabled.value, getSpotifyDeviceId())
             startPlaybackTicker()
             scope.launch {
                 loadRecentlyPlayed()
@@ -579,9 +566,20 @@ class MainActivity : ComponentActivity() {
         }
         SpotifyBridge.onConnectError = { error ->
             Log.e("Auth", "Core connect error: $error")
-            SecureStorage.clearAuth(this@MainActivity)
-            authState.value = AuthState.LoggedOut
-            statusMsg.value = "Session error: $error"
+            val isCredentialError = error.contains("BadCredentials", ignoreCase = true) ||
+                    error.contains("InvalidCredentials", ignoreCase = true) ||
+                    error.contains("UserNotAllowed", ignoreCase = true)
+            if (isCredentialError) {
+                SecureStorage.clearAuth(this@MainActivity)
+                authState.value = AuthState.LoggedOut
+                statusMsg.value = "Session error: $error"
+            } else {
+                // Transient network failure or offline mode: preserve user credentials!
+                statusMsg.value = "Connection error: $error"
+                if (authState.value == AuthState.Connecting) {
+                    authState.value = AuthState.LoggedOut
+                }
+            }
         }
         SpotifyBridge.onPlayTrackError = { error ->
             Log.e("Playback", "Play track error: $error")
@@ -616,16 +614,22 @@ class MainActivity : ComponentActivity() {
                             val crossMs = crossfadeSeconds.intValue * 1000L
                             if (pos >= dur - crossMs && pos < dur) {
                                 val upcoming = getUpcomingTrack()
-                                if (upcoming != null) {
+                                if (upcoming != null && upcoming.uri != lastCrossfadeTriggeredUri) {
                                     isCrossfading.value = true
+                                    lastCrossfadeTriggeredUri = upcoming.uri
                                     Log.d("Playback", "Crossfade threshold reached! Overlapping with '${upcoming.title}' (${crossMs}ms)")
-                                    SpotifyBridge.crossfadeTrack(upcoming.uri, crossMs)
-                                    advanceUpcomingState(upcoming)
+                                    try {
+                                        SpotifyBridge.crossfadeTrack(upcoming.uri, crossMs)
+                                        advanceUpcomingState(upcoming)
+                                    } catch (e: Exception) {
+                                        Log.e("Playback", "Crossfade error, resetting flag", e)
+                                        isCrossfading.value = false
+                                    }
                                 }
                             }
                         }
 
-                        syncPlaybackServiceNotification(pos, dur)
+                        syncPlaybackServiceNotification(pos, dur, force = false)
                     }
                 }
                 delay(pollDelay)
@@ -635,7 +639,7 @@ class MainActivity : ComponentActivity() {
 
     private suspend fun loadRecentlyPlayed() {
         try {
-            val token = prefs.getString(KEY_ACCESS_TOKEN, null) ?: return
+            val token = SpotifyApi.getValidToken(this@MainActivity) ?: return
             val tracks = withContext(Dispatchers.IO) {
                 val conn = URL("https://api.spotify.com/v1/me/player/recently-played?limit=20")
                     .openConnection() as HttpURLConnection
@@ -645,8 +649,21 @@ class MainActivity : ComponentActivity() {
                 val code = conn.responseCode
                 if (code == 401) {
                     conn.disconnect()
-                    refreshAccessToken(force = true)
-                    return@withContext emptyList<TrackItem>()
+                    val refreshedToken = SpotifyApi.getValidToken(this@MainActivity, forceRefresh = true)
+                    if (refreshedToken == null) return@withContext emptyList<TrackItem>()
+                    val retryConn = URL("https://api.spotify.com/v1/me/player/recently-played?limit=20")
+                        .openConnection() as HttpURLConnection
+                    retryConn.connectTimeout = 8000
+                    retryConn.readTimeout = 8000
+                    retryConn.setRequestProperty("Authorization", "Bearer $refreshedToken")
+                    if (retryConn.responseCode !in 200..299) {
+                        retryConn.disconnect()
+                        return@withContext emptyList<TrackItem>()
+                    }
+                    val retryJson = JSONObject(retryConn.inputStream.bufferedReader().readText())
+                    retryConn.disconnect()
+                    val retryItems = retryJson.optJSONArray("items") ?: return@withContext emptyList<TrackItem>()
+                    return@withContext parseRecentlyPlayedItems(retryItems)
                 }
                 if (code !in 200..299) {
                     conn.disconnect()
@@ -655,57 +672,44 @@ class MainActivity : ComponentActivity() {
                 val json = JSONObject(conn.inputStream.bufferedReader().readText())
                 conn.disconnect()
                 val items = json.optJSONArray("items") ?: return@withContext emptyList<TrackItem>()
-                (0 until items.length()).mapNotNull { i ->
-                    val item = items.optJSONObject(i) ?: return@mapNotNull null
-                    val track = item.optJSONObject("track") ?: return@mapNotNull null
-                    val artistsArr = track.optJSONArray("artists")
-                    val artists = if (artistsArr != null) {
-                        (0 until artistsArr.length()).joinToString(", ") { j ->
-                            artistsArr.optJSONObject(j)?.optString("name") ?: ""
-                        }
-                    } else ""
-                    val alb = track.optJSONObject("album")
-                    val images = alb?.optJSONArray("images")
-                    val artUrl = getBestArtworkUrl(images)
-                    val albumUri = alb?.optString("uri") ?: ""
-                    val artistUri = artistsArr?.optJSONObject(0)?.optString("uri") ?: ""
-                    TrackItem(
-                        title = track.optString("name"),
-                        artist = artists,
-                        album = alb?.optString("name") ?: "",
-                        artworkUrl = artUrl,
-                        durationMs = track.optLong("duration_ms"),
-                        uri = track.optString("uri"),
-                        albumUri = albumUri,
-                        artistUri = artistUri
-                    )
-                }
+                parseRecentlyPlayedItems(items)
             }
             if (tracks.isNotEmpty()) {
                 tracksState.clear()
                 tracksState.addAll(tracks)
-                Log.d("API", "Loaded ${tracks.size} tracks from Spotify (ready, not auto-playing)")
+                Log.d("API", "Loaded ${tracks.size} recently played tracks from Spotify ✓")
             }
         } catch (e: Exception) {
             Log.e("API", "Failed to load recently played", e)
-            if (tracksState.isEmpty()) loadSampleTracks()
         }
     }
 
-    private fun loadSampleTracks() {
-        tracksState.clear()
-        tracksState.addAll(listOf(
-            TrackItem("Ключ", "Midix", "Ты любишь запах крови",
-                "https://i.scdn.co/image/ab67616d0000b27344e9d13c687469d32a9f22a8", 147000L, "spotify:track:24RuIkjSDgLFhnscvGHK9W"),
-            TrackItem("в запое", "лиззз", "дайте спиться",
-                "https://i.scdn.co/image/ab67616d0000b273101567f5c16b6398d56ef7fc", 142000L, "spotify:track:3NWAkoHf4COLmtevWzHLOs"),
-            TrackItem("intellectual greed", "brakence", "hypochondriac",
-                "https://i.scdn.co/image/ab67616d0000b273cbf54392eca47bb30303db4c", 170000L, "spotify:track:1o0hKMX2d4wIViz31dR7sG"),
-            TrackItem("Отпусти меня", "SEREBRO", "СИЛА ТРЕХ",
-                "https://i.scdn.co/image/ab67616d0000b273a2eb35c344f7bf4eb5d81c1a", 231000L, "spotify:track:6jDczq41moCrpYCxzDlCnz"),
-            TrackItem("UNCA / Composure", "glaive, kurtains", "God Save The Three",
-                "https://i.scdn.co/image/ab67616d0000b273212b26d61d694eb660bb7759", 135000L, "spotify:track:3bnfKViVyASdXa1twrMxeC")
-        ))
+    private fun parseRecentlyPlayedItems(items: org.json.JSONArray): List<TrackItem> {
+        return (0 until items.length()).mapNotNull { i ->
+            val item = items.optJSONObject(i) ?: return@mapNotNull null
+            val track = item.optJSONObject("track") ?: return@mapNotNull null
+            val artistsArr = track.optJSONArray("artists")
+            val artists = if (artistsArr != null) {
+                (0 until artistsArr.length()).joinToString(", ") { j ->
+                    artistsArr.optJSONObject(j)?.optString("name") ?: ""
+                }
+            } else ""
+            val alb = track.optJSONObject("album")
+            val images = alb?.optJSONArray("images")
+            val artUrl = getBestArtworkUrl(images)
+            val albumUri = alb?.optString("uri") ?: ""
+            val artistUri = artistsArr?.optJSONObject(0)?.optString("uri") ?: ""
+            TrackItem(
+                title = track.optString("name"),
+                artist = artists,
+                album = alb?.optString("name") ?: "",
+                artworkUrl = artUrl,
+                durationMs = track.optLong("duration_ms"),
+                uri = track.optString("uri"),
+                albumUri = albumUri,
+                artistUri = artistUri
+            )
+        }
     }
 
 
@@ -816,31 +820,51 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    private var lastNotifTrackUri: String? = null
+    private var lastNotifPlaying: Boolean? = null
+    private var lastNotifSyncTimeMs: Long = 0L
+    private var lastCrossfadeTriggeredUri: String? = null
+
     private fun playTrackInternal(item: TrackItem) {
         livePlayingTrack.value = item
         progressMs.longValue = 0L
         isPlaying.value = true
         isCrossfading.value = false
+        lastCrossfadeTriggeredUri = null
+        PlaybackQueueManager.shared.currentTrack = item
+        PlaybackQueueManager.shared.currentPlaylistIndex = currentPlaylistIndex
         ensureSessionValid()
         SpotifyBridge.playTrack(item.uri)
-        syncPlaybackServiceNotification(0L, item.durationMs)
+        syncPlaybackServiceNotification(0L, item.durationMs, force = true)
         syncVisibleQueue()
         preloadUpcomingTrack()
     }
 
-    private fun syncPlaybackServiceNotification(pos: Long = progressMs.longValue, dur: Long = 0L) {
+    private fun syncPlaybackServiceNotification(pos: Long = progressMs.longValue, dur: Long = 0L, force: Boolean = false) {
         val active = livePlayingTrack.value ?: tracksState.getOrNull(0) ?: return
         val totalDur = if (dur > 0) dur else active.durationMs
-        PlaybackService.updateNotification(
-            this,
-            active.title,
-            active.artist,
-            active.album,
-            active.artworkUrl,
-            isPlaying.value,
-            pos,
-            totalDur
-        )
+        val now = System.currentTimeMillis()
+        val trackChanged = active.uri != lastNotifTrackUri
+        val stateChanged = isPlaying.value != lastNotifPlaying
+
+        if (force || trackChanged || stateChanged) {
+            lastNotifTrackUri = active.uri
+            lastNotifPlaying = isPlaying.value
+            lastNotifSyncTimeMs = now
+            PlaybackService.updateNotification(
+                this,
+                active.title,
+                active.artist,
+                active.album,
+                active.artworkUrl,
+                isPlaying.value,
+                pos,
+                totalDur
+            )
+        } else if (now - lastNotifSyncTimeMs >= 3000L) {
+            lastNotifSyncTimeMs = now
+            PlaybackService.updatePosition(this, pos, isPlaying.value)
+        }
     }
 
     private fun advanceUpcomingState(upcoming: TrackItem) {
@@ -851,14 +875,18 @@ class MainActivity : ComponentActivity() {
         } else if (repeatMode.intValue == 1 && playlistQueue.isNotEmpty() && playlistQueue[0].uri == upcoming.uri) {
             currentPlaylistIndex = 0
         }
+        PlaybackQueueManager.shared.advanceCrossfade(upcoming)
         livePlayingTrack.value = upcoming
         progressMs.longValue = 0L
+        isCrossfading.value = false
         syncVisibleQueue()
         preloadUpcomingTrack()
+        syncPlaybackServiceNotification(0L, upcoming.durationMs, force = true)
     }
 
     private fun addToQueue(item: TrackItem) {
         customQueue.add(item)
+        PlaybackQueueManager.shared.addToCustomQueue(item)
         syncVisibleQueue()
         preloadUpcomingTrack()
         Log.d("Queue", "Added '${item.title}' to custom queue (total: ${customQueue.size})")
@@ -867,6 +895,7 @@ class MainActivity : ComponentActivity() {
     private fun removeFromCustomQueue(index: Int) {
         if (index in customQueue.indices) {
             val removed = customQueue.removeAt(index)
+            PlaybackQueueManager.shared.removeFromCustomQueue(index)
             syncVisibleQueue()
             preloadUpcomingTrack()
             Log.d("Queue", "Removed '${removed.title}' from custom queue")
@@ -875,6 +904,7 @@ class MainActivity : ComponentActivity() {
 
     private fun clearCustomQueue() {
         customQueue.clear()
+        PlaybackQueueManager.shared.clearCustomQueue()
         syncVisibleQueue()
         preloadUpcomingTrack()
         Log.d("Queue", "Cleared custom queue")
@@ -948,6 +978,11 @@ class MainActivity : ComponentActivity() {
                 playlistQueue.add(currentPlaylistIndex, item)
             }
         }
+        PlaybackQueueManager.shared.setPlaylistContext(
+            tracks = playlistQueue.toList(),
+            startIndex = currentPlaylistIndex,
+            stopAtEnd = stopAtEndOfQueue.value
+        )
         playTrackInternal(item)
     }
 
@@ -994,7 +1029,7 @@ class MainActivity : ComponentActivity() {
                         }
                     }
                 } else {
-                    syncPlaybackServiceNotification()
+                    syncPlaybackServiceNotification(force = true)
                 }
             } else if (tracksState.isNotEmpty()) {
                 playTrackItem(tracksState[0], tracksState.toList())
@@ -1002,12 +1037,13 @@ class MainActivity : ComponentActivity() {
         } else {
             isPlaying.value = false
             SpotifyBridge.pause()
-            syncPlaybackServiceNotification()
+            syncPlaybackServiceNotification(force = true)
         }
     }
 
     private fun toggleShuffle() {
         isShuffle.value = !isShuffle.value
+        PlaybackQueueManager.shared.isShuffle = isShuffle.value
         if (isShuffle.value) {
             if (playlistQueue.isNotEmpty()) {
                 originalQueueBeforeShuffle.clear()
@@ -1037,6 +1073,7 @@ class MainActivity : ComponentActivity() {
     private fun toggleRepeat() {
         // cycle: 0 (off) -> 1 (repeat all) -> 2 (repeat one) -> 0
         repeatMode.intValue = (repeatMode.intValue + 1) % 3
+        PlaybackQueueManager.shared.repeatMode = PlaybackRepeatMode.fromInt(repeatMode.intValue)
         preloadUpcomingTrack()
     }
 
@@ -1152,6 +1189,16 @@ class MainActivity : ComponentActivity() {
         playlistQueue.clear()
         authState.value = AuthState.LoggedOut
         Toast.makeText(this, "Logged out of Spotify", Toast.LENGTH_SHORT).show()
+    }
+
+    override fun onResume() {
+        super.onResume()
+        val qTrack = PlaybackQueueManager.shared.currentTrack
+        if (qTrack != null && qTrack.uri != livePlayingTrack.value?.uri) {
+            livePlayingTrack.value = qTrack
+            currentPlaylistIndex = PlaybackQueueManager.shared.currentPlaylistIndex
+            syncVisibleQueue()
+        }
     }
 
     override fun onDestroy() {

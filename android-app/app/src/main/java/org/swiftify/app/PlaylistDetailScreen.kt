@@ -131,9 +131,9 @@ fun PlaylistDetailScreen(
                         } catch (_: Exception) {}
                     }
                     if (parsedCount == 0) {
-                        // Web API fallback with auto-token refresh
-                        kotlinx.coroutines.MainScope().launch {
-                            val webTracks = SpotifyApi.fetchSavedTracks(context, offset = 0, limit = 50)
+                        // Web API fallback with structured coroutineScope and pagination
+                        coroutineScope.launch {
+                            val webTracks = SpotifyApi.fetchAllSavedTracks(context)
                             isLoading = false
                             if (webTracks.isNotEmpty()) {
                                 playlistTracks.clear()
@@ -196,9 +196,9 @@ fun PlaylistDetailScreen(
                         } catch (_: Exception) {}
                     }
                     if (parsedCount == 0) {
-                        // Web API fallback
-                        kotlinx.coroutines.MainScope().launch {
-                            val webTracks = SpotifyApi.fetchPlaylistTracks(context, playlist.uri, offset = 0, limit = 50)
+                        // Web API fallback with structured coroutineScope and pagination
+                        coroutineScope.launch {
+                            val webTracks = SpotifyApi.fetchAllPlaylistTracks(context, playlist.uri)
                             isLoading = false
                             if (webTracks.isNotEmpty()) {
                                 playlistTracks.clear()
@@ -776,7 +776,11 @@ fun PlaylistDetailScreen(
                             val next = !isTrackSaved
                             if (next) savedTrackUris.add(track.uri) else savedTrackUris.remove(track.uri)
                             coroutineScope.launch {
-                                SpotifyApi.setTrackSaved(context, track.uri, next)
+                                val success = SpotifyApi.setTrackSaved(context, track.uri, next)
+                                if (!success) {
+                                    if (next) savedTrackUris.remove(track.uri) else savedTrackUris.add(track.uri)
+                                    Toast.makeText(context, "Failed to update Saved Tracks", Toast.LENGTH_SHORT).show()
+                                }
                             }
                         },
                         modifier = Modifier.size(32.dp)

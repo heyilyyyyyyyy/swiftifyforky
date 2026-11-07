@@ -33,4 +33,40 @@
     <string name="connect_spotify">Подключить Spotify</string>
     <string name="spotify_premium_required">Для воспроизведения требуется Spotify Premium</string>
     <string name="login_with_spotify">Войти через Spotify</string>
+
+    <string name="settings_spotify_account">АККАУНТ SPOTIFY</string>
+    <string name="settings_connected_to_spotify">Подключено к Spotify</string>
+    <string name="settings_premium_active">Премиум активен • Высокое качество звука</string>
+    <string name="settings_reauthorize">Переавторизоваться</string>
+    <string name="settings_logout">Выйти</string>
+    <string name="settings_logout_confirm_title">Выйти из Spotify</string>
+    <string name="settings_logout_confirm_desc">Вы уверены, что хотите выйти? Воспроизведение будет остановлено, а сохранённая сессия удалена.</string>
+    <string name="cancel">Отмена</string>
+
+    <string name="settings_volume_norm">Нормализация громкости</string>
+    <string name="settings_volume_norm_desc">Выравнивание громкости между треками</string>
+    <string name="settings_crossfade">Кроссфейд (плавный переход)</string>
+    <string name="settings_crossfade_gapless">Бесшовный переход (Gapless)</string>
+    <string name="settings_crossfade_overlap">Плавное наложение: %1$d с</string>
+    <string name="settings_overlap_duration">Длительность перехода</string>
+    <string name="settings_spotify_connect">Spotify Connect</string>
+    <string name="settings_spotify_connect_desc">Транслировать %1$s как колонку</string>
+
+    <string name="settings_dsp">ЭКВАЛАЙЗЕР И ЗВУК (DSP)</string>
+    <string name="settings_parametric_eq">Параметрический эквалайзер</string>
+    <string name="settings_eq_active">Активен: %1$s</string>
+    <string name="settings_eq_bypassed">Выключен (исходный звук)</string>
+    <string name="settings_sound_presets">Пресеты звучания</string>
+
+    <string name="settings_audio_cache">Кэш аудио и изображений</string>
+    <string name="settings_cache_usage">Занято: %1$d МБ</string>
+    <string name="settings_cache_clear">Очистить</string>
+    <string name="settings_cache_cleared">Кэш очищен</string>
+
+    <string name="settings_system_engine">СИСТЕМА И ДВИЖОК</string>
+    <string name="settings_audio_engine">Аудиодвижок</string>
+    <string name="settings_output_backend">Бэкенд вывода</string>
+    <string name="settings_target_device">Устройство</string>
+    <string name="settings_architecture">Архитектура</string>
+    <string name="settings_swiftify_core">Ядро Swiftify</string>
 </resources>

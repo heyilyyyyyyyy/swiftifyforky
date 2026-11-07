@@ -19,6 +19,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -107,7 +108,7 @@ fun SettingsScreen(
         Spacer(modifier = Modifier.height(16.dp))
 
         Text(
-            text = "Settings",
+            text = stringResource(R.string.settings_title),
             color = Color.White,
             fontSize = 28.sp,
             fontWeight = FontWeight.Bold
@@ -117,7 +118,7 @@ fun SettingsScreen(
 
         // Section: Account & Session
         Text(
-            text = "SPOTIFY ACCOUNT",
+            text = stringResource(R.string.settings_spotify_account),
             color = Color(0xFFF2A385),
             fontSize = 12.sp,
             fontWeight = FontWeight.Bold,
@@ -151,8 +152,8 @@ fun SettingsScreen(
                     }
                     Spacer(modifier = Modifier.width(14.dp))
                     Column(modifier = Modifier.weight(1f)) {
-                        Text("Connected to Spotify", color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
-                        Text("Premium Active • High Fidelity Streaming", color = Color(0xFF8E837D), fontSize = 12.sp)
+                        Text(stringResource(R.string.settings_connected_to_spotify), color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+                        Text(stringResource(R.string.settings_premium_active), color = Color(0xFF8E837D), fontSize = 12.sp)
                     }
                 }
 
@@ -168,7 +169,7 @@ fun SettingsScreen(
                         shape = RoundedCornerShape(12.dp),
                         modifier = Modifier.weight(1f)
                     ) {
-                        Text("Re-authorize", color = Color(0xFFD6CBC5), fontSize = 13.sp, fontWeight = FontWeight.Medium)
+                        Text(stringResource(R.string.settings_reauthorize), color = Color(0xFFD6CBC5), fontSize = 13.sp, fontWeight = FontWeight.Medium)
                     }
 
                     var showLogoutConfirm by remember { mutableStateOf(false) }
@@ -185,14 +186,14 @@ fun SettingsScreen(
                             modifier = Modifier.size(16.dp)
                         )
                         Spacer(modifier = Modifier.width(6.dp))
-                        Text("Log Out", color = Color(0xFFFF6B6B), fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                        Text(stringResource(R.string.settings_logout), color = Color(0xFFFF6B6B), fontSize = 13.sp, fontWeight = FontWeight.Bold)
                     }
 
                     if (showLogoutConfirm) {
                         AlertDialog(
                             onDismissRequest = { showLogoutConfirm = false },
-                            title = { Text("Log Out of Spotify", color = Color.White, fontWeight = FontWeight.Bold) },
-                            text = { Text("Are you sure you want to log out? Playback will stop and your saved login session will be removed.", color = Color(0xFFA59B94)) },
+                            title = { Text(stringResource(R.string.settings_logout_confirm_title), color = Color.White, fontWeight = FontWeight.Bold) },
+                            text = { Text(stringResource(R.string.settings_logout_confirm_desc), color = Color(0xFFA59B94)) },
                             containerColor = Color(0xFF221C1A),
                             confirmButton = {
                                 Button(
@@ -203,12 +204,12 @@ fun SettingsScreen(
                                     colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFF4D4D)),
                                     shape = RoundedCornerShape(12.dp)
                                 ) {
-                                    Text("Log Out", color = Color.White, fontWeight = FontWeight.Bold)
+                                    Text(stringResource(R.string.settings_logout), color = Color.White, fontWeight = FontWeight.Bold)
                                 }
                             },
                             dismissButton = {
                                 TextButton(onClick = { showLogoutConfirm = false }) {
-                                    Text("Cancel", color = Color(0xFFA59B94))
+                                    Text(stringResource(R.string.cancel), color = Color(0xFFA59B94))
                                 }
                             }
                         )
@@ -291,7 +292,7 @@ fun SettingsScreen(
 
         // Section: Playback Options
         Text(
-            text = "PLAYBACK & NETWORKING",
+            text = stringResource(R.string.settings_playback_networking),
             color = Color(0xFFF2A385),
             fontSize = 12.sp,
             fontWeight = FontWeight.Bold,
@@ -312,8 +313,8 @@ fun SettingsScreen(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Column(modifier = Modifier.weight(1f)) {
-                        Text("Volume Normalization", color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
-                        Text("Equalize volume across tracks", color = Color(0xFF8E837D), fontSize = 12.sp)
+                        Text(stringResource(R.string.settings_volume_norm), color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+                        Text(stringResource(R.string.settings_volume_norm_desc), color = Color(0xFF8E837D), fontSize = 12.sp)
                     }
                     Switch(
                         checked = normalizationEnabled,
@@ -338,8 +339,8 @@ fun SettingsScreen(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Column(modifier = Modifier.weight(1f)) {
-                        Text("Crossfade Tracks", color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
-                        Text(if (crossfadeEnabled) "Seamless overlap: ${crossfadeSeconds}s" else "Gapless native transition", color = Color(0xFF8E837D), fontSize = 12.sp)
+                        Text(stringResource(R.string.settings_crossfade), color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+                        Text(if (crossfadeEnabled) stringResource(R.string.settings_crossfade_overlap, crossfadeSeconds) else stringResource(R.string.settings_crossfade_gapless), color = Color(0xFF8E837D), fontSize = 12.sp)
                     }
                     Switch(
                         checked = crossfadeEnabled,
@@ -361,7 +362,7 @@ fun SettingsScreen(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceBetween
                         ) {
-                            Text("Overlap duration", color = Color(0xFF8E837D), fontSize = 12.sp)
+                            Text(stringResource(R.string.settings_overlap_duration), color = Color(0xFF8E837D), fontSize = 12.sp)
                             Text("${crossfadeSeconds}s", color = Color(0xFFF2A385), fontSize = 12.sp, fontWeight = FontWeight.Bold)
                         }
                         Slider(
@@ -392,8 +393,8 @@ fun SettingsScreen(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Column(modifier = Modifier.weight(1f)) {
-                        Text("Spotify Connect", color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
-                        Text("Broadcast $deviceName as speaker", color = Color(0xFF8E837D), fontSize = 12.sp)
+                        Text(stringResource(R.string.settings_spotify_connect), color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+                        Text(stringResource(R.string.settings_spotify_connect_desc, deviceName), color = Color(0xFF8E837D), fontSize = 12.sp)
                     }
                     Switch(
                         checked = connectEnabled,
@@ -411,7 +412,7 @@ fun SettingsScreen(
 
         // Section: 6-Band Equalizer & DSP
         Text(
-            text = "EQUALIZER & SOUND (DSP)",
+            text = stringResource(R.string.settings_dsp),
             color = Color(0xFFF2A385),
             fontSize = 12.sp,
             fontWeight = FontWeight.Bold,
@@ -432,8 +433,8 @@ fun SettingsScreen(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Column(modifier = Modifier.weight(1f)) {
-                        Text("Parametric Equalizer", color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
-                        Text(if (equalizerEnabled) "Active: $selectedPreset" else "Bypassed (Flat output)", color = Color(0xFF8E837D), fontSize = 12.sp)
+                        Text(stringResource(R.string.settings_parametric_eq), color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+                        Text(if (equalizerEnabled) stringResource(R.string.settings_eq_active, selectedPreset) else stringResource(R.string.settings_eq_bypassed), color = Color(0xFF8E837D), fontSize = 12.sp)
                     }
                     Switch(
                         checked = equalizerEnabled,
@@ -456,7 +457,7 @@ fun SettingsScreen(
                 if (equalizerEnabled) {
                     Divider(color = Color(0x22FFFFFF), thickness = 0.5.dp, modifier = Modifier.padding(vertical = 8.dp))
 
-                    Text("Sound Presets", color = Color(0xFF8E837D), fontSize = 12.sp, fontWeight = FontWeight.Medium)
+                    Text(stringResource(R.string.settings_sound_presets), color = Color(0xFF8E837D), fontSize = 12.sp, fontWeight = FontWeight.Medium)
                     Spacer(modifier = Modifier.height(6.dp))
 
                     // Preset Chips Row
@@ -478,7 +479,7 @@ fun SettingsScreen(
                                         updateEq(pGains, pName)
                                     }
                                     .padding(horizontal = 8.dp, vertical = 6.dp)
-                            ) {
+                                ) {
                                 Text(
                                     text = pName,
                                     color = if (isSel) Color(0xFF13100E) else Color.White,
@@ -535,7 +536,7 @@ fun SettingsScreen(
 
         // Section: Storage & Cache
         Text(
-            text = "STORAGE & CACHE",
+            text = stringResource(R.string.settings_storage_cache),
             color = Color(0xFFF2A385),
             fontSize = 12.sp,
             fontWeight = FontWeight.Bold,
@@ -555,14 +556,14 @@ fun SettingsScreen(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Column {
-                        Text("Audio & Image Cache", color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
-                        Text("Current usage: $cacheSizeMb MB", color = Color(0xFF8E837D), fontSize = 13.sp)
+                        Text(stringResource(R.string.settings_audio_cache), color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+                        Text(stringResource(R.string.settings_cache_usage, cacheSizeMb), color = Color(0xFF8E837D), fontSize = 13.sp)
                     }
                     Button(
                         onClick = {
                             clearAppCache(context)
                             cacheSizeMb = calculateCacheSize(context)
-                            Toast.makeText(context, "Cache cleared", Toast.LENGTH_SHORT).show()
+                            Toast.makeText(context, context.getString(R.string.settings_cache_cleared), Toast.LENGTH_SHORT).show()
                         },
                         colors = ButtonDefaults.buttonColors(
                             containerColor = Color(0xFF2C2320),
@@ -570,7 +571,7 @@ fun SettingsScreen(
                         ),
                         shape = RoundedCornerShape(12.dp)
                     ) {
-                        Text("Clear", fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                        Text(stringResource(R.string.settings_cache_clear), fontSize = 13.sp, fontWeight = FontWeight.Bold)
                     }
                 }
             }
@@ -580,7 +581,7 @@ fun SettingsScreen(
 
         // Section: Engine & System Info
         Text(
-            text = "SYSTEM & ENGINE",
+            text = stringResource(R.string.settings_system_engine),
             color = Color(0xFFF2A385),
             fontSize = 12.sp,
             fontWeight = FontWeight.Bold,
@@ -595,23 +596,23 @@ fun SettingsScreen(
         ) {
             Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                    Text("Audio Engine", color = Color(0xFF8E837D), fontSize = 13.sp)
+                    Text(stringResource(R.string.settings_audio_engine), color = Color(0xFF8E837D), fontSize = 13.sp)
                     Text("Librespot Vorbis + AAudio", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Medium)
                 }
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                    Text("Output Backend", color = Color(0xFF8E837D), fontSize = 13.sp)
+                    Text(stringResource(R.string.settings_output_backend), color = Color(0xFF8E837D), fontSize = 13.sp)
                     Text("AAudio Low-Latency Stereo", color = Color(0xFF1DB954), fontSize = 13.sp, fontWeight = FontWeight.Medium)
                 }
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                    Text("Target Device", color = Color(0xFF8E837D), fontSize = 13.sp)
+                    Text(stringResource(R.string.settings_target_device), color = Color(0xFF8E837D), fontSize = 13.sp)
                     Text("$deviceName (API ${android.os.Build.VERSION.SDK_INT})", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Medium)
                 }
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                    Text("Architecture", color = Color(0xFF8E837D), fontSize = 13.sp)
+                    Text(stringResource(R.string.settings_architecture), color = Color(0xFF8E837D), fontSize = 13.sp)
                     Text("${android.os.Build.SUPPORTED_ABIS.firstOrNull() ?: "arm64-v8a"}", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Medium)
                 }
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                    Text("Swiftify Core", color = Color(0xFF8E837D), fontSize = 13.sp)
+                    Text(stringResource(R.string.settings_swiftify_core), color = Color(0xFF8E837D), fontSize = 13.sp)
                     Text("2.0-native", color = Color(0xFFF2A385), fontSize = 13.sp, fontWeight = FontWeight.Bold)
                 }
             }

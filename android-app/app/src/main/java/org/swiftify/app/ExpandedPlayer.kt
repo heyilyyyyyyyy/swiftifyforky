@@ -769,10 +769,15 @@ fun ExpandedPlayer(
 
             IconButton(
                 onClick = {
-                    val newSaved = !isLiked
+                    val prevSaved = isLiked
+                    val newSaved = !prevSaved
                     isLiked = newSaved
                     coroutineScope.launch {
-                        SpotifyApi.setTrackSaved(context, track.uri, newSaved)
+                        val success = SpotifyApi.setTrackSaved(context, track.uri, newSaved)
+                        if (!success) {
+                            isLiked = prevSaved
+                            Toast.makeText(context, "Failed to update Saved Tracks", Toast.LENGTH_SHORT).show()
+                        }
                     }
                 },
                 modifier = Modifier

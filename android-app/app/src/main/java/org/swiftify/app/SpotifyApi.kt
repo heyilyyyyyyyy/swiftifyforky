@@ -4,6 +4,8 @@ import android.content.Context
 import android.net.Uri
 import android.util.Log
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
@@ -15,43 +17,61 @@ object SpotifyApi {
     private const val CLIENT_ID = "65b708073fc0480ea92a077233ca87bd"
     private const val PREFS_NAME = "swiftify_prefs"
 
+    private val refreshMutex = Mutex()
+
+    @Volatile
+    var onTokenUpdated: ((String) -> Unit)? = null
+
     suspend fun getValidToken(context: Context, forceRefresh: Boolean = false): String? = withContext(Dispatchers.IO) {
-        val token = SecureStorage.getAccessToken(context)
+        val cachedToken = SecureStorage.getAccessToken(context)
         val expiresAt = SecureStorage.getTokenExpiresAt(context)
         val refreshToken = SecureStorage.getRefreshToken(context)
 
-        if (!forceRefresh && !token.isNullOrEmpty() && System.currentTimeMillis() < expiresAt) {
-            return@withContext token
+        // Fast-path: Token is still valid and refresh is not forced
+        if (!forceRefresh && !cachedToken.isNullOrEmpty() && System.currentTimeMillis() < expiresAt) {
+            return@withContext cachedToken
         }
 
         if (refreshToken.isNullOrEmpty()) {
-            return@withContext token
+            return@withContext cachedToken
         }
 
-        try {
-            val conn = URL("https://accounts.spotify.com/api/token").openConnection() as HttpURLConnection
-            conn.requestMethod = "POST"
-            conn.setRequestProperty("Content-Type", "application/x-www-form-urlencoded")
-            conn.connectTimeout = 8000
-            conn.readTimeout = 8000
-            conn.doOutput = true
-            val body = "grant_type=refresh_token&refresh_token=${Uri.encode(refreshToken)}&client_id=$CLIENT_ID"
-            conn.outputStream.write(body.toByteArray())
-            if (conn.responseCode in 200..299) {
-                val res = conn.inputStream.bufferedReader().readText()
-                val json = JSONObject(res)
-                val newToken = json.getString("access_token")
-                val newRefresh = json.optString("refresh_token")
-                val expiresIn = json.optLong("expires_in", 3600L)
-                SecureStorage.saveTokens(context, newToken, newRefresh, expiresIn)
-                conn.disconnect()
-                return@withContext newToken
+        // Serialized refresh under Mutex to prevent multiple parallel refreshes from racing
+        refreshMutex.withLock {
+            // Double-check if another thread/coroutine already refreshed it while we waited
+            val currentToken = SecureStorage.getAccessToken(context)
+            val currentExpiresAt = SecureStorage.getTokenExpiresAt(context)
+            if (!forceRefresh && !currentToken.isNullOrEmpty() && System.currentTimeMillis() < currentExpiresAt) {
+                return@withLock currentToken
             }
-            conn.disconnect()
-        } catch (e: Exception) {
-            Log.e(TAG, "Failed to refresh token", e)
+
+            try {
+                val conn = URL("https://accounts.spotify.com/api/token").openConnection() as HttpURLConnection
+                conn.requestMethod = "POST"
+                conn.setRequestProperty("Content-Type", "application/x-www-form-urlencoded")
+                conn.connectTimeout = 8000
+                conn.readTimeout = 8000
+                conn.doOutput = true
+                val body = "grant_type=refresh_token&refresh_token=${Uri.encode(refreshToken)}&client_id=$CLIENT_ID"
+                conn.outputStream.write(body.toByteArray())
+                if (conn.responseCode in 200..299) {
+                    val res = conn.inputStream.bufferedReader().readText()
+                    val json = JSONObject(res)
+                    val newToken = json.getString("access_token")
+                    val newRefresh = json.optString("refresh_token").takeIf { it.isNotEmpty() } ?: refreshToken
+                    val expiresIn = json.optLong("expires_in", 3600L)
+                    SecureStorage.saveTokens(context, newToken, newRefresh, expiresIn)
+                    conn.disconnect()
+                    Log.d(TAG, "Token refreshed successfully with serialized Mutex ✓")
+                    onTokenUpdated?.invoke(newToken)
+                    return@withLock newToken
+                }
+                conn.disconnect()
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to refresh token", e)
+            }
+            return@withLock currentToken
         }
-        return@withContext token
     }
 
     suspend fun isTrackSaved(context: Context, trackUri: String): Boolean = withContext(Dispatchers.IO) {
@@ -254,6 +274,34 @@ object SpotifyApi {
             break
         }
         return@withContext emptyList()
+    }
+
+    suspend fun fetchAllSavedTracks(context: Context, maxTracks: Int = 300): List<TrackItem> = withContext(Dispatchers.IO) {
+        val all = mutableListOf<TrackItem>()
+        var offset = 0
+        val pageSize = 50
+        while (offset < maxTracks) {
+            val page = fetchSavedTracks(context, offset = offset, limit = pageSize)
+            if (page.isEmpty()) break
+            all.addAll(page)
+            if (page.size < pageSize) break
+            offset += pageSize
+        }
+        all
+    }
+
+    suspend fun fetchAllPlaylistTracks(context: Context, playlistId: String, maxTracks: Int = 300): List<TrackItem> = withContext(Dispatchers.IO) {
+        val all = mutableListOf<TrackItem>()
+        var offset = 0
+        val pageSize = 50
+        while (offset < maxTracks) {
+            val page = fetchPlaylistTracks(context, playlistId, offset = offset, limit = pageSize)
+            if (page.isEmpty()) break
+            all.addAll(page)
+            if (page.size < pageSize) break
+            offset += pageSize
+        }
+        all
     }
 
     private fun parseTracksResponse(jsonStr: String): List<TrackItem> {

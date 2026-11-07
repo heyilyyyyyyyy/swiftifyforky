@@ -33,4 +33,40 @@
     <string name="connect_spotify">Connect Spotify</string>
     <string name="spotify_premium_required">Spotify Premium required for full playback</string>
     <string name="login_with_spotify">Log in with Spotify</string>
+
+    <string name="settings_spotify_account">SPOTIFY ACCOUNT</string>
+    <string name="settings_connected_to_spotify">Connected to Spotify</string>
+    <string name="settings_premium_active">Premium Active • High Fidelity Streaming</string>
+    <string name="settings_reauthorize">Re-authorize</string>
+    <string name="settings_logout">Log Out</string>
+    <string name="settings_logout_confirm_title">Log Out of Spotify</string>
+    <string name="settings_logout_confirm_desc">Are you sure you want to log out? Playback will stop and your saved login session will be removed.</string>
+    <string name="cancel">Cancel</string>
+
+    <string name="settings_volume_norm">Volume Normalization</string>
+    <string name="settings_volume_norm_desc">Equalize volume across tracks</string>
+    <string name="settings_crossfade">Crossfade Tracks</string>
+    <string name="settings_crossfade_gapless">Gapless native transition</string>
+    <string name="settings_crossfade_overlap">Seamless overlap: %1$ds</string>
+    <string name="settings_overlap_duration">Overlap duration</string>
+    <string name="settings_spotify_connect">Spotify Connect</string>
+    <string name="settings_spotify_connect_desc">Broadcast %1$s as speaker</string>
+
+    <string name="settings_dsp">EQUALIZER &amp; SOUND (DSP)</string>
+    <string name="settings_parametric_eq">Parametric Equalizer</string>
+    <string name="settings_eq_active">Active: %1$s</string>
+    <string name="settings_eq_bypassed">Bypassed (Flat output)</string>
+    <string name="settings_sound_presets">Sound Presets</string>
+
+    <string name="settings_audio_cache">Audio &amp; Image Cache</string>
+    <string name="settings_cache_usage">Current usage: %1$d MB</string>
+    <string name="settings_cache_clear">Clear</string>
+    <string name="settings_cache_cleared">Cache cleared</string>
+
+    <string name="settings_system_engine">SYSTEM &amp; ENGINE</string>
+    <string name="settings_audio_engine">Audio Engine</string>
+    <string name="settings_output_backend">Output Backend</string>
+    <string name="settings_target_device">Target Device</string>
+    <string name="settings_architecture">Architecture</string>
+    <string name="settings_swiftify_core">Swiftify Core</string>
 </resources>

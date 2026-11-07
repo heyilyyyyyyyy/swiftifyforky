@@ -25,8 +25,11 @@ import coil.ImageLoader
 import coil.request.ImageRequest
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 
 interface PlaybackEventListener {
@@ -48,6 +51,7 @@ class PlaybackService : Service(), AudioManager.OnAudioFocusChangeListener {
         const val ACTION_NEXT = "org.swiftify.app.ACTION_NEXT"
         const val ACTION_PREV = "org.swiftify.app.ACTION_PREV"
         const val ACTION_UPDATE = "org.swiftify.app.ACTION_UPDATE"
+        const val ACTION_UPDATE_POSITION = "org.swiftify.app.ACTION_UPDATE_POSITION"
 
         const val EXTRA_TITLE = "extra_title"
         const val EXTRA_ARTIST = "extra_artist"
@@ -90,6 +94,17 @@ class PlaybackService : Service(), AudioManager.OnAudioFocusChangeListener {
                 android.util.Log.e("PlaybackService", "Failed to startForegroundService", e)
             }
         }
+
+        fun updatePosition(context: Context, positionMs: Long, isPlaying: Boolean) {
+            val intent = Intent(context, PlaybackService::class.java).apply {
+                action = ACTION_UPDATE_POSITION
+                putExtra(EXTRA_POSITION_MS, positionMs)
+                putExtra(EXTRA_IS_PLAYING, isPlaying)
+            }
+            try {
+                context.startService(intent)
+            } catch (_: Exception) {}
+        }
     }
 
     private var mediaSession: MediaSessionCompat? = null
@@ -103,6 +118,8 @@ class PlaybackService : Service(), AudioManager.OnAudioFocusChangeListener {
     private var currentDurMs = 0L
     private var isPlaying = false
     private var cachedBitmap: Bitmap? = null
+    private var isForegroundActive = false
+    private var notificationManager: NotificationManager? = null
 
     private var audioManager: AudioManager? = null
     private var audioFocusRequest: AudioFocusRequest? = null
@@ -121,6 +138,7 @@ class PlaybackService : Service(), AudioManager.OnAudioFocusChangeListener {
     override fun onCreate() {
         super.onCreate()
         createNotificationChannel()
+        notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager
         audioManager = getSystemService(Context.AUDIO_SERVICE) as? AudioManager
 
         val powerManager = getSystemService(Context.POWER_SERVICE) as? PowerManager
@@ -163,19 +181,54 @@ class PlaybackService : Service(), AudioManager.OnAudioFocusChangeListener {
         }
     }
 
+    private var standaloneTickerJob: Job? = null
+
+    private fun startStandaloneTicker() {
+        if (standaloneTickerJob?.isActive == true) return
+        standaloneTickerJob = scope.launch {
+            while (isActive && isPlaying) {
+                delay(500)
+                if (listener == null && isPlaying) {
+                    val pos = SpotifyBridge.playbackPositionMs()
+                    val dur = SpotifyBridge.playbackDurationMs()
+                    if (dur > 0) currentDurMs = dur
+                    currentPosMs = pos
+                    val trackEnded = SpotifyBridge.takeEndOfTrack()
+                    if (trackEnded) {
+                        handleNext()
+                    }
+                }
+            }
+        }
+    }
+
     private fun handlePlay() {
         if (requestAudioFocus()) {
             isPlaying = true
             acquireWakeLock()
             registerNoisyReceiver()
-            SpotifyBridge.play()
-            listener?.onPlay()
+            val l = listener
+            if (l != null) {
+                SpotifyBridge.play()
+                l.onPlay()
+            } else {
+                val ok = SpotifyBridge.play()
+                if (!ok) {
+                    val curr = PlaybackQueueManager.shared.currentTrack
+                    if (curr != null) {
+                        SpotifyBridge.playTrack(curr.uri)
+                    }
+                }
+                startStandaloneTicker()
+            }
             updateNotificationInternal()
         }
     }
 
     private fun handlePause() {
         isPlaying = false
+        standaloneTickerJob?.cancel()
+        standaloneTickerJob = null
         releaseWakeLock()
         unregisterNoisyReceiver()
         SpotifyBridge.pause()
@@ -184,11 +237,71 @@ class PlaybackService : Service(), AudioManager.OnAudioFocusChangeListener {
     }
 
     private fun handleNext() {
-        listener?.onNext()
+        val l = listener
+        if (l != null) {
+            l.onNext()
+        } else {
+            when (val res = PlaybackQueueManager.shared.next()) {
+                is QueueAdvanceResult.PlayTrack -> {
+                    val track = res.track
+                    currentTitle = track.title
+                    currentArtist = track.artist
+                    currentAlbum = track.album
+                    currentArtUrl = track.artworkUrl
+                    currentPosMs = 0L
+                    currentDurMs = track.durationMs
+                    isPlaying = true
+                    acquireWakeLock()
+                    registerNoisyReceiver()
+                    SpotifyBridge.playTrack(track.uri)
+                    updateNotificationInternal()
+                    startStandaloneTicker()
+                }
+                is QueueAdvanceResult.ReplayCurrent -> {
+                    SpotifyBridge.seek(0)
+                    currentPosMs = 0L
+                    updatePlaybackState()
+                }
+                is QueueAdvanceResult.StopPlayback -> {
+                    handlePause()
+                    stopForeground(true)
+                }
+            }
+        }
     }
 
     private fun handlePrevious() {
-        listener?.onPrevious()
+        val l = listener
+        if (l != null) {
+            l.onPrevious()
+        } else {
+            when (val res = PlaybackQueueManager.shared.previous(currentPosMs)) {
+                is QueueAdvanceResult.PlayTrack -> {
+                    val track = res.track
+                    currentTitle = track.title
+                    currentArtist = track.artist
+                    currentAlbum = track.album
+                    currentArtUrl = track.artworkUrl
+                    currentPosMs = 0L
+                    currentDurMs = track.durationMs
+                    isPlaying = true
+                    acquireWakeLock()
+                    registerNoisyReceiver()
+                    SpotifyBridge.playTrack(track.uri)
+                    updateNotificationInternal()
+                    startStandaloneTicker()
+                }
+                is QueueAdvanceResult.ReplayCurrent -> {
+                    SpotifyBridge.seek(0)
+                    currentPosMs = 0L
+                    updatePlaybackState()
+                }
+                is QueueAdvanceResult.StopPlayback -> {
+                    handlePause()
+                    stopForeground(true)
+                }
+            }
+        }
     }
 
     private fun handleSeek(pos: Long) {
@@ -297,6 +410,11 @@ class PlaybackService : Service(), AudioManager.OnAudioFocusChangeListener {
             ACTION_PAUSE -> handlePause()
             ACTION_NEXT -> handleNext()
             ACTION_PREV -> handlePrevious()
+            ACTION_UPDATE_POSITION -> {
+                currentPosMs = intent.getLongExtra(EXTRA_POSITION_MS, currentPosMs)
+                isPlaying = intent.getBooleanExtra(EXTRA_IS_PLAYING, isPlaying)
+                updatePlaybackState()
+            }
             ACTION_UPDATE -> {
                 currentTitle = intent.getStringExtra(EXTRA_TITLE) ?: currentTitle
                 currentArtist = intent.getStringExtra(EXTRA_ARTIST) ?: currentArtist
@@ -434,7 +552,13 @@ class PlaybackService : Service(), AudioManager.OnAudioFocusChangeListener {
 
         cachedBitmap?.let { builder.setLargeIcon(it) }
 
-        startForeground(NOTIFICATION_ID, builder.build())
+        val notification = builder.build()
+        if (!isForegroundActive) {
+            startForeground(NOTIFICATION_ID, notification)
+            isForegroundActive = true
+        } else {
+            notificationManager?.notify(NOTIFICATION_ID, notification)
+        }
     }
 
     private fun createNotificationChannel() {
@@ -453,6 +577,8 @@ class PlaybackService : Service(), AudioManager.OnAudioFocusChangeListener {
 
     override fun onDestroy() {
         super.onDestroy()
+        stopForeground(true)
+        isForegroundActive = false
         releaseWakeLock()
         unregisterNoisyReceiver()
         abandonAudioFocus()

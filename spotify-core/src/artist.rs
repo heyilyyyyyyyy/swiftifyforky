@@ -211,3 +211,55 @@ fn top_track_uris(lists: &[TopTracks], country: &str) -> Vec<String> {
         .take(TOP_TRACK_COUNT)
         .collect()
 }
+
+#[cfg(test)]
+mod tests {
+    use librespot::protocol::metadata::{TopTracks, Track};
+
+    use super::top_track_uris;
+
+    fn list(country: &str, ids: &[u8]) -> TopTracks {
+        TopTracks {
+            country: Some(country.to_owned()),
+            track: ids
+                .iter()
+                .map(|id| Track {
+                    gid: Some(vec![*id; 16]),
+                    ..Default::default()
+                })
+                .collect(),
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    fn the_accounts_country_comes_first() {
+        let lists = [list("", &[1]), list("SE", &[2]), list("DE", &[3])];
+        let uris = top_track_uris(&lists, "DE");
+        assert_eq!(uris.len(), 1);
+        assert_eq!(uris, top_track_uris(&[list("", &[3])], "US"));
+    }
+
+    #[test]
+    fn another_country_falls_back_to_everywhere_then_the_first() {
+        let lists = [list("SE", &[2]), list("", &[1])];
+        assert_eq!(
+            top_track_uris(&lists, "DE"),
+            top_track_uris(&[list("", &[1])], "DE")
+        );
+        assert_eq!(
+            top_track_uris(&[list("SE", &[2])], "DE"),
+            top_track_uris(&lists, "SE")
+        );
+        assert!(top_track_uris(&[], "DE").is_empty());
+    }
+
+    #[test]
+    fn only_ten_are_kept_as_track_uris() {
+        let ids: Vec<u8> = (1..=12).collect();
+        let uris = top_track_uris(&[list("", &ids)], "DE");
+        assert_eq!(uris.len(), 10);
+        assert!(uris.iter().all(|uri| uri.starts_with("spotify:track:")));
+    }
+}
+
