@@ -501,11 +501,13 @@ fun WavyPillButton(
 @Composable
 fun StyledBackButton(
     onBack: () -> Unit = {},
-    onClick: () -> Unit = onBack,
+    onClick: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
-    val actualClick = if (onBack != {}) onBack else onClick
-    var isPressed by remember { mutableStateOf(false) }
+    val action = onClick ?: onBack
+    val currentAction by androidx.compose.runtime.rememberUpdatedState(action)
+    val interactionSource = remember { MutableInteractionSource() }
+    val isPressed by interactionSource.collectIsPressedAsState()
     val scale by animateFloatAsState(
         targetValue = if (isPressed) 0.88f else 1.0f,
         animationSpec = spring(dampingRatio = 0.5f, stiffness = 400f),
@@ -516,18 +518,14 @@ fun StyledBackButton(
         modifier = modifier
             .size(38.dp)
             .scale(scale)
-            .pointerInput(Unit) {
-                detectTapGestures(
-                    onPress = {
-                        isPressed = true
-                        tryAwaitRelease()
-                        isPressed = false
-                        actualClick()
-                    }
-                )
-            }
             .clip(androidx.compose.foundation.shape.RoundedCornerShape(14.dp))
-            .background(Color(0xFF261F1C)),
+            .background(Color(0xFF261F1C))
+            .clickable(
+                interactionSource = interactionSource,
+                indication = null,
+                role = androidx.compose.ui.semantics.Role.Button,
+                onClick = { currentAction() }
+            ),
         contentAlignment = Alignment.Center
     ) {
         Icon(

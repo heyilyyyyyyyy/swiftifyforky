@@ -11,6 +11,7 @@ import android.util.Log
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.lifecycle.lifecycleScope
 import androidx.browser.customtabs.CustomTabsIntent
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
@@ -177,8 +178,38 @@ class MainActivity : ComponentActivity() {
     private val isCrossfading = mutableStateOf(false)
     private val statusMsg = mutableStateOf("")
 
+    private val sleepTimerMinutes = mutableIntStateOf(0)
+    private val sleepTimerRemainingSeconds = mutableIntStateOf(0)
+    private var sleepTimerJob: Job? = null
+
     private var playbackTickerJob: Job? = null
     private val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
+
+    private fun setSleepTimer(minutes: Int) {
+        sleepTimerJob?.cancel()
+        sleepTimerMinutes.intValue = minutes
+        if (minutes <= 0) {
+            sleepTimerRemainingSeconds.intValue = 0
+            if (minutes == 0) {
+                Toast.makeText(this, "Sleep timer turned off", Toast.LENGTH_SHORT).show()
+            }
+        } else {
+            sleepTimerRemainingSeconds.intValue = minutes * 60
+            Toast.makeText(this, "Sleep timer set for $minutes min", Toast.LENGTH_SHORT).show()
+            sleepTimerJob = lifecycleScope.launch {
+                while (sleepTimerRemainingSeconds.intValue > 0) {
+                    delay(1000L)
+                    sleepTimerRemainingSeconds.intValue--
+                }
+                SpotifyBridge.pause()
+                isPlaying.value = false
+                sleepTimerMinutes.intValue = 0
+                sleepTimerRemainingSeconds.intValue = 0
+                syncPlaybackServiceNotification(0L)
+                Toast.makeText(applicationContext, "Sleep timer finished. Playback paused.", Toast.LENGTH_LONG).show()
+            }
+        }
+    }
 
     private fun getSpotifyDeviceId(): String {
         var id = prefs.getString("spotify_device_id", null)
@@ -226,6 +257,16 @@ class MainActivity : ComponentActivity() {
 
         val audioCacheDir = File(cacheDir, "spotify_audio_cache").apply { mkdirs() }
         SpotifyBridge.setAudioCache(audioCacheDir.absolutePath, 1024L * 1024 * 1024)
+
+        // Apply startup 6-band equalizer DSP settings
+        val eqEnabled = prefs.getBoolean("equalizer_enabled", false)
+        if (eqEnabled) {
+            val gainsStr = prefs.getString("equalizer_gains", null)
+            val gains = gainsStr?.split(",")?.mapNotNull { it.toFloatOrNull() }?.toFloatArray()
+                ?: floatArrayOf(0f, 0f, 0f, 0f, 0f, 0f)
+            SpotifyBridge.setEqualizer(gains)
+            Log.d("DSP", "Equalizer restored from prefs: ${gains.joinToString()}")
+        }
 
         // Connect media session & hardware Bluetooth events to playback controller
         PlaybackService.listener = object : PlaybackEventListener {
@@ -318,7 +359,10 @@ class MainActivity : ComponentActivity() {
                         onCreatePlaylist = { n, d -> createPlaylist(n, d) },
                         onDeletePlaylist = { p -> deletePlaylist(p) },
                         onAddTrackToPlaylist = { p, t -> addTrackToPlaylist(p, t) },
-                        onRemoveTrackFromPlaylist = { p, t -> removeTrackFromPlaylist(p, t) }
+                        onRemoveTrackFromPlaylist = { p, t -> removeTrackFromPlaylist(p, t) },
+                        sleepTimerMinutes = sleepTimerMinutes.intValue,
+                        sleepTimerRemainingSeconds = sleepTimerRemainingSeconds.intValue,
+                        onSetSleepTimer = { mins -> setSleepTimer(mins) }
                     )
                 }
             }
@@ -996,6 +1040,18 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun nextTrack(isAutoAdvance: Boolean = false) {
+        if (isAutoAdvance && sleepTimerMinutes.intValue == -1) {
+            Log.d("SleepTimer", "End of track reached with End-of-Track Sleep Timer -> pausing")
+            SpotifyBridge.pause()
+            isPlaying.value = false
+            sleepTimerMinutes.intValue = 0
+            sleepTimerRemainingSeconds.intValue = 0
+            progressMs.longValue = 0L
+            syncPlaybackServiceNotification(0L)
+            Toast.makeText(this, "Sleep timer finished. Playback paused at end of track.", Toast.LENGTH_SHORT).show()
+            return
+        }
+
         if (repeatMode.intValue == 2) {
             // Repeat one: replay current track from start
             val curr = livePlayingTrack.value
@@ -1126,7 +1182,10 @@ fun SwiftifyApp(
     onCreatePlaylist: ((String, String) -> Unit)? = null,
     onDeletePlaylist: ((PlaylistItem) -> Unit)? = null,
     onAddTrackToPlaylist: ((PlaylistItem, TrackItem) -> Unit)? = null,
-    onRemoveTrackFromPlaylist: ((PlaylistItem, TrackItem) -> Unit)? = null
+    onRemoveTrackFromPlaylist: ((PlaylistItem, TrackItem) -> Unit)? = null,
+    sleepTimerMinutes: Int = 0,
+    sleepTimerRemainingSeconds: Int = 0,
+    onSetSleepTimer: ((Int) -> Unit)? = null
 ) {
     var selectedTab by remember { mutableIntStateOf(0) }
     var isPlayerExpanded by remember { mutableStateOf(false) }
@@ -1500,7 +1559,10 @@ val openArtistScreen: (String, String) -> Unit = { artName, artUri ->
                             onTrackClick = onTrackClick,
                             onPlayPause = onPlayPause,
                             userPlaylists = userPlaylists,
-                            onPlaylistClick = { activePlaylist = it },
+                            onPlaylistClick = {
+                                openedFromAllPlaylists = false
+                                activePlaylist = it
+                            },
                             onArtistClick = { activeArtist = it },
                             onSeeAllPlaylists = { showAllPlaylists = true }
                         )
@@ -1518,7 +1580,10 @@ val openArtistScreen: (String, String) -> Unit = { artName, artUri ->
                             onAlbumSelect = { track ->
                                 openAlbumByTrack(track)
                             },
-                            onPlaylistSelect = { activePlaylist = it }
+                            onPlaylistSelect = {
+                                openedFromAllPlaylists = false
+                                activePlaylist = it
+                            }
                         )
                         2 -> SettingsScreen(
                             connectEnabled = connectEnabled,
@@ -1564,7 +1629,12 @@ val openArtistScreen: (String, String) -> Unit = { artName, artUri ->
                     customQueue = customQueue,
                     onRemoveFromCustomQueue = onRemoveFromCustomQueue,
                     onClearCustomQueue = onClearCustomQueue,
-                    queueContextName = queueContextName
+                    queueContextName = queueContextName,
+                    sleepTimerMinutes = sleepTimerMinutes,
+                    sleepTimerRemainingSeconds = sleepTimerRemainingSeconds,
+                    onSetSleepTimer = onSetSleepTimer,
+                    userPlaylists = userPlaylists,
+                    onAddTrackToPlaylist = onAddTrackToPlaylist
                 )
             }
 

@@ -7,6 +7,9 @@ import kotlinx.coroutines.withContext
 import kotlinx.coroutines.launch
 import android.content.Context
 import android.net.Uri
+import android.content.ClipboardManager
+import android.content.ClipData
+import android.widget.Toast
 
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
@@ -14,6 +17,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
@@ -36,6 +40,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -71,10 +76,20 @@ fun ExpandedPlayer(
     customQueue: List<TrackItem> = emptyList(),
     onRemoveFromCustomQueue: ((Int) -> Unit)? = null,
     onClearCustomQueue: (() -> Unit)? = null,
-    queueContextName: String = "Swiftify"
+    queueContextName: String = "Swiftify",
+    sleepTimerMinutes: Int = 0,
+    sleepTimerRemainingSeconds: Int = 0,
+    onSetSleepTimer: ((Int) -> Unit)? = null,
+    userPlaylists: List<PlaylistItem> = emptyList(),
+    onAddTrackToPlaylist: ((PlaylistItem, TrackItem) -> Unit)? = null
 ) {
     val context = LocalContext.current
     val palette = rememberTrackPalette(context, track.artworkUrl)
+
+    var showOptionsMenu by remember { mutableStateOf(false) }
+    var showSleepTimerDialog by remember { mutableStateOf(false) }
+    var showAudioInfoDialog by remember { mutableStateOf(false) }
+    var showAddToPlaylistDialog by remember { mutableStateOf(false) }
 
     val prefs = remember { context.getSharedPreferences("swiftify_prefs", Context.MODE_PRIVATE) }
     val coroutineScope = rememberCoroutineScope()
@@ -202,21 +217,153 @@ fun ExpandedPlayer(
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
+                    if (sleepTimerMinutes > 0 || sleepTimerMinutes == -1) {
+                        Spacer(modifier = Modifier.height(3.dp))
+                        val timerLabel = if (sleepTimerMinutes == -1) "End of track" else "%d:%02d".format(sleepTimerRemainingSeconds / 60, sleepTimerRemainingSeconds % 60)
+                        Row(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(999.dp))
+                                .background(Color(0x3BFFFFFF))
+                                .clickable { showSleepTimerDialog = true }
+                                .padding(horizontal = 8.dp, vertical = 2.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = Icons.Rounded.Bedtime,
+                                contentDescription = "Sleep Timer",
+                                tint = palette.accent,
+                                modifier = Modifier.size(12.dp)
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                                text = timerLabel,
+                                color = Color.White,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
                 }
 
-                IconButton(
-                    onClick = { /* extra options */ },
-                    modifier = Modifier
-                        .size(42.dp)
-                        .clip(CircleShape)
-                        .background(Color(0x2BFFFFFF))
-                ) {
-                    Icon(
-                        imageVector = Icons.Rounded.MoreVert,
-                        contentDescription = "Options",
-                        tint = Color.White,
-                        modifier = Modifier.size(22.dp)
-                    )
+                Box {
+                    IconButton(
+                        onClick = { showOptionsMenu = true },
+                        modifier = Modifier
+                            .size(42.dp)
+                            .clip(CircleShape)
+                            .background(Color(0x2BFFFFFF))
+                    ) {
+                        Icon(
+                            imageVector = Icons.Rounded.MoreVert,
+                            contentDescription = "Options",
+                            tint = Color.White,
+                            modifier = Modifier.size(22.dp)
+                        )
+                    }
+
+                    DropdownMenu(
+                        expanded = showOptionsMenu,
+                        onDismissRequest = { showOptionsMenu = false },
+                        modifier = Modifier.background(Color(0xFF221C1A))
+                    ) {
+                        DropdownMenuItem(
+                            leadingIcon = {
+                                Icon(
+                                    imageVector = Icons.Rounded.Bedtime,
+                                    contentDescription = null,
+                                    tint = if (sleepTimerMinutes != 0) palette.accent else Color.White,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            },
+                            text = {
+                                val label = if (sleepTimerMinutes == 0) "Sleep Timer" else if (sleepTimerMinutes == -1) "Sleep Timer: End of track" else "Sleep Timer: %d:%02d".format(sleepTimerRemainingSeconds / 60, sleepTimerRemainingSeconds % 60)
+                                Text(label, color = if (sleepTimerMinutes != 0) palette.accent else Color.White, fontSize = 13.sp)
+                            },
+                            onClick = {
+                                showOptionsMenu = false
+                                showSleepTimerDialog = true
+                            }
+                        )
+                        DropdownMenuItem(
+                            leadingIcon = {
+                                Icon(
+                                    imageVector = Icons.Rounded.Info,
+                                    contentDescription = null,
+                                    tint = Color.White,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            },
+                            text = { Text("Audio Info", color = Color.White, fontSize = 13.sp) },
+                            onClick = {
+                                showOptionsMenu = false
+                                showAudioInfoDialog = true
+                            }
+                        )
+                        DropdownMenuItem(
+                            leadingIcon = {
+                                Icon(
+                                    imageVector = Icons.Rounded.Album,
+                                    contentDescription = null,
+                                    tint = Color.White,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            },
+                            text = { Text("Go to Album", color = Color.White, fontSize = 13.sp) },
+                            onClick = {
+                                showOptionsMenu = false
+                                onAlbumClick?.invoke()
+                            }
+                        )
+                        DropdownMenuItem(
+                            leadingIcon = {
+                                Icon(
+                                    imageVector = Icons.Rounded.Person,
+                                    contentDescription = null,
+                                    tint = Color.White,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            },
+                            text = { Text("Go to Artist", color = Color.White, fontSize = 13.sp) },
+                            onClick = {
+                                showOptionsMenu = false
+                                onArtistClick?.invoke(track.artist)
+                            }
+                        )
+                        if (userPlaylists.isNotEmpty() && onAddTrackToPlaylist != null) {
+                            DropdownMenuItem(
+                                leadingIcon = {
+                                    Icon(
+                                        imageVector = Icons.Rounded.PlaylistAdd,
+                                        contentDescription = null,
+                                        tint = Color.White,
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                },
+                                text = { Text("Add to Playlist", color = Color.White, fontSize = 13.sp) },
+                                onClick = {
+                                    showOptionsMenu = false
+                                    showAddToPlaylistDialog = true
+                                }
+                            )
+                        }
+                        DropdownMenuItem(
+                            leadingIcon = {
+                                Icon(
+                                    imageVector = Icons.Rounded.ContentCopy,
+                                    contentDescription = null,
+                                    tint = Color.White,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            },
+                            text = { Text("Copy Spotify URI", color = Color.White, fontSize = 13.sp) },
+                            onClick = {
+                                showOptionsMenu = false
+                                val cm = context.getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
+                                cm?.setPrimaryClip(ClipData.newPlainText("Spotify URI", track.uri))
+                                Toast.makeText(context, "Copied Spotify URI", Toast.LENGTH_SHORT).show()
+                            }
+                        )
+                    }
                 }
             }
 
@@ -705,20 +852,17 @@ fun ExpandedPlayer(
             }
 
             // Prev with rounded arrowLeft shape backing on click
-            var isPrevPressed by remember { mutableStateOf(false) }
+            val prevInteraction = remember { MutableInteractionSource() }
+            val isPrevPressed by prevInteraction.collectIsPressedAsState()
             Box(
                 modifier = Modifier
                     .size(56.dp)
-                    .pointerInput(Unit) {
-                        detectTapGestures(
-                            onPress = {
-                                isPrevPressed = true
-                                tryAwaitRelease()
-                                isPrevPressed = false
-                                onPrev()
-                            }
-                        )
-                    },
+                    .clickable(
+                        interactionSource = prevInteraction,
+                        indication = null,
+                        role = Role.Button,
+                        onClick = onPrev
+                    ),
                 contentAlignment = Alignment.Center
             ) {
                 if (isPrevPressed) {
@@ -737,7 +881,8 @@ fun ExpandedPlayer(
             }
 
             // Big Play / Pause with dynamic softCookie (paused) and cookie9 (playing) turning
-            var isPlayPressed by remember { mutableStateOf(false) }
+            val playInteraction = remember { MutableInteractionSource() }
+            val isPlayPressed by playInteraction.collectIsPressedAsState()
             val playScale by animateFloatAsState(
                 targetValue = if (isPlayPressed) 0.90f else 1.0f,
                 animationSpec = spring(dampingRatio = 0.6f, stiffness = 400f),
@@ -762,16 +907,12 @@ fun ExpandedPlayer(
                 modifier = Modifier
                     .size(78.dp)
                     .scale(playScale)
-                    .pointerInput(Unit) {
-                        detectTapGestures(
-                            onPress = {
-                                isPlayPressed = true
-                                tryAwaitRelease()
-                                isPlayPressed = false
-                                onPlayPause()
-                            }
-                        )
-                    }
+                    .clickable(
+                        interactionSource = playInteraction,
+                        indication = null,
+                        role = Role.Button,
+                        onClick = onPlayPause
+                    )
             ) {
                 Icon(
                     imageVector = if (isPlaying) Icons.Rounded.Pause else Icons.Rounded.PlayArrow,
@@ -782,20 +923,17 @@ fun ExpandedPlayer(
             }
 
             // Next with rounded arrowRight shape backing on click
-            var isNextPressed by remember { mutableStateOf(false) }
+            val nextInteraction = remember { MutableInteractionSource() }
+            val isNextPressed by nextInteraction.collectIsPressedAsState()
             Box(
                 modifier = Modifier
                     .size(56.dp)
-                    .pointerInput(Unit) {
-                        detectTapGestures(
-                            onPress = {
-                                isNextPressed = true
-                                tryAwaitRelease()
-                                isNextPressed = false
-                                onNext()
-                            }
-                        )
-                    },
+                    .clickable(
+                        interactionSource = nextInteraction,
+                        indication = null,
+                        role = Role.Button,
+                        onClick = onNext
+                    ),
                 contentAlignment = Alignment.Center
             ) {
                 if (isNextPressed) {
@@ -871,7 +1009,175 @@ fun ExpandedPlayer(
 
         Spacer(modifier = Modifier.height(10.dp))
     }
+
+    if (showSleepTimerDialog) {
+        val options = listOf(
+            0 to "Off",
+            5 to "5 minutes",
+            15 to "15 minutes",
+            30 to "30 minutes",
+            45 to "45 minutes",
+            60 to "1 hour",
+            -1 to "End of this track"
+        )
+        AlertDialog(
+            onDismissRequest = { showSleepTimerDialog = false },
+            title = {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        imageVector = Icons.Rounded.Bedtime,
+                        contentDescription = null,
+                        tint = palette.accent,
+                        modifier = Modifier.size(24.dp)
+                    )
+                    Spacer(modifier = Modifier.width(10.dp))
+                    Text("Sleep Timer", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 20.sp)
+                }
+            },
+            text = {
+                Column(modifier = Modifier.fillMaxWidth().verticalScroll(rememberScrollState())) {
+                    options.forEach { (minutes, label) ->
+                        val isSelected = sleepTimerMinutes == minutes
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(if (isSelected) palette.accent.copy(alpha = 0.2f) else Color.Transparent)
+                                .clickable {
+                                    showSleepTimerDialog = false
+                                    onSetSleepTimer?.invoke(minutes)
+                                }
+                                .padding(horizontal = 14.dp, vertical = 12.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text(
+                                text = label,
+                                color = if (isSelected) palette.accent else Color.White,
+                                fontSize = 15.sp,
+                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
+                            )
+                            if (isSelected) {
+                                Icon(
+                                    imageVector = Icons.Rounded.Check,
+                                    contentDescription = null,
+                                    tint = palette.accent,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
+                        }
+                    }
+                }
+            },
+            containerColor = Color(0xFF221C1A),
+            confirmButton = {
+                TextButton(onClick = { showSleepTimerDialog = false }) {
+                    Text("Close", color = palette.accent, fontWeight = FontWeight.Bold)
+                }
+            }
+        )
+    }
+
+    if (showAudioInfoDialog) {
+        AlertDialog(
+            onDismissRequest = { showAudioInfoDialog = false },
+            title = {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        imageVector = Icons.Rounded.Info,
+                        contentDescription = null,
+                        tint = palette.accent,
+                        modifier = Modifier.size(24.dp)
+                    )
+                    Spacer(modifier = Modifier.width(10.dp))
+                    Text("Audio Info", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 20.sp)
+                }
+            },
+            text = {
+                Column(modifier = Modifier.fillMaxWidth().verticalScroll(rememberScrollState())) {
+                    AudioInfoRow("Track", track.title)
+                    AudioInfoRow("Artist", track.artist)
+                    AudioInfoRow("Album", track.album)
+                    AudioInfoRow("Codec", "Ogg Vorbis 320 kbps (High Quality)")
+                    AudioInfoRow("Audio Output", "AAudio Direct Stereo (Native Rust)")
+                    AudioInfoRow("Sample Rate", "44,100 Hz / 16-bit Float")
+                    AudioInfoRow("URI", track.uri)
+                }
+            },
+            containerColor = Color(0xFF221C1A),
+            confirmButton = {
+                TextButton(onClick = { showAudioInfoDialog = false }) {
+                    Text("Close", color = palette.accent, fontWeight = FontWeight.Bold)
+                }
+            }
+        )
+    }
+
+    if (showAddToPlaylistDialog) {
+        AlertDialog(
+            onDismissRequest = { showAddToPlaylistDialog = false },
+            title = {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        imageVector = Icons.Rounded.PlaylistAdd,
+                        contentDescription = null,
+                        tint = palette.accent,
+                        modifier = Modifier.size(24.dp)
+                    )
+                    Spacer(modifier = Modifier.width(10.dp))
+                    Text("Add to Playlist", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 20.sp)
+                }
+            },
+            text = {
+                if (userPlaylists.isEmpty()) {
+                    Text("No editable playlists found.", color = Color(0xFFA59B94), fontSize = 14.sp)
+                } else {
+                    Column(modifier = Modifier.fillMaxWidth().verticalScroll(rememberScrollState())) {
+                        userPlaylists.forEach { pl ->
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .clickable {
+                                        showAddToPlaylistDialog = false
+                                        onAddTrackToPlaylist?.invoke(pl, track)
+                                    }
+                                    .padding(horizontal = 12.dp, vertical = 10.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                AsyncImage(
+                                    model = pl.artworkUrl,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(40.dp).clip(RoundedCornerShape(8.dp)),
+                                    contentScale = ContentScale.Crop
+                                )
+                                Spacer(modifier = Modifier.width(12.dp))
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(pl.name, color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
+                                    Text(pl.owner, color = Color(0xFFA59B94), fontSize = 12.sp, maxLines = 1)
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            containerColor = Color(0xFF221C1A),
+            confirmButton = {
+                TextButton(onClick = { showAddToPlaylistDialog = false }) {
+                    Text("Cancel", color = Color(0xFFA59B94))
+                }
+            }
+        )
+    }
 }
+}
+
+@Composable
+private fun AudioInfoRow(label: String, value: String) {
+    Column(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
+        Text(label.uppercase(), color = Color(0xFF8E837D), fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
+        Text(value, color = Color.White, fontSize = 13.sp)
+    }
 }
 
 @Composable

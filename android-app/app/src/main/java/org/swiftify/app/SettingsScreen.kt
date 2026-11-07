@@ -52,6 +52,44 @@ fun SettingsScreen(
         mutableStateOf(calculateCacheSize(context))
     }
 
+    var equalizerEnabled by remember {
+        mutableStateOf(prefs.getBoolean("equalizer_enabled", false))
+    }
+    val defaultGains = remember { floatArrayOf(0f, 0f, 0f, 0f, 0f, 0f) }
+    val initialGains = remember {
+        val str = prefs.getString("equalizer_gains", null)
+        val arr = str?.split(",")?.mapNotNull { it.toFloatOrNull() }?.toFloatArray()
+        if (arr != null && arr.size == 6) arr else defaultGains
+    }
+    val bandGains = remember { mutableStateListOf(*initialGains.toTypedArray()) }
+    var selectedPreset by remember {
+        mutableStateOf(prefs.getString("equalizer_preset", "Flat") ?: "Flat")
+    }
+
+    val eqPresets = remember {
+        mapOf(
+            "Flat" to floatArrayOf(0f, 0f, 0f, 0f, 0f, 0f),
+            "Bass Boost" to floatArrayOf(5.5f, 4.0f, 2.0f, 0f, 0f, 0f),
+            "Electronic" to floatArrayOf(4.0f, 3.0f, 0f, 2.0f, 3.5f, 4.5f),
+            "Rock" to floatArrayOf(4.5f, 2.5f, -1.0f, 1.5f, 3.0f, 4.0f),
+            "Vocal" to floatArrayOf(-2.0f, 1.0f, 4.0f, 4.0f, 2.0f, -1.0f),
+            "Treble" to floatArrayOf(0f, 0f, 0.5f, 2.0f, 4.0f, 5.5f)
+        )
+    }
+    val bandLabels = remember { listOf("60 Hz", "150 Hz", "400 Hz", "1.0 kHz", "2.4 kHz", "15 kHz") }
+
+    fun updateEq(gains: FloatArray, preset: String? = null) {
+        if (preset != null) {
+            selectedPreset = preset
+            prefs.edit().putString("equalizer_preset", preset).apply()
+        }
+        val str = gains.joinToString(",") { "%.1f".format(java.util.Locale.US, it) }
+        prefs.edit().putString("equalizer_gains", str).apply()
+        if (equalizerEnabled) {
+            SpotifyBridge.setEqualizer(gains)
+        }
+    }
+
     val scrollState = rememberScrollState()
 
     Column(
@@ -256,6 +294,130 @@ fun SettingsScreen(
                             checkedTrackColor = Color(0xFFF2A385)
                         )
                     )
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(20.dp))
+
+        // Section: 6-Band Equalizer & DSP
+        Text(
+            text = "EQUALIZER & SOUND (DSP)",
+            color = Color(0xFFF2A385),
+            fontSize = 12.sp,
+            fontWeight = FontWeight.Bold,
+            letterSpacing = 1.sp
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.cardColors(containerColor = Color(0xFF1E1816))
+        ) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                // Master Equalizer Switch
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text("Parametric Equalizer", color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+                        Text(if (equalizerEnabled) "Active: $selectedPreset" else "Bypassed (Flat output)", color = Color(0xFF8E837D), fontSize = 12.sp)
+                    }
+                    Switch(
+                        checked = equalizerEnabled,
+                        onCheckedChange = {
+                            equalizerEnabled = it
+                            prefs.edit().putBoolean("equalizer_enabled", it).apply()
+                            if (it) {
+                                SpotifyBridge.setEqualizer(bandGains.toFloatArray())
+                            } else {
+                                SpotifyBridge.setEqualizer(floatArrayOf(0f, 0f, 0f, 0f, 0f, 0f))
+                            }
+                        },
+                        colors = SwitchDefaults.colors(
+                            checkedThumbColor = Color(0xFF13100E),
+                            checkedTrackColor = Color(0xFFF2A385)
+                        )
+                    )
+                }
+
+                if (equalizerEnabled) {
+                    Divider(color = Color(0x22FFFFFF), thickness = 0.5.dp, modifier = Modifier.padding(vertical = 8.dp))
+
+                    Text("Sound Presets", color = Color(0xFF8E837D), fontSize = 12.sp, fontWeight = FontWeight.Medium)
+                    Spacer(modifier = Modifier.height(6.dp))
+
+                    // Preset Chips Row
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        eqPresets.keys.forEach { pName ->
+                            val isSel = selectedPreset == pName
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(10.dp))
+                                    .background(if (isSel) Color(0xFFF2A385) else Color(0xFF2B221F))
+                                    .clickable {
+                                        val pGains = eqPresets[pName] ?: defaultGains
+                                        for (i in 0 until 6) {
+                                            bandGains[i] = pGains[i]
+                                        }
+                                        updateEq(pGains, pName)
+                                    }
+                                    .padding(horizontal = 8.dp, vertical = 6.dp)
+                            ) {
+                                Text(
+                                    text = pName,
+                                    color = if (isSel) Color(0xFF13100E) else Color.White,
+                                    fontSize = 11.sp,
+                                    fontWeight = if (isSel) FontWeight.Bold else FontWeight.Normal
+                                )
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(14.dp))
+
+                    // 6 Band Frequency Sliders
+                    for (i in 0 until 6) {
+                        val freqLabel = bandLabels[i]
+                        val gain = bandGains[i]
+                        val gainStr = if (gain > 0f) "+%.1f dB".format(gain) else "%.1f dB".format(gain)
+
+                        Column(modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp)) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Text(freqLabel, color = Color(0xFFD6CBC5), fontSize = 13.sp, fontWeight = FontWeight.Medium)
+                                Text(
+                                    gainStr,
+                                    color = if (gain != 0f) Color(0xFFF2A385) else Color(0xFF8E837D),
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                            Slider(
+                                value = gain,
+                                onValueChange = { newGain ->
+                                    val rounded = (kotlin.math.round(newGain * 2f) / 2f).coerceIn(-12f, 12f)
+                                    bandGains[i] = rounded
+                                    updateEq(bandGains.toFloatArray(), "Custom")
+                                },
+                                valueRange = -12f..12f,
+                                steps = 47,
+                                colors = SliderDefaults.colors(
+                                    thumbColor = Color(0xFFF2A385),
+                                    activeTrackColor = Color(0xFFF2A385),
+                                    inactiveTrackColor = Color(0x33F2A385)
+                                )
+                            )
+                        }
+                    }
                 }
             }
         }

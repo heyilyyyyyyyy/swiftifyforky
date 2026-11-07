@@ -51,6 +51,9 @@ interface SwiftifyCoreLib : Library {
     fun swiftify_core_set_stream_quality(core: Pointer?, kbps: Int): Pointer?
     fun swiftify_core_set_volume_normalization(core: Pointer?, enabled: Boolean): Pointer?
     fun swiftify_core_set_audio_cache(core: Pointer?, path: String?, limitBytes: Long): Pointer?
+    fun swiftify_core_set_equalizer(core: Pointer?, gainsDb: FloatArray?, count: Long): Pointer?
+    fun swiftify_equalizer_frequencies(out: FloatArray?, capacity: Long): Long
+    fun swiftify_core_set_preamp_gain(core: Pointer?, gainDb: Float): Pointer?
 
     // sync – connect toggle
     fun swiftify_core_set_spotify_connect(core: Pointer?, enabled: Boolean, deviceId: String?): Pointer?
@@ -254,6 +257,30 @@ object SpotifyBridge {
             val err = SwiftifyCoreLib.INSTANCE.swiftify_core_set_audio_cache(h, path, limitBytes)
             if (err != null) SwiftifyCoreLib.INSTANCE.swiftify_string_free(err)
         }
+    }
+
+    fun setEqualizer(gainsDb: FloatArray): Boolean {
+        val h = coreHandle ?: return false
+        val err = SwiftifyCoreLib.INSTANCE.swiftify_core_set_equalizer(h, gainsDb, gainsDb.size.toLong())
+        if (err != null) {
+            val msg = err.getString(0, "UTF-8")
+            SwiftifyCoreLib.INSTANCE.swiftify_string_free(err)
+            Log.w(TAG, "swiftify_core_set_equalizer error: $msg")
+            return false
+        }
+        return true
+    }
+
+    fun setPreampGain(gainDb: Float): Boolean {
+        val h = coreHandle ?: return false
+        val err = SwiftifyCoreLib.INSTANCE.swiftify_core_set_preamp_gain(h, gainDb)
+        if (err != null) {
+            val msg = err.getString(0, "UTF-8")
+            SwiftifyCoreLib.INSTANCE.swiftify_string_free(err)
+            Log.w(TAG, "swiftify_core_set_preamp_gain error: $msg")
+            return false
+        }
+        return true
     }
 
     fun fetchPlaylist(uri: String, onResult: (Boolean, String) -> Unit) {
