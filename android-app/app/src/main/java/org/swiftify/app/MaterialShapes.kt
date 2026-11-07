@@ -14,6 +14,7 @@ import androidx.compose.animation.core.spring
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.*
@@ -334,28 +335,35 @@ fun ShapeBadge(
 
 /**
  * Builds a wavy scalloped pill path matching Swiftify Desktop's `wavy_pill.frag`.
+ * The base pill is inset by `amplitude + 1f` so the waves can fully expand to the edges without clipping.
  */
 fun buildWavyPillPath(
     width: Float,
     height: Float,
-    amplitude: Float = 2.5f,
-    wavelength: Float = 16f,
+    amplitude: Float = 3.0f,
+    wavelength: Float = 15f,
     phase: Float = 0f
 ): Path {
     val path = Path()
-    val r = height / 2f
-    val straightW = (width - 2f * r).coerceAtLeast(0f)
+    if (width <= 0f || height <= 0f) return path
+
+    val margin = amplitude + 1f
+    val availH = (height - 2f * margin).coerceAtLeast(0f)
+    val r = availH / 2f
+    val availW = (width - 2f * margin).coerceAtLeast(0f)
+    val straightW = (availW - 2f * r).coerceAtLeast(0f)
     val halfCircleArc = PI.toFloat() * r
     val perimeter = 2f * straightW + 2f * halfCircleArc
     if (perimeter <= 0f) return path
 
     val scallops = maxOf(1f, kotlin.math.round(perimeter / maxOf(wavelength, 1f)))
-    val steps = 240
+    val steps = 360
     var first = true
 
     for (i in 0..steps) {
         val s = (i.toFloat() / steps) * perimeter
-        val wave = amplitude * sin(2f * PI.toFloat() * scallops * (s / perimeter) - phase)
+        // Cosine wave between 0.0 and amplitude, matching Swiftify wavy_pill.frag
+        val wave = amplitude * (0.5f + 0.5f * cos(2f * PI.toFloat() * scallops * (s / perimeter) - phase))
 
         val x: Float
         val y: Float
@@ -365,8 +373,8 @@ fun buildWavyPillPath(
         when {
             // Top straight edge (left to right)
             s <= straightW -> {
-                x = r + s
-                y = 0f
+                x = margin + r + s
+                y = margin
                 nx = 0f
                 ny = -1f
             }
@@ -376,14 +384,14 @@ fun buildWavyPillPath(
                 val angle = -PI.toFloat() / 2f + (arcS / r)
                 nx = cos(angle)
                 ny = sin(angle)
-                x = width - r + r * nx
-                y = r + r * ny
+                x = (width - margin - r) + r * nx
+                y = (margin + r) + r * ny
             }
             // Bottom straight edge (right to left)
             s <= 2f * straightW + halfCircleArc -> {
                 val lineS = s - (straightW + halfCircleArc)
-                x = (width - r) - lineS
-                y = height
+                x = (width - margin - r) - lineS
+                y = height - margin
                 nx = 0f
                 ny = 1f
             }
@@ -393,8 +401,8 @@ fun buildWavyPillPath(
                 val angle = PI.toFloat() / 2f + (arcS / r)
                 nx = cos(angle)
                 ny = sin(angle)
-                x = r + r * nx
-                y = r + r * ny
+                x = (margin + r) + r * nx
+                y = (margin + r) + r * ny
             }
         }
 
@@ -413,8 +421,8 @@ fun buildWavyPillPath(
 }
 
 class WavyPillShape(
-    private val amplitudeDp: Float = 2.4f,
-    private val wavelengthDp: Float = 16f,
+    private val amplitudeDp: Float = 2.8f,
+    private val wavelengthDp: Float = 14f,
     private val phase: Float = 0f
 ) : Shape {
     override fun createOutline(
@@ -438,7 +446,8 @@ fun WavyPillButton(
     backgroundColor: Color = Color(0xFFF2A385),
     contentColor: Color = Color(0xFF13100E),
     enabled: Boolean = true,
-    amplitudeDp: Float = 2.4f
+    amplitudeDp: Float = 2.8f,
+    wavelengthDp: Float = 14f
 ) {
     var isPressed by remember { mutableStateOf(false) }
     val scale by animateFloatAsState(
@@ -462,9 +471,23 @@ fun WavyPillButton(
                     )
                 }
             }
-            .clip(WavyPillShape(amplitudeDp = if (isPressed) amplitudeDp * 1.5f else amplitudeDp))
-            .background(if (enabled) backgroundColor else backgroundColor.copy(alpha = 0.4f))
-            .padding(horizontal = 20.dp, vertical = 11.dp),
+            .drawBehind {
+                val effectiveAmp = if (isPressed) amplitudeDp * 1.4f else amplitudeDp
+                val ampPx = effectiveAmp.dp.toPx()
+                val wavePx = wavelengthDp.dp.toPx()
+                val path = buildWavyPillPath(
+                    width = size.width,
+                    height = size.height,
+                    amplitude = ampPx,
+                    wavelength = wavePx,
+                    phase = 0f
+                )
+                drawPath(
+                    path = path,
+                    color = if (enabled) backgroundColor else backgroundColor.copy(alpha = 0.4f)
+                )
+            }
+            .padding(horizontal = 24.dp, vertical = 12.dp),
         contentAlignment = Alignment.Center
     ) {
         Row(
@@ -477,7 +500,7 @@ fun WavyPillButton(
                 tint = if (enabled) contentColor else contentColor.copy(alpha = 0.5f),
                 modifier = Modifier.size(19.dp)
             )
-            Spacer(modifier = Modifier.width(7.dp))
+            Spacer(modifier = Modifier.width(8.dp))
             Text(
                 text = text,
                 color = if (enabled) contentColor else contentColor.copy(alpha = 0.5f),
