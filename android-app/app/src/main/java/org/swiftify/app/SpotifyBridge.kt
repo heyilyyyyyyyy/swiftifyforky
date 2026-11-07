@@ -198,11 +198,16 @@ object SpotifyBridge {
         return s
     }
 
-    fun play() {
-        coreHandle?.let { h ->
-            val err = SwiftifyCoreLib.INSTANCE.swiftify_core_play(h)
-            if (err != null) SwiftifyCoreLib.INSTANCE.swiftify_string_free(err)
+    fun play(): Boolean {
+        val h = coreHandle ?: return false
+        val err = SwiftifyCoreLib.INSTANCE.swiftify_core_play(h)
+        if (err != null) {
+            val msg = err.getString(0, "UTF-8")
+            SwiftifyCoreLib.INSTANCE.swiftify_string_free(err)
+            Log.w(TAG, "swiftify_core_play returned error: $msg")
+            return false
         }
+        return true
     }
 
     fun pause() {

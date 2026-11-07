@@ -694,6 +694,11 @@ fun PlaylistDetailScreen(
                             .shadow(if (offsetX.value > 5f) 8.dp else 0.dp, RoundedCornerShape(14.dp))
                             .clip(RoundedCornerShape(14.dp))
                             .background(if (isCurrent) Color(0xFF281E1B) else Color(0xFF13100E))
+                            .clickable {
+                                if (offsetX.value == 0f) {
+                                    onTrackSelect(track, displayTracks)
+                                }
+                            }
                             .draggable(
                                 orientation = Orientation.Horizontal,
                                 state = rememberDraggableState { delta ->
@@ -711,7 +716,6 @@ fun PlaylistDetailScreen(
                                     }
                                 }
                             )
-                            .clickable { onTrackSelect(track, displayTracks) }
                             .padding(vertical = 10.dp, horizontal = 8.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {

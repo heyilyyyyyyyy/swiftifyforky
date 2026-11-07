@@ -231,16 +231,16 @@ class MainActivity : ComponentActivity() {
         PlaybackService.listener = object : PlaybackEventListener {
             override fun onPlay() {
                 runOnUiThread {
-                    isPlaying.value = true
-                    SpotifyBridge.play()
-                    syncPlaybackServiceNotification()
+                    if (!isPlaying.value) {
+                        togglePlay()
+                    }
                 }
             }
             override fun onPause() {
                 runOnUiThread {
-                    isPlaying.value = false
-                    SpotifyBridge.pause()
-                    syncPlaybackServiceNotification()
+                    if (isPlaying.value) {
+                        togglePlay()
+                    }
                 }
             }
             override fun onNext() {
@@ -758,11 +758,25 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    private fun ensureSessionValid() {
+        if (!SpotifyBridge.isSessionValid()) {
+            val storedLogin = SecureStorage.getLoginBlob(this)
+            val storedToken = SecureStorage.getAccessToken(this)
+            Log.d("Playback", "Session is invalid -> reconnecting stored session")
+            if (storedLogin != null) {
+                SpotifyBridge.connectStored(storedLogin)
+            } else if (storedToken != null) {
+                SpotifyBridge.connect(storedToken)
+            }
+        }
+    }
+
     private fun playTrackInternal(item: TrackItem) {
         livePlayingTrack.value = item
         progressMs.longValue = 0L
         isPlaying.value = true
         isCrossfading.value = false
+        ensureSessionValid()
         SpotifyBridge.playTrack(item.uri)
         syncPlaybackServiceNotification(0L, item.durationMs)
         syncVisibleQueue()
@@ -895,6 +909,9 @@ class MainActivity : ComponentActivity() {
     private fun onTrackClick(idx: Int) {
         val clicked = tracksState.getOrNull(idx) ?: return
         if (idx == 0 && livePlayingTrack.value?.uri == clicked.uri) {
+            if (!isPlaying.value) {
+                togglePlay()
+            }
             return
         }
         val customIdx = customQueue.indexOfFirst { it.uri == clicked.uri }
@@ -915,9 +932,33 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun togglePlay() {
-        isPlaying.value = !isPlaying.value
-        if (isPlaying.value) SpotifyBridge.play() else SpotifyBridge.pause()
-        syncPlaybackServiceNotification()
+        val curr = livePlayingTrack.value
+        if (!isPlaying.value) {
+            isPlaying.value = true
+            ensureSessionValid()
+            if (curr != null) {
+                val ok = SpotifyBridge.play()
+                if (!ok) {
+                    Log.d("Playback", "SpotifyBridge.play() failed or player was stopped -> reloading track '${curr.title}'")
+                    val pos = progressMs.longValue
+                    playTrackInternal(curr)
+                    if (pos > 1000L) {
+                        scope.launch {
+                            delay(300)
+                            SpotifyBridge.seek(pos)
+                        }
+                    }
+                } else {
+                    syncPlaybackServiceNotification()
+                }
+            } else if (tracksState.isNotEmpty()) {
+                playTrackItem(tracksState[0], tracksState.toList())
+            }
+        } else {
+            isPlaying.value = false
+            SpotifyBridge.pause()
+            syncPlaybackServiceNotification()
+        }
     }
 
     private fun toggleShuffle() {
@@ -957,8 +998,13 @@ class MainActivity : ComponentActivity() {
     private fun nextTrack(isAutoAdvance: Boolean = false) {
         if (repeatMode.intValue == 2) {
             // Repeat one: replay current track from start
-            SpotifyBridge.seek(0)
-            SpotifyBridge.play()
+            val curr = livePlayingTrack.value
+            if (curr != null) {
+                playTrackInternal(curr)
+            } else {
+                SpotifyBridge.seek(0)
+                SpotifyBridge.play()
+            }
             progressMs.longValue = 0L
             isPlaying.value = true
             syncPlaybackServiceNotification(0L)

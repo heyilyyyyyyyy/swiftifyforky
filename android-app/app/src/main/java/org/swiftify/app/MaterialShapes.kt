@@ -2,7 +2,10 @@ package org.swiftify.app
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
@@ -23,6 +26,7 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.Dp
@@ -352,70 +356,57 @@ fun buildWavyPillPath(
     val r = availH / 2f
     val availW = (width - 2f * margin).coerceAtLeast(0f)
     val straightW = (availW - 2f * r).coerceAtLeast(0f)
-    val halfCircleArc = PI.toFloat() * r
-    val perimeter = 2f * straightW + 2f * halfCircleArc
-    if (perimeter <= 0f) return path
 
-    val scallops = maxOf(1f, kotlin.math.round(perimeter / maxOf(wavelength, 1f)))
-    val steps = 360
-    var first = true
+    if (availH <= 0f || availW <= 0f) return path
 
-    for (i in 0..steps) {
-        val s = (i.toFloat() / steps) * perimeter
-        // Cosine wave between 0.0 and amplitude, matching Swiftify wavy_pill.frag
-        val wave = amplitude * (0.5f + 0.5f * cos(2f * PI.toFloat() * scallops * (s / perimeter) - phase))
+    // Symmetrical scallop allocation:
+    // Ensure an integer number of wave cycles on top/bottom straight edges and left/right curved ends.
+    // Each section starts and ends at wave = 0 with zero derivative, completely eliminating any cut-offs or seams!
+    val nStraight = max(1, kotlin.math.round(straightW / max(wavelength, 1f)).toInt())
+    val nCap = max(1, kotlin.math.round((PI.toFloat() * r) / max(wavelength, 1f)).toInt())
 
-        val x: Float
-        val y: Float
-        val nx: Float
-        val ny: Float
+    val stepsPerSection = 64
 
-        when {
-            // Top straight edge (left to right)
-            s <= straightW -> {
-                x = margin + r + s
-                y = margin
-                nx = 0f
-                ny = -1f
-            }
-            // Right semi-circle (top to bottom)
-            s <= straightW + halfCircleArc -> {
-                val arcS = s - straightW
-                val angle = -PI.toFloat() / 2f + (arcS / r)
-                nx = cos(angle)
-                ny = sin(angle)
-                x = (width - margin - r) + r * nx
-                y = (margin + r) + r * ny
-            }
-            // Bottom straight edge (right to left)
-            s <= 2f * straightW + halfCircleArc -> {
-                val lineS = s - (straightW + halfCircleArc)
-                x = (width - margin - r) - lineS
-                y = height - margin
-                nx = 0f
-                ny = 1f
-            }
-            // Left semi-circle (bottom to top)
-            else -> {
-                val arcS = s - (2f * straightW + halfCircleArc)
-                val angle = PI.toFloat() / 2f + (arcS / r)
-                nx = cos(angle)
-                ny = sin(angle)
-                x = (margin + r) + r * nx
-                y = (margin + r) + r * ny
-            }
-        }
-
-        val px = x + nx * wave
-        val py = y + ny * wave
-
-        if (first) {
-            path.moveTo(px, py)
-            first = false
-        } else {
-            path.lineTo(px, py)
-        }
+    // 1. Top straight edge: left to right (y = margin, wave goes upwards: -ny)
+    for (i in 0..stepsPerSection) {
+        val u = i.toFloat() / stepsPerSection
+        val s = u * straightW
+        val wave = amplitude * (0.5f - 0.5f * cos(2f * PI.toFloat() * nStraight * u - phase))
+        val px = margin + r + s
+        val py = margin - wave
+        if (i == 0) path.moveTo(px, py) else path.lineTo(px, py)
     }
+
+    // 2. Right cap: top to bottom (-PI/2 to PI/2)
+    for (i in 0..stepsPerSection) {
+        val v = i.toFloat() / stepsPerSection
+        val angle = -PI.toFloat() / 2f + v * PI.toFloat()
+        val wave = amplitude * (0.5f - 0.5f * cos(2f * PI.toFloat() * nCap * v - phase))
+        val px = (width - margin - r) + (r + wave) * cos(angle)
+        val py = (margin + r) + (r + wave) * sin(angle)
+        path.lineTo(px, py)
+    }
+
+    // 3. Bottom straight edge: right to left (y = height - margin, wave goes downwards: +ny)
+    for (i in 0..stepsPerSection) {
+        val u = i.toFloat() / stepsPerSection
+        val s = u * straightW
+        val wave = amplitude * (0.5f - 0.5f * cos(2f * PI.toFloat() * nStraight * u - phase))
+        val px = (width - margin - r) - s
+        val py = (height - margin) + wave
+        path.lineTo(px, py)
+    }
+
+    // 4. Left cap: bottom to top (PI/2 to 3*PI/2)
+    for (i in 0..stepsPerSection) {
+        val v = i.toFloat() / stepsPerSection
+        val angle = PI.toFloat() / 2f + v * PI.toFloat()
+        val wave = amplitude * (0.5f - 0.5f * cos(2f * PI.toFloat() * nCap * v - phase))
+        val px = (margin + r) + (r + wave) * cos(angle)
+        val py = (margin + r) + (r + wave) * sin(angle)
+        path.lineTo(px, py)
+    }
+
     path.close()
     return path
 }
@@ -449,9 +440,10 @@ fun WavyPillButton(
     amplitudeDp: Float = 2.8f,
     wavelengthDp: Float = 14f
 ) {
-    var isPressed by remember { mutableStateOf(false) }
+    val interactionSource = remember { MutableInteractionSource() }
+    val isPressed by interactionSource.collectIsPressedAsState()
     val scale by animateFloatAsState(
-        targetValue = if (isPressed) 0.90f else 1.0f,
+        targetValue = if (isPressed) 0.92f else 1.0f,
         animationSpec = spring(dampingRatio = 0.5f, stiffness = 400f),
         label = "wavyButtonScale"
     )
@@ -459,18 +451,13 @@ fun WavyPillButton(
     Box(
         modifier = modifier
             .scale(scale)
-            .pointerInput(enabled) {
-                if (enabled) {
-                    detectTapGestures(
-                        onPress = {
-                            isPressed = true
-                            tryAwaitRelease()
-                            isPressed = false
-                            onClick()
-                        }
-                    )
-                }
-            }
+            .clickable(
+                interactionSource = interactionSource,
+                indication = null,
+                enabled = enabled,
+                role = Role.Button,
+                onClick = onClick
+            )
             .drawBehind {
                 val effectiveAmp = if (isPressed) amplitudeDp * 1.4f else amplitudeDp
                 val ampPx = effectiveAmp.dp.toPx()
