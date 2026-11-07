@@ -1279,12 +1279,11 @@ fun HeroFlightOverlay(
     LaunchedEffect(flightData) {
         progress.animateTo(
             targetValue = 1f,
-            animationSpec = tween(
-                durationMillis = 360,
-                easing = SwiftifyMotion.EmphasizedDecel
+            animationSpec = spring(
+                dampingRatio = 0.74f,
+                stiffness = 380f
             )
         )
-        kotlinx.coroutines.delay(100)
         onFlightFinished()
     }
 
@@ -1672,20 +1671,10 @@ val openArtistScreen: (String, String) -> Unit = { artName, artUri ->
                         val isExitingDetail = initialState is ScreenDestination.Artist || initialState is ScreenDestination.Album || initialState is ScreenDestination.Playlist || initialState is ScreenDestination.AllPlaylists
 
                         if (targetState is ScreenDestination.Artist && heroFlightData != null) {
-                            fadeIn(
-                                animationSpec = tween(
-                                    durationMillis = 280,
-                                    delayMillis = 220,
-                                    easing = SwiftifyMotion.EmphasizedDecel
+                            fadeIn(animationSpec = tween(durationMillis = 320, easing = SwiftifyMotion.EmphasizedDecel))
+                                .togetherWith(
+                                    fadeOut(animationSpec = tween(durationMillis = 200))
                                 )
-                            ).togetherWith(
-                                fadeOut(
-                                    animationSpec = tween(
-                                        durationMillis = 180,
-                                        easing = LinearEasing
-                                    )
-                                )
-                            )
                         } else if (initialState is ScreenDestination.Playlist && targetState is ScreenDestination.AllPlaylists) {
                             (slideInHorizontally(
                                 initialOffsetX = { -(it * 0.15f).toInt() },
