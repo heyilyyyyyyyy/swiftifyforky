@@ -305,7 +305,7 @@ fun ExpandedPlayer(
                         contentAlignment = Alignment.Center
                     ) {
                         MaterialExpressiveShape(
-                            shape = "cloud",
+                            shape = "flower8",
                             color = Color(0x2BFFFFFF),
                             modifier = Modifier.fillMaxSize()
                         )
@@ -1039,8 +1039,7 @@ fun ExpandedPlayer(
             )
             Box(
                 modifier = Modifier
-                    .size(56.dp)
-                    .clip(CircleShape)
+                    .size(52.dp)
                     .clickable(
                         interactionSource = prevInteraction,
                         indication = null,
@@ -1054,7 +1053,7 @@ fun ExpandedPlayer(
                         shape = "arrowLeft",
                         color = palette.accent.copy(alpha = prevShapeAlpha),
                         modifier = Modifier
-                            .size(52.dp)
+                            .size(46.dp)
                             .graphicsLayer {
                                 scaleX = prevShapeScale
                                 scaleY = prevShapeScale
@@ -1066,7 +1065,7 @@ fun ExpandedPlayer(
                     contentDescription = "Previous",
                     tint = Color.White,
                     modifier = Modifier
-                        .size(36.dp)
+                        .size(32.dp)
                         .graphicsLayer {
                             scaleX = prevIconScale
                             scaleY = prevIconScale
@@ -1103,8 +1102,7 @@ fun ExpandedPlayer(
             )
             Box(
                 modifier = Modifier
-                    .size(56.dp)
-                    .clip(CircleShape)
+                    .size(52.dp)
                     .clickable(
                         interactionSource = nextInteraction,
                         indication = null,
@@ -1118,7 +1116,7 @@ fun ExpandedPlayer(
                         shape = "arrowRight",
                         color = palette.accent.copy(alpha = nextShapeAlpha),
                         modifier = Modifier
-                            .size(52.dp)
+                            .size(46.dp)
                             .graphicsLayer {
                                 scaleX = nextShapeScale
                                 scaleY = nextShapeScale
@@ -1130,7 +1128,7 @@ fun ExpandedPlayer(
                     contentDescription = "Next",
                     tint = Color.White,
                     modifier = Modifier
-                        .size(36.dp)
+                        .size(32.dp)
                         .graphicsLayer {
                             scaleX = nextIconScale
                             scaleY = nextIconScale

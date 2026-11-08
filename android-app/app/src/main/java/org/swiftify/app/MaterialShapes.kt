@@ -151,9 +151,9 @@ fun sampleShapeRadius(shape: String, theta: Float, reach: Float): Float {
             val lobe = (0.5f + 0.5f * cos(12f * theta)).pow(2.8f)
             reach * (1f - 0.24f + 0.24f * lobe)
         }
-        "flower" -> {
-            val lobe = (0.5f + 0.5f * cos(8f * theta)).pow(0.45f)
-            reach * (1f - 0.32f + 0.32f * lobe)
+        "flower8", "flower" -> {
+            val lobe = (0.5f + 0.5f * cos(8f * theta)).pow(0.5f)
+            reach * (1f - 0.20f + 0.20f * lobe)
         }
         "squircle" -> {
             val c = abs(cos(theta)).pow(4f)
@@ -172,10 +172,76 @@ fun sampleShapeRadius(shape: String, theta: Float, reach: Float): Float {
     }
 }
 
+enum class ExpressiveArrowDirection { DOWN, UP, LEFT, RIGHT }
+
+private fun buildArrowPolygonPath(cx: Float, cy: Float, reach: Float, direction: ExpressiveArrowDirection): Path {
+    val raw = when (direction) {
+        ExpressiveArrowDirection.DOWN -> listOf(
+            Offset(cx, cy + reach * 0.84f),
+            Offset(cx + reach * 0.72f, cy - reach * 0.58f),
+            Offset(cx, cy - reach * 0.20f),
+            Offset(cx - reach * 0.72f, cy - reach * 0.58f)
+        )
+        ExpressiveArrowDirection.UP -> listOf(
+            Offset(cx, cy - reach * 0.84f),
+            Offset(cx - reach * 0.72f, cy + reach * 0.58f),
+            Offset(cx, cy + reach * 0.20f),
+            Offset(cx + reach * 0.72f, cy + reach * 0.58f)
+        )
+        ExpressiveArrowDirection.LEFT -> listOf(
+            Offset(cx - reach * 0.84f, cy),
+            Offset(cx + reach * 0.58f, cy - reach * 0.72f),
+            Offset(cx + reach * 0.20f, cy),
+            Offset(cx + reach * 0.58f, cy + reach * 0.72f)
+        )
+        ExpressiveArrowDirection.RIGHT -> listOf(
+            Offset(cx + reach * 0.84f, cy),
+            Offset(cx - reach * 0.58f, cy + reach * 0.72f),
+            Offset(cx - reach * 0.20f, cy),
+            Offset(cx - reach * 0.58f, cy - reach * 0.72f)
+        )
+    }
+
+    val path = Path()
+    val n = raw.size
+    val cr = reach * 0.26f
+
+    for (i in 0 until n) {
+        val prev = raw[(i - 1 + n) % n]
+        val curr = raw[i]
+        val next = raw[(i + 1) % n]
+
+        val vPrev = prev - curr
+        val vNext = next - curr
+        val lp = vPrev.getDistance()
+        val ln = vNext.getDistance()
+
+        val r = minOf(cr, lp * 0.45f, ln * 0.45f)
+        val pIn = curr + vPrev * (r / lp)
+        val pOut = curr + vNext * (r / ln)
+
+        if (i == 0) {
+            path.moveTo(pIn.x, pIn.y)
+        } else {
+            path.lineTo(pIn.x, pIn.y)
+        }
+        path.quadraticBezierTo(curr.x, curr.y, pOut.x, pOut.y)
+    }
+    path.close()
+    return path
+}
+
 fun buildExpressivePath(shape: String, width: Float, height: Float, steps: Int = 90): Path {
     val cx = width / 2f
     val cy = height / 2f
     val reach = min(width, height) / 2f * 0.95f
+
+    when (shape) {
+        "arrowDown" -> return buildArrowPolygonPath(cx, cy, reach, ExpressiveArrowDirection.DOWN)
+        "arrowUp" -> return buildArrowPolygonPath(cx, cy, reach, ExpressiveArrowDirection.UP)
+        "arrowLeft", "arrow" -> return buildArrowPolygonPath(cx, cy, reach, ExpressiveArrowDirection.LEFT)
+        "arrowRight" -> return buildArrowPolygonPath(cx, cy, reach, ExpressiveArrowDirection.RIGHT)
+    }
 
     val path = Path()
     var first = true

@@ -105,7 +105,7 @@ Item {
                 effect: ToolbarButton.Spin
                 size: root.buttonSize
                 iconSize: root.compact ? 20 : 26
-                shape: "puffy"
+                shape: "flower"
                 anchors.verticalCenter: parent.verticalCenter
                 symbol: "more_vert"
                 onClicked: playbackMenu.popupAt(overflow, 0, overflow.height)
