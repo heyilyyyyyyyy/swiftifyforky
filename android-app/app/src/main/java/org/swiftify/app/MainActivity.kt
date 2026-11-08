@@ -43,6 +43,7 @@ class MainActivity : ComponentActivity() {
     private val authState = mutableStateOf<AuthState>(AuthState.Loading)
     private val accessTokenState = mutableStateOf<String?>(null)
     private val tracksState = mutableStateListOf<TrackItem>()
+    private val recentlyPlayedState = mutableStateListOf<TrackItem>()
     private val playlistQueue = mutableListOf<TrackItem>()
     private val customQueue = mutableStateListOf<TrackItem>()
     private val queueContextName = mutableStateOf("Swiftify")
@@ -129,7 +130,7 @@ class MainActivity : ComponentActivity() {
         )
         super.onCreate(savedInstanceState)
         prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        library = LibraryRepository(this, prefs, scope, tracksState, userPlaylistsState)
+        library = LibraryRepository(this, prefs, scope, recentlyPlayedState, userPlaylistsState)
 
         // Request runtime notification permission on Android 13+
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
@@ -138,10 +139,11 @@ class MainActivity : ComponentActivity() {
             }
         }
 
-        // Instant playlists from disk cache
+        // Instant playlists and recently played from offline disk cache (0 ms)
         prefs.getString(KEY_CACHED_PLAYLISTS, null)?.let {
             library.parseAndApplyPlaylists(it)
         }
+        library.loadCachedRecentlyPlayed()
 
         val devName = getDeviceName()
         SpotifyBridge.init(devName)
@@ -213,6 +215,7 @@ class MainActivity : ComponentActivity() {
                     SwiftifyApp(
                         authState = authState.value,
                         tracks = tracksState,
+                        recentlyPlayed = recentlyPlayedState,
                         userPlaylists = userPlaylistsState,
                         currentTrackIndex = currentTrackIndex.intValue,
                         livePlayingTrack = livePlayingTrack.value,
@@ -280,6 +283,13 @@ class MainActivity : ComponentActivity() {
                 repeatMode.intValue = PlaybackQueueManager.shared.repeatMode.value
                 isShuffle.value = PlaybackQueueManager.shared.isShuffle
                 stopAtEndOfQueue.value = PlaybackQueueManager.shared.stopAtEndOfQueue
+            }
+        }
+
+        if (storedLogin != null || storedToken != null) {
+            scope.launch {
+                library.loadRecentlyPlayed()
+                library.loadUserPlaylists()
             }
         }
 
@@ -455,6 +465,12 @@ class MainActivity : ComponentActivity() {
         isPlaying.value = true
         isCrossfading.value = false
         lastCrossfadeTriggeredUri = null
+        val existingIdx = recentlyPlayedState.indexOfFirst { it.uri == item.uri }
+        if (existingIdx >= 0) {
+            recentlyPlayedState.removeAt(existingIdx)
+        }
+        recentlyPlayedState.add(0, item)
+        library.cacheRecentlyPlayed(recentlyPlayedState.take(20))
         PlaybackQueueManager.shared.currentTrack = item
         PlaybackQueueManager.shared.currentPlaylistIndex = currentPlaylistIndex
         ensureSessionValid()
@@ -551,7 +567,8 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun onTrackClick(idx: Int) {
-        val clicked = tracksState.getOrNull(idx) ?: return
+        val list = if (recentlyPlayedState.isNotEmpty()) recentlyPlayedState else tracksState
+        val clicked = list.getOrNull(idx) ?: return
         if (idx == 0 && livePlayingTrack.value?.uri == clicked.uri) {
             if (!isPlaying.value) {
                 togglePlay()
@@ -572,7 +589,7 @@ class MainActivity : ComponentActivity() {
             playTrackInternal(clicked)
             return
         }
-        playTrackInternal(clicked)
+        playTrackItem(clicked, list.toList())
     }
 
     private fun togglePlay() {
@@ -595,6 +612,8 @@ class MainActivity : ComponentActivity() {
                 } else {
                     syncPlaybackServiceNotification(force = true)
                 }
+            } else if (recentlyPlayedState.isNotEmpty()) {
+                playTrackItem(recentlyPlayedState[0], recentlyPlayedState.toList())
             } else if (tracksState.isNotEmpty()) {
                 playTrackItem(tracksState[0], tracksState.toList())
             }
@@ -750,11 +769,13 @@ class MainActivity : ComponentActivity() {
             .remove(KEY_REFRESH_TOKEN)
             .remove(KEY_TOKEN_EXPIRES_AT)
             .remove(KEY_CACHED_PLAYLISTS)
+            .remove(KEY_CACHED_RECENTLY_PLAYED)
             .remove("saved_track_uris")
             .apply()
         accessTokenState.value = null
         userPlaylistsState.clear()
         tracksState.clear()
+        recentlyPlayedState.clear()
         customQueue.clear()
         playlistQueue.clear()
         authState.value = AuthState.LoggedOut

@@ -379,75 +379,7 @@ fun HomeScreen(
 
         Spacer(modifier = Modifier.height(24.dp))
 
-        // Section 1: Your Playlists
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            ShapeBadge(
-                shape = "bun",
-                icon = Icons.Rounded.QueueMusic,
-                size = 34.dp,
-                iconSize = 18.dp,
-                shapeAlpha = 0.30f,
-                glyphAlpha = 0.90f
-            )
-            Spacer(modifier = Modifier.width(10.dp))
-            Text(stringResource(R.string.your_playlists), fontFamily = GoogleSansFlexFamily, color = MaterialTheme.colorScheme.onSurface, fontSize = 20.sp, fontWeight = FontWeight.Bold)
-            WavyLine(
-                modifier = Modifier.weight(1f).padding(horizontal = 12.dp),
-                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.25f)
-            )
-            Box(
-                modifier = Modifier
-                    .clip(CircleShape)
-                    .background(MaterialTheme.colorScheme.surfaceContainerHigh)
-                    .clickable { onSeeAllPlaylists() }
-                    .padding(horizontal = 12.dp, vertical = 6.dp)
-            ) {
-                Text("→ ${stringResource(R.string.see_all)}", fontFamily = GoogleSansFlexFamily, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp, fontWeight = FontWeight.Medium)
-            }
-        }
-
-        Spacer(modifier = Modifier.height(14.dp))
-
-        val displayPlaylists = if (userPlaylists.isNotEmpty()) userPlaylists else samplePlaylists
-        LazyRow(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-            items(displayPlaylists) { playlist ->
-                Column(modifier = Modifier.width(136.dp).clickable { onPlaylistClick(playlist) }) {
-                    AsyncImage(
-                        model = playlist.artworkUrl,
-                        contentDescription = null,
-                        modifier = Modifier
-                            .size(136.dp)
-                            .clip(RoundedCornerShape(12.dp)),
-                        contentScale = ContentScale.Crop
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text(
-                        text = playlist.name,
-                        fontFamily = GoogleSansFlexFamily,
-                        color = MaterialTheme.colorScheme.onSurface,
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.Bold,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                    Text(
-                        text = playlist.owner,
-                        fontFamily = GoogleSansFlexFamily,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        fontSize = 12.sp,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                }
-            }
-        }
-
-        Spacer(modifier = Modifier.height(24.dp))
-
-        // Section 2: Recently Played
+        // Section: Recently Played
         Row(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically

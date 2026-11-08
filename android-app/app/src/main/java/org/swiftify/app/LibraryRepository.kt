@@ -15,6 +15,7 @@ import java.net.HttpURLConnection
 import java.net.URL
 
 internal const val KEY_CACHED_PLAYLISTS = "cached_playlists_json"
+internal const val KEY_CACHED_RECENTLY_PLAYED = "cached_recently_played_json"
 
 /**
  * Network-backed library data: recently played tracks, playlists and playlist
@@ -68,10 +69,76 @@ class LibraryRepository(
             if (tracks.isNotEmpty()) {
                 recentlyPlayed.clear()
                 recentlyPlayed.addAll(tracks)
+                cacheRecentlyPlayed(tracks)
                 Log.d("API", "Loaded ${tracks.size} recently played tracks from Spotify ✓")
             }
         } catch (e: Exception) {
             Log.e("API", "Failed to load recently played", e)
+        }
+    }
+
+    fun loadCachedRecentlyPlayed() {
+        val cached = prefs.getString(KEY_CACHED_RECENTLY_PLAYED, null)
+        if (cached != null && recentlyPlayed.isEmpty()) {
+            parseAndApplyRecentlyPlayed(cached)
+        }
+    }
+
+    fun parseAndApplyRecentlyPlayed(jsonStr: String): Boolean {
+        try {
+            val arr = JSONArray(jsonStr)
+            if (arr.length() > 0) {
+                val list = mutableListOf<TrackItem>()
+                for (i in 0 until arr.length()) {
+                    val o = arr.getJSONObject(i)
+                    val uri = o.optString("uri")
+                    val title = o.optString("title")
+                    if (uri.isNotEmpty() && title.isNotEmpty()) {
+                        list.add(
+                            TrackItem(
+                                title = title,
+                                artist = o.optString("artist"),
+                                album = o.optString("album"),
+                                artworkUrl = o.optString("artworkUrl"),
+                                durationMs = o.optLong("durationMs"),
+                                uri = uri,
+                                albumUri = o.optString("albumUri"),
+                                artistUri = o.optString("artistUri")
+                            )
+                        )
+                    }
+                }
+                if (list.isNotEmpty()) {
+                    recentlyPlayed.clear()
+                    recentlyPlayed.addAll(list)
+                    Log.d("API", "Restored ${list.size} recently played tracks from offline disk cache ✓")
+                    return true
+                }
+            }
+        } catch (e: Exception) {
+            Log.e("API", "Failed to parse cached recently played", e)
+        }
+        return false
+    }
+
+    fun cacheRecentlyPlayed(tracks: List<TrackItem>) {
+        try {
+            val arr = JSONArray()
+            for (t in tracks) {
+                val o = JSONObject()
+                o.put("title", t.title)
+                o.put("artist", t.artist)
+                o.put("album", t.album)
+                o.put("artworkUrl", t.artworkUrl)
+                o.put("durationMs", t.durationMs)
+                o.put("uri", t.uri)
+                o.put("albumUri", t.albumUri)
+                o.put("artistUri", t.artistUri)
+                arr.put(o)
+            }
+            prefs.edit().putString(KEY_CACHED_RECENTLY_PLAYED, arr.toString()).apply()
+        } catch (e: Exception) {
+            Log.e("API", "Failed to cache recently played", e)
         }
     }
 

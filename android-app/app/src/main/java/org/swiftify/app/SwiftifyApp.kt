@@ -73,7 +73,8 @@ fun SwiftifyApp(
     sleepTimerMinutes: Int = 0,
     sleepTimerRemainingSeconds: Int = 0,
     onSetSleepTimer: ((Int) -> Unit)? = null,
-    onLogout: (() -> Unit)? = null
+    onLogout: (() -> Unit)? = null,
+    recentlyPlayed: List<TrackItem> = emptyList()
 ) {
     var selectedTab by remember { mutableIntStateOf(0) }
     var isPlayerExpanded by remember { mutableStateOf(false) }
@@ -488,7 +489,7 @@ fun SwiftifyApp(
                         is ScreenDestination.Home -> {
                             HomeScreen(
                                 authState = authState,
-                                tracks = tracks,
+                                tracks = if (recentlyPlayed.isNotEmpty()) recentlyPlayed else tracks,
                                 currentTrackIndex = currentTrackIndex,
                                 livePlayingTrack = livePlayingTrack,
                                 isPlaying = isPlaying,

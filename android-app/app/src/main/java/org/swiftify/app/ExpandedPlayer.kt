@@ -126,8 +126,13 @@ fun ExpandedPlayer(
     var lyricsErrorMsg by remember { mutableStateOf<String?>(null) }
     var isLoadingLyrics by remember { mutableStateOf(false) }
 
-    // Fetch lyrics when lyrics tab is opened
+    // Fetch lyrics when lyrics tab is opened or track changes
     LaunchedEffect(selectedTab, track.uri) {
+        if (lyricsLoadedForUri != track.uri) {
+            lyricLines = emptyList()
+            isLineSynced = false
+            lyricsErrorMsg = null
+        }
         if (selectedTab == 1 && lyricsLoadedForUri != track.uri) {
             isLoadingLyrics = true
             lyricsErrorMsg = null
@@ -156,12 +161,14 @@ fun ExpandedPlayer(
                             lyricsErrorMsg = obj.optString("syncType", "Instrumental or lyrics unavailable")
                         }
                     } catch (e: Exception) {
-                        lyricsErrorMsg = payload
+                        lyricsErrorMsg = "Lyrics are unavailable for this track."
                         isLineSynced = false
+                        lyricLines = emptyList()
                     }
                 } else {
                     lyricsErrorMsg = "Lyrics are unavailable for this track."
                     isLineSynced = false
+                    lyricLines = emptyList()
                 }
                 lyricsLoadedForUri = track.uri
             }
@@ -580,9 +587,11 @@ fun ExpandedPlayer(
                                 contentAlignment = Alignment.Center
                             ) {
                                 Text(
-                                    text = lyricsErrorMsg ?: "No lyrics available for this song.",
+                                    text = lyricsErrorMsg ?: "Lyrics are unavailable for this track.",
+                                    fontFamily = GoogleSansFlexFamily,
                                     color = Color(0xCCFFFFFF),
                                     fontSize = 16.sp,
+                                    fontWeight = FontWeight.Medium,
                                     textAlign = TextAlign.Center
                                 )
                             }
