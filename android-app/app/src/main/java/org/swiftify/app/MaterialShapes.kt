@@ -338,9 +338,13 @@ fun SwiftifyPlayButton(
         )
 
         // Morphing & spinning cookie button body
+        val currentSpin = if (isPlaying || morphProgress > 0.05f) spinAngle else 0f
         Canvas(
             modifier = Modifier
                 .fillMaxSize()
+                .graphicsLayer {
+                    rotationZ = currentSpin
+                }
                 .clickable(
                     interactionSource = interactionSource,
                     indication = null,
@@ -357,10 +361,7 @@ fun SwiftifyPlayButton(
                 steps = 90
             )
 
-            val currentSpin = if (isPlaying || morphProgress > 0.05f) spinAngle else 0f
-            rotate(currentSpin, pivot = center) {
-                drawPath(path = path, color = primaryColor, style = Fill)
-            }
+            drawPath(path = path, color = primaryColor, style = Fill)
         }
 
         // Inner popping Play/Pause glyph
