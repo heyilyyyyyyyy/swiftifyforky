@@ -554,8 +554,8 @@ fun ExpandedPlayer(
                                                     .padding(horizontal = 20.dp)
                                                     .drawBehind {
                                                         if (isLineSynced && pillBg.alpha > 0.005f) {
-                                                            val ampPx = 3.2.dp.toPx()
-                                                            val wavePx = 14.dp.toPx()
+                                                            val ampPx = 1.6.dp.toPx()
+                                                            val wavePx = 15.dp.toPx()
                                                             val path = buildWavyPillPath(
                                                                 width = size.width,
                                                                 height = size.height,
@@ -570,14 +570,14 @@ fun ExpandedPlayer(
                                                             )
                                                         }
                                                     }
-                                                    .padding(horizontal = 24.dp, vertical = 10.dp)
+                                                    .padding(horizontal = 22.dp, vertical = 9.dp)
                                             ) {
                                                 Text(
                                                     text = if (line.words.isNotEmpty()) line.words else "♪",
                                                     fontFamily = GoogleSansFlexFamily,
                                                     color = textColor,
                                                     fontSize = if (isCurrent) 24.sp else 19.sp,
-                                                    fontWeight = if (isCurrent) FontWeight.Bold else FontWeight.SemiBold,
+                                                    fontWeight = if (isCurrent) FontWeight.Black else FontWeight.Bold,
                                                     lineHeight = if (isCurrent) 32.sp else 26.sp,
                                                     textAlign = TextAlign.Center
                                                 )

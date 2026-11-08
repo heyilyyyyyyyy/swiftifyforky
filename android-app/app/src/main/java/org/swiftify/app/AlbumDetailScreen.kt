@@ -29,6 +29,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
+import org.swiftify.app.design.GoogleSansFlexFamily
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntOffset
@@ -198,9 +199,10 @@ fun AlbumDetailScreen(
 
                 Text(
                     text = albumTitle,
+                    fontFamily = GoogleSansFlexFamily,
                     color = MaterialTheme.colorScheme.onSurface,
                     fontSize = 24.sp,
-                    fontWeight = FontWeight.Bold,
+                    fontWeight = FontWeight.ExtraBold,
                     textAlign = TextAlign.Center,
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis
@@ -209,9 +211,10 @@ fun AlbumDetailScreen(
                 if (artistName.isNotEmpty()) {
                     Text(
                         text = artistName,
+                        fontFamily = GoogleSansFlexFamily,
                         color = MaterialTheme.colorScheme.primary,
                         fontSize = 15.sp,
-                        fontWeight = FontWeight.SemiBold,
+                        fontWeight = FontWeight.Bold,
                         textAlign = TextAlign.Center,
                         modifier = Modifier
                             .padding(top = 6.dp)

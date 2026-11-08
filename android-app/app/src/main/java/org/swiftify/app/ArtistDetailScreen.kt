@@ -38,6 +38,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.ui.text.font.FontWeight
+import org.swiftify.app.design.GoogleSansFlexFamily
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntOffset
@@ -268,9 +269,10 @@ fun ArtistDetailScreen(
 
                 Text(
                     text = artist.name,
+                    fontFamily = GoogleSansFlexFamily,
                     color = MaterialTheme.colorScheme.onSurface,
                     fontSize = 26.sp,
-                    fontWeight = FontWeight.Bold,
+                    fontWeight = FontWeight.ExtraBold,
                     textAlign = TextAlign.Center
                 )
 
@@ -318,6 +320,7 @@ fun ArtistDetailScreen(
             ) {
                 Text(
                     text = "Popular Songs",
+                    fontFamily = GoogleSansFlexFamily,
                     color = MaterialTheme.colorScheme.onSurface,
                     fontSize = 20.sp,
                     fontWeight = FontWeight.Bold
@@ -532,6 +535,7 @@ fun ArtistDetailScreen(
                 ) {
                     Text(
                         text = "Discography",
+                        fontFamily = GoogleSansFlexFamily,
                         color = MaterialTheme.colorScheme.onSurface,
                         fontSize = 20.sp,
                         fontWeight = FontWeight.Bold

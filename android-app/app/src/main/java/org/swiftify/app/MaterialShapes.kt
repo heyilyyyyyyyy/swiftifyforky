@@ -653,8 +653,8 @@ fun ShapeBadge(
 fun buildWavyPillPath(
     width: Float,
     height: Float,
-    amplitude: Float = 3.0f,
-    wavelength: Float = 14f,
+    amplitude: Float = 1.8f,
+    wavelength: Float = 15f,
     phase: Float = 0f,
     cornerRadius: Float = Float.MAX_VALUE
 ): Path {
@@ -769,8 +769,8 @@ fun WavyPillButton(
     backgroundColor: Color = Color(0xFF1ED760),
     contentColor: Color = Color(0xFF000000),
     enabled: Boolean = true,
-    amplitudeDp: Float = 2.8f,
-    wavelengthDp: Float = 14f
+    amplitudeDp: Float = 1.8f,
+    wavelengthDp: Float = 15f
 ) {
     val interactionSource = remember { MutableInteractionSource() }
     val isPressed by interactionSource.collectIsPressedAsState()

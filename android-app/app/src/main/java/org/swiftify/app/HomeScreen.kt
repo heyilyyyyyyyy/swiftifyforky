@@ -29,6 +29,7 @@ import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import org.swiftify.app.design.GoogleSansFlexFamily
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -93,6 +94,7 @@ fun HomeScreen(
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = "Swiftify",
+                    fontFamily = GoogleSansFlexFamily,
                     color = MaterialTheme.colorScheme.onSurface,
                     fontSize = 28.sp,
                     fontWeight = FontWeight.Bold,
@@ -323,9 +325,10 @@ fun HomeScreen(
                     )
                     Spacer(modifier = Modifier.width(10.dp))
                     Column(modifier = Modifier.weight(1f)) {
-                        Text(stringResource(R.string.fav_songs), color = MaterialTheme.colorScheme.onSurface, fontSize = 13.sp, fontWeight = FontWeight.Bold, maxLines = 1)
+                        Text(stringResource(R.string.fav_songs), fontFamily = GoogleSansFlexFamily, color = MaterialTheme.colorScheme.onSurface, fontSize = 13.sp, fontWeight = FontWeight.Bold, maxLines = 1)
                         Text(
                             text = if (savedTrackCount > 0) "Tracks: $savedTrackCount" else "Collection",
+                            fontFamily = GoogleSansFlexFamily,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             fontSize = 11.sp,
                             maxLines = 1
@@ -360,9 +363,9 @@ fun HomeScreen(
                     )
                     Spacer(modifier = Modifier.width(10.dp))
                     Column(modifier = Modifier.weight(1f)) {
-                        Text(stringResource(R.string.your_playlists), color = MaterialTheme.colorScheme.onSurface, fontSize = 13.sp, fontWeight = FontWeight.Bold, maxLines = 1)
+                        Text(stringResource(R.string.your_playlists), fontFamily = GoogleSansFlexFamily, color = MaterialTheme.colorScheme.onSurface, fontSize = 13.sp, fontWeight = FontWeight.Bold, maxLines = 1)
                         val count = if (userPlaylists.isNotEmpty()) userPlaylists.size else 5
-                        Text("Collections: $count", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 11.sp, maxLines = 1)
+                        Text("Collections: $count", fontFamily = GoogleSansFlexFamily, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 11.sp, maxLines = 1)
                     }
                     Icon(
                         imageVector = Icons.Rounded.ChevronRight,
@@ -390,7 +393,7 @@ fun HomeScreen(
                 glyphAlpha = 0.90f
             )
             Spacer(modifier = Modifier.width(10.dp))
-            Text(stringResource(R.string.your_playlists), color = MaterialTheme.colorScheme.onSurface, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+            Text(stringResource(R.string.your_playlists), fontFamily = GoogleSansFlexFamily, color = MaterialTheme.colorScheme.onSurface, fontSize = 20.sp, fontWeight = FontWeight.Bold)
             WavyLine(
                 modifier = Modifier.weight(1f).padding(horizontal = 12.dp),
                 color = MaterialTheme.colorScheme.primary.copy(alpha = 0.25f)
@@ -402,7 +405,7 @@ fun HomeScreen(
                     .clickable { onSeeAllPlaylists() }
                     .padding(horizontal = 12.dp, vertical = 6.dp)
             ) {
-                Text("→ ${stringResource(R.string.see_all)}", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp, fontWeight = FontWeight.Medium)
+                Text("→ ${stringResource(R.string.see_all)}", fontFamily = GoogleSansFlexFamily, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp, fontWeight = FontWeight.Medium)
             }
         }
 
@@ -423,6 +426,7 @@ fun HomeScreen(
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(
                         text = playlist.name,
+                        fontFamily = GoogleSansFlexFamily,
                         color = MaterialTheme.colorScheme.onSurface,
                         fontSize = 14.sp,
                         fontWeight = FontWeight.Bold,
@@ -431,6 +435,7 @@ fun HomeScreen(
                     )
                     Text(
                         text = playlist.owner,
+                        fontFamily = GoogleSansFlexFamily,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         fontSize = 12.sp,
                         maxLines = 1,
@@ -456,7 +461,7 @@ fun HomeScreen(
                 glyphAlpha = 0.90f
             )
             Spacer(modifier = Modifier.width(10.dp))
-            Text(stringResource(R.string.recently_played), color = MaterialTheme.colorScheme.onSurface, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+            Text(stringResource(R.string.recently_played), fontFamily = GoogleSansFlexFamily, color = MaterialTheme.colorScheme.onSurface, fontSize = 20.sp, fontWeight = FontWeight.Bold)
             WavyLine(
                 modifier = Modifier.weight(1f).padding(start = 12.dp),
                 color = MaterialTheme.colorScheme.primary.copy(alpha = 0.25f)
@@ -542,7 +547,7 @@ fun HomeScreen(
                 glyphAlpha = 0.90f
             )
             Spacer(modifier = Modifier.width(10.dp))
-            Text(stringResource(R.string.artists_in_rotation), color = MaterialTheme.colorScheme.onSurface, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+            Text(stringResource(R.string.artists_in_rotation), fontFamily = GoogleSansFlexFamily, color = MaterialTheme.colorScheme.onSurface, fontSize = 20.sp, fontWeight = FontWeight.Bold)
             WavyLine(
                 modifier = Modifier.weight(1f).padding(start = 12.dp),
                 color = MaterialTheme.colorScheme.primary.copy(alpha = 0.25f)
@@ -588,9 +593,10 @@ fun HomeScreen(
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(
                         text = artist.name,
+                        fontFamily = GoogleSansFlexFamily,
                         color = MaterialTheme.colorScheme.onSurface,
                         fontSize = 14.sp,
-                        fontWeight = FontWeight.Medium,
+                        fontWeight = FontWeight.Bold,
                         textAlign = TextAlign.Center,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis

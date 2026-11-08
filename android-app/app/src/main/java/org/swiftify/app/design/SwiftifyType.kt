@@ -12,7 +12,9 @@ val GoogleSansFlexFamily = FontFamily(
     Font(R.font.google_sans_flex, FontWeight.Normal),
     Font(R.font.google_sans_flex, FontWeight.Medium),
     Font(R.font.google_sans_flex, FontWeight.SemiBold),
-    Font(R.font.google_sans_flex, FontWeight.Bold)
+    Font(R.font.google_sans_flex, FontWeight.Bold),
+    Font(R.font.google_sans_flex, FontWeight.ExtraBold),
+    Font(R.font.google_sans_flex, FontWeight.Black)
 )
 
 object SwiftifyType {
@@ -22,20 +24,45 @@ object SwiftifyType {
             fontWeight = FontWeight.Bold,
             fontSize = 28.sp
         ),
+        displayMedium = TextStyle(
+            fontFamily = GoogleSansFlexFamily,
+            fontWeight = FontWeight.Bold,
+            fontSize = 24.sp
+        ),
+        displaySmall = TextStyle(
+            fontFamily = GoogleSansFlexFamily,
+            fontWeight = FontWeight.Bold,
+            fontSize = 22.sp
+        ),
         headlineLarge = TextStyle(
             fontFamily = GoogleSansFlexFamily,
             fontWeight = FontWeight.Bold,
             fontSize = 24.sp
         ),
+        headlineMedium = TextStyle(
+            fontFamily = GoogleSansFlexFamily,
+            fontWeight = FontWeight.Bold,
+            fontSize = 20.sp
+        ),
+        headlineSmall = TextStyle(
+            fontFamily = GoogleSansFlexFamily,
+            fontWeight = FontWeight.Bold,
+            fontSize = 18.sp
+        ),
         titleLarge = TextStyle(
             fontFamily = GoogleSansFlexFamily,
-            fontWeight = FontWeight.SemiBold,
+            fontWeight = FontWeight.Bold,
             fontSize = 22.sp
         ),
         titleMedium = TextStyle(
             fontFamily = GoogleSansFlexFamily,
             fontWeight = FontWeight.SemiBold,
             fontSize = 18.sp
+        ),
+        titleSmall = TextStyle(
+            fontFamily = GoogleSansFlexFamily,
+            fontWeight = FontWeight.SemiBold,
+            fontSize = 15.sp
         ),
         bodyLarge = TextStyle(
             fontFamily = GoogleSansFlexFamily,

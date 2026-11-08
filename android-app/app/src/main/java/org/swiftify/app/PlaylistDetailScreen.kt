@@ -28,6 +28,7 @@ import androidx.compose.material.icons.rounded.*
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
+import org.swiftify.app.design.GoogleSansFlexFamily
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -543,9 +544,10 @@ fun PlaylistDetailScreen(
 
                     Text(
                         text = playlist.name,
+                        fontFamily = GoogleSansFlexFamily,
                         color = MaterialTheme.colorScheme.onSurface,
                         fontSize = 24.sp,
-                        fontWeight = FontWeight.Bold,
+                        fontWeight = FontWeight.ExtraBold,
                         maxLines = 2,
                         textAlign = TextAlign.Center
                     )
