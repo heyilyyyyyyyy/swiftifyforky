@@ -263,49 +263,63 @@ fun SwiftifyApp(
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .padding(horizontal = 16.dp),
-                                horizontalArrangement = Arrangement.SpaceAround,
+                                    .padding(horizontal = 8.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                CompactNavItem(
-                                    icon = Icons.Rounded.Home,
-                                    label = stringResource(R.string.nav_home),
-                                    selected = selectedTab == 0 && activePlaylist == null && activeArtist == null && activeAlbumUri == null && !showAllPlaylists,
-                                    onClick = {
-                                        selectedTab = 0
-                                        activePlaylist = null
-                                        activeArtist = null
-                                        activeAlbumUri = null
-                                        showAllPlaylists = false
-                                        openedFromAllPlaylists = false
-                                    }
-                                )
-                                CompactNavItem(
-                                    icon = Icons.Rounded.Search,
-                                    label = stringResource(R.string.nav_search),
-                                    selected = selectedTab == 1 && activePlaylist == null && activeArtist == null && activeAlbumUri == null && !showAllPlaylists,
-                                    onClick = {
-                                        selectedTab = 1
-                                        activePlaylist = null
-                                        activeArtist = null
-                                        activeAlbumUri = null
-                                        showAllPlaylists = false
-                                        openedFromAllPlaylists = false
-                                    }
-                                )
-                                CompactNavItem(
-                                    icon = Icons.Rounded.Settings,
-                                    label = stringResource(R.string.nav_settings),
-                                    selected = selectedTab == 2 && activePlaylist == null && activeArtist == null && activeAlbumUri == null && !showAllPlaylists,
-                                    onClick = {
-                                        selectedTab = 2
-                                        activePlaylist = null
-                                        activeArtist = null
-                                        activeAlbumUri = null
-                                        showAllPlaylists = false
-                                        openedFromAllPlaylists = false
-                                    }
-                                )
+                                Box(
+                                    modifier = Modifier.weight(1f),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    CompactNavItem(
+                                        icon = Icons.Rounded.Home,
+                                        label = stringResource(R.string.nav_home),
+                                        selected = selectedTab == 0 && activePlaylist == null && activeArtist == null && activeAlbumUri == null && !showAllPlaylists,
+                                        onClick = {
+                                            selectedTab = 0
+                                            activePlaylist = null
+                                            activeArtist = null
+                                            activeAlbumUri = null
+                                            showAllPlaylists = false
+                                            openedFromAllPlaylists = false
+                                        }
+                                    )
+                                }
+                                Box(
+                                    modifier = Modifier.weight(1f),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    CompactNavItem(
+                                        icon = Icons.Rounded.Search,
+                                        label = stringResource(R.string.nav_search),
+                                        selected = selectedTab == 1 && activePlaylist == null && activeArtist == null && activeAlbumUri == null && !showAllPlaylists,
+                                        onClick = {
+                                            selectedTab = 1
+                                            activePlaylist = null
+                                            activeArtist = null
+                                            activeAlbumUri = null
+                                            showAllPlaylists = false
+                                            openedFromAllPlaylists = false
+                                        }
+                                    )
+                                }
+                                Box(
+                                    modifier = Modifier.weight(1f),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    CompactNavItem(
+                                        icon = Icons.Rounded.Settings,
+                                        label = stringResource(R.string.nav_settings),
+                                        selected = selectedTab == 2 && activePlaylist == null && activeArtist == null && activeAlbumUri == null && !showAllPlaylists,
+                                        onClick = {
+                                            selectedTab = 2
+                                            activePlaylist = null
+                                            activeArtist = null
+                                            activeAlbumUri = null
+                                            showAllPlaylists = false
+                                            openedFromAllPlaylists = false
+                                        }
+                                    )
+                                }
                             }
                             Spacer(modifier = Modifier.height(navBottomSpacing))
                         }
