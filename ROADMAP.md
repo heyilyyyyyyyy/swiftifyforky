@@ -832,7 +832,7 @@ Android mini: радиус 22, тень 16dp с персиковым `spotColor`
 - [x] Иконки вместо текстовых глифов.
 - [x] Кривые движения.
 - [x] Dynamic palette: только expanded player + glow.
-- [ ] Опционально: переключатель тем в Settings (Spotify / Swiftify `#FF3D8A`), как на десктопе.
+- [x] Переключатель тем в Settings (8 тем с полным паритетом десктопа: Spotify, Swiftify Pink `#FF3D8A`, Catppuccin Mocha, Rosé Pine, Gruvbox, Nord, Tokyo Night, OLED Pure Black).
 - [ ] Опционально: hero-flight (обложка из списка в hero). В Compose 1.6.1 shared-element API нет — только ручной overlay, низкий приоритет.
 
 ### 12.9. Проверка и Definition of Done
