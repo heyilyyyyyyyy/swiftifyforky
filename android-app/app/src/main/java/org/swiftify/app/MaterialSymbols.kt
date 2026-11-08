@@ -1,27 +1,24 @@
 package org.swiftify.app
 
-import androidx.compose.foundation.layout.Box
+import android.graphics.Paint
+import android.graphics.Rect
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.size
 import androidx.compose.material3.LocalContentColor
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.Alignment
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.graphics.nativeCanvas
+import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.PlatformTextStyle
-import androidx.compose.ui.text.TextStyle
-import androidx.compose.ui.text.font.Font
-import androidx.compose.ui.text.font.FontFamily
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-
-val MaterialSymbolsFont = FontFamily(Font(R.font.material_symbols_rounded))
+import androidx.core.content.res.ResourcesCompat
 
 object MaterialSymbols {
     const val Shuffle = "\ue043"
@@ -42,6 +39,15 @@ object MaterialSymbols {
     const val PlaylistAdd = "\ue03b"
 }
 
+/**
+ * Renders an authentic Material Symbols Rounded icon glyph loaded directly from
+ * material_symbols_rounded.ttf (the identical desktop font file).
+ *
+ * Uses Paint.getTextBounds() to calculate the exact geometric visual bounding box
+ * of the glyph and centers it mathematically at (width/2, height/2). This guarantees
+ * 100% dead-center alignment inside any enclosing shape or box, completely bypassing
+ * Android font baseline and ascent/descent vertical shifts.
+ */
 @Composable
 fun MaterialSymbol(
     symbol: String,
@@ -50,10 +56,19 @@ fun MaterialSymbol(
     tint: Color = LocalContentColor.current,
     size: Dp = 24.dp
 ) {
-    val density = LocalDensity.current
-    val fontSizeSp = with(density) { size.toSp() }
+    val context = LocalContext.current
+    val typeface = remember(context) {
+        ResourcesCompat.getFont(context, R.font.material_symbols_rounded)
+    }
+    val bounds = remember { Rect() }
+    val paint = remember {
+        Paint().apply {
+            isAntiAlias = true
+            isSubpixelText = true
+        }
+    }
 
-    Box(
+    Canvas(
         modifier = modifier
             .size(size)
             .then(
@@ -63,19 +78,24 @@ fun MaterialSymbol(
                         this.role = Role.Image
                     }
                 } else Modifier
-            ),
-        contentAlignment = Alignment.Center
+            )
     ) {
-        Text(
-            text = symbol,
-            fontFamily = MaterialSymbolsFont,
-            fontSize = fontSizeSp,
-            style = TextStyle(
-                platformStyle = PlatformTextStyle(includeFontPadding = false),
-                lineHeight = fontSizeSp
-            ),
-            color = tint,
-            textAlign = TextAlign.Center
-        )
+        if (typeface == null) return@Canvas
+        val pxSize = size.toPx()
+        paint.typeface = typeface
+        paint.textSize = pxSize
+        paint.color = tint.toArgb()
+
+        paint.getTextBounds(symbol, 0, symbol.length, bounds)
+
+        // Mathematical visual center:
+        // bounds.exactCenterX() is the horizontal center of the glyph relative to the drawing origin.
+        // bounds.exactCenterY() is the vertical center of the glyph relative to the drawing origin (baseline).
+        // By subtracting these from canvas (center.x, center.y), the visual glyph bounding box
+        // is placed symmetrically at the exact dead center of this Composable canvas.
+        val drawX = center.x - bounds.exactCenterX()
+        val drawY = center.y - bounds.exactCenterY()
+
+        drawContext.canvas.nativeCanvas.drawText(symbol, drawX, drawY, paint)
     }
 }
