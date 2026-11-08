@@ -411,7 +411,7 @@ fun SettingsScreen(
                                 selectedQuality = kbps
                                 prefs.edit().putInt("audio_quality_kbps", kbps).apply()
                                 SpotifyBridge.setStreamQuality(kbps)
-                                Toast.makeText(context, "Audio quality set to $kbps kbps", Toast.LENGTH_SHORT).show()
+                                Toast.makeText(context, context.getString(R.string.toast_audio_quality_set, kbps), Toast.LENGTH_SHORT).show()
                             }
                             .padding(vertical = 10.dp, horizontal = 10.dp),
                         verticalAlignment = Alignment.CenterVertically,

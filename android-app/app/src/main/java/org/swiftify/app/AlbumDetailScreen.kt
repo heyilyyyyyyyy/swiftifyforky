@@ -28,6 +28,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import org.swiftify.app.design.GoogleSansFlexFamily
 import androidx.compose.ui.text.style.TextAlign
@@ -313,7 +315,7 @@ fun AlbumDetailScreen(
                             )
                             Spacer(modifier = Modifier.width(8.dp))
                             Text(
-                                text = if (swipeArmed) "Add to Queue" else "Swipe to queue",
+                                text = if (swipeArmed) stringResource(R.string.swipe_add_to_queue) else stringResource(R.string.swipe_to_queue),
                                 color = MaterialTheme.colorScheme.primary,
                                 fontSize = 13.sp,
                                 fontWeight = FontWeight.Bold
@@ -324,6 +326,7 @@ fun AlbumDetailScreen(
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
+                            .semantics(mergeDescendants = true) {}
                             .height(64.dp)
                             .offset { IntOffset(offsetX.roundToInt(), 0) }
                             .clip(RoundedCornerShape(8.dp))
@@ -352,7 +355,7 @@ fun AlbumDetailScreen(
                                 onDragStopped = {
                                     if (swipeArmed) {
                                         onAddToQueue?.invoke(track)
-                                        Toast.makeText(context, "Added '${track.title}' to queue", Toast.LENGTH_SHORT).show()
+                                        Toast.makeText(context, context.getString(R.string.toast_added_to_queue, track.title), Toast.LENGTH_SHORT).show()
                                     }
                                     dragDistance = 0f
                                     coroutineScope.launch {

@@ -166,7 +166,7 @@ class SpotifyAuth(
                         Log.e("AuthServer", "Auth failed: state mismatch (expected $oauthStateParam, got $returnedState)")
                         onAuthState(AuthState.LoggedOut)
                         onStatus("Security error: invalid OAuth state parameter")
-                        Toast.makeText(context, "Authentication rejected: invalid state", Toast.LENGTH_LONG).show()
+                        Toast.makeText(context, context.getString(R.string.toast_auth_invalid_state), Toast.LENGTH_LONG).show()
                     } else if (code != null) {
                         Log.d("AuthServer", "Captured authorization code with validated CSRF state ✓")
                         onStatus("Exchanging code for token...")

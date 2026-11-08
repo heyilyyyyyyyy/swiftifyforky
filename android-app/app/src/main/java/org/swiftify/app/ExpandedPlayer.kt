@@ -10,6 +10,7 @@ import android.net.Uri
 import android.content.ClipboardManager
 import android.content.ClipData
 import android.widget.Toast
+import androidx.compose.ui.res.stringResource
 
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
@@ -313,7 +314,7 @@ fun ExpandedPlayer(
                                     modifier = Modifier.size(20.dp)
                                 )
                             },
-                            text = { Text("Audio Info", color = Color.White, fontSize = 13.sp) },
+                            text = { Text(stringResource(R.string.menu_audio_info), color = Color.White, fontSize = 13.sp) },
                             onClick = {
                                 showOptionsMenu = false
                                 showAudioInfoDialog = true
@@ -328,7 +329,7 @@ fun ExpandedPlayer(
                                     modifier = Modifier.size(20.dp)
                                 )
                             },
-                            text = { Text("Go to Album", color = Color.White, fontSize = 13.sp) },
+                            text = { Text(stringResource(R.string.menu_go_to_album), color = Color.White, fontSize = 13.sp) },
                             onClick = {
                                 showOptionsMenu = false
                                 onAlbumClick?.invoke()
@@ -343,7 +344,7 @@ fun ExpandedPlayer(
                                     modifier = Modifier.size(20.dp)
                                 )
                             },
-                            text = { Text("Go to Artist", color = Color.White, fontSize = 13.sp) },
+                            text = { Text(stringResource(R.string.menu_go_to_artist), color = Color.White, fontSize = 13.sp) },
                             onClick = {
                                 showOptionsMenu = false
                                 onArtistClick?.invoke(track.artist)
@@ -359,7 +360,7 @@ fun ExpandedPlayer(
                                         modifier = Modifier.size(20.dp)
                                     )
                                 },
-                                text = { Text("Add to Playlist", color = Color.White, fontSize = 13.sp) },
+                                text = { Text(stringResource(R.string.menu_add_to_playlist), color = Color.White, fontSize = 13.sp) },
                                 onClick = {
                                     showOptionsMenu = false
                                     showAddToPlaylistDialog = true
@@ -375,12 +376,12 @@ fun ExpandedPlayer(
                                     modifier = Modifier.size(20.dp)
                                 )
                             },
-                            text = { Text("Copy Spotify URI", color = Color.White, fontSize = 13.sp) },
+                            text = { Text(stringResource(R.string.menu_copy_uri), color = Color.White, fontSize = 13.sp) },
                             onClick = {
                                 showOptionsMenu = false
                                 val cm = context.getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
                                 cm?.setPrimaryClip(ClipData.newPlainText("Spotify URI", track.uri))
-                                Toast.makeText(context, "Copied Spotify URI", Toast.LENGTH_SHORT).show()
+                                Toast.makeText(context, context.getString(R.string.toast_copied_uri), Toast.LENGTH_SHORT).show()
                             }
                         )
                     }
@@ -884,7 +885,7 @@ fun ExpandedPlayer(
                         val success = SpotifyApi.setTrackSaved(context, track.uri, newSaved)
                         if (!success) {
                             isLiked = prevSaved
-                            Toast.makeText(context, "Failed to update Saved Tracks", Toast.LENGTH_SHORT).show()
+                            Toast.makeText(context, context.getString(R.string.toast_failed_saved_tracks), Toast.LENGTH_SHORT).show()
                         }
                     }
                 },
@@ -1114,7 +1115,7 @@ fun ExpandedPlayer(
                         modifier = Modifier.size(24.dp)
                     )
                     Spacer(modifier = Modifier.width(10.dp))
-                    Text("Sleep Timer", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 20.sp)
+                    Text(stringResource(R.string.title_sleep_timer), color = Color.White, fontWeight = FontWeight.Bold, fontSize = 20.sp)
                 }
             },
             text = {
@@ -1155,7 +1156,7 @@ fun ExpandedPlayer(
             containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
             confirmButton = {
                 TextButton(onClick = { showSleepTimerDialog = false }) {
-                    Text("Close", color = palette.accent, fontWeight = FontWeight.Bold)
+                    Text(stringResource(R.string.btn_close), color = palette.accent, fontWeight = FontWeight.Bold)
                 }
             }
         )
@@ -1173,7 +1174,7 @@ fun ExpandedPlayer(
                         modifier = Modifier.size(24.dp)
                     )
                     Spacer(modifier = Modifier.width(10.dp))
-                    Text("Audio Info", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 20.sp)
+                    Text(stringResource(R.string.menu_audio_info), color = Color.White, fontWeight = FontWeight.Bold, fontSize = 20.sp)
                 }
             },
             text = {
@@ -1190,7 +1191,7 @@ fun ExpandedPlayer(
             containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
             confirmButton = {
                 TextButton(onClick = { showAudioInfoDialog = false }) {
-                    Text("Close", color = palette.accent, fontWeight = FontWeight.Bold)
+                    Text(stringResource(R.string.btn_close), color = palette.accent, fontWeight = FontWeight.Bold)
                 }
             }
         )
@@ -1208,12 +1209,12 @@ fun ExpandedPlayer(
                         modifier = Modifier.size(24.dp)
                     )
                     Spacer(modifier = Modifier.width(10.dp))
-                    Text("Add to Playlist", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 20.sp)
+                    Text(stringResource(R.string.menu_add_to_playlist), color = Color.White, fontWeight = FontWeight.Bold, fontSize = 20.sp)
                 }
             },
             text = {
                 if (userPlaylists.isEmpty()) {
-                    Text("No editable playlists found.", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 14.sp)
+                    Text(stringResource(R.string.no_editable_playlists), color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 14.sp)
                 } else {
                     Column(modifier = Modifier.fillMaxWidth().verticalScroll(rememberScrollState())) {
                         userPlaylists.forEach { pl ->
@@ -1247,7 +1248,7 @@ fun ExpandedPlayer(
             containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
             confirmButton = {
                 TextButton(onClick = { showAddToPlaylistDialog = false }) {
-                    Text("Cancel", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(stringResource(R.string.cancel), color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
         )

@@ -386,4 +386,106 @@ class SmokeTest {
         assertEquals("Song 3", restored[2].title)
         assertEquals(manager.playlistQueue[1].uri, restored[1].uri)
     }
+
+    @Test
+    fun testCustomQueueConsumeUpTo() {
+        val qm = PlaybackQueueManager()
+        val c1 = createDummyTrack("c1", "Custom 1")
+        val c2 = createDummyTrack("c2", "Custom 2")
+        val c3 = createDummyTrack("c3", "Custom 3")
+
+        qm.addToCustomQueue(c1)
+        qm.addToCustomQueue(c2)
+        qm.addToCustomQueue(c3)
+        assertEquals(3, qm.customQueue.size)
+
+        // Click on c2 directly: consumes c1 and c2, c3 remains
+        val clicked = qm.consumeCustomQueueUpTo(c2.uri)
+        assertEquals(c2, clicked)
+        assertEquals(c2, qm.currentTrack)
+        assertEquals(1, qm.customQueue.size)
+        assertEquals(c3, qm.customQueue[0])
+    }
+
+    @Test
+    fun testCustomQueueDesyncPreventionAcrossActivityDeath() {
+        val qm = PlaybackQueueManager()
+        val s1 = createDummyTrack("s1", "Song 1")
+        val s2 = createDummyTrack("s2", "Song 2")
+        val c1 = createDummyTrack("c1", "Custom 1")
+        val c2 = createDummyTrack("c2", "Custom 2")
+
+        qm.setPlaylistContext(listOf(s1, s2), startIndex = 0)
+        qm.addToCustomQueue(c1)
+        qm.addToCustomQueue(c2)
+
+        // Activity pops c1 on nextTrack()
+        assertTrue(qm.customQueue.isNotEmpty())
+        val popped = qm.customQueue.removeAt(0)
+        qm.currentTrack = popped
+        assertEquals(c1, popped)
+        assertEquals(1, qm.customQueue.size)
+
+        // Now simulate Activity dying and PlaybackService handling next track via PlaybackQueueManager
+        val rNext = qm.next()
+        assertTrue(rNext is QueueAdvanceResult.PlayTrack)
+        // Must play c2, NOT replaying c1!
+        assertEquals(c2, (rNext as QueueAdvanceResult.PlayTrack).track)
+        assertEquals(0, qm.customQueue.size)
+
+        // Next after c2 must seamlessly advance to playlist track s2
+        val rNextPlaylist = qm.next()
+        assertTrue(rNextPlaylist is QueueAdvanceResult.PlayTrack)
+        assertEquals(s2, (rNextPlaylist as QueueAdvanceResult.PlayTrack).track)
+    }
+
+    @Test
+    fun testFullStateSerializationIncludingCustomQueueAndPosition() {
+        val qm = PlaybackQueueManager()
+        val t1 = createDummyTrack("1", "Song 1")
+        val t2 = createDummyTrack("2", "Song 2")
+        val c1 = createDummyTrack("c1", "Custom 1")
+
+        qm.setPlaylistContext(listOf(t1, t2), startIndex = 0, stopAtEnd = true, contextTitle = "My Album")
+        qm.addToCustomQueue(c1)
+        qm.currentPositionMs = 45000L
+        qm.isPlayingState = true
+
+        val customArray = JSONArray()
+        for (track in qm.customQueue) {
+            val obj = JSONObject()
+            obj.put("title", track.title)
+            obj.put("artist", track.artist)
+            obj.put("album", track.album)
+            obj.put("artworkUrl", track.artworkUrl)
+            obj.put("durationMs", track.durationMs)
+            obj.put("uri", track.uri)
+            obj.put("albumUri", track.albumUri)
+            obj.put("artistUri", track.artistUri)
+            customArray.put(obj)
+        }
+
+        val restoredCustom = mutableListOf<TrackItem>()
+        for (i in 0 until customArray.length()) {
+            val obj = customArray.getJSONObject(i)
+            restoredCustom.add(
+                TrackItem(
+                    title = obj.getString("title"),
+                    artist = obj.getString("artist"),
+                    album = obj.getString("album"),
+                    artworkUrl = obj.getString("artworkUrl"),
+                    durationMs = obj.getLong("durationMs"),
+                    uri = obj.getString("uri"),
+                    albumUri = obj.getString("albumUri"),
+                    artistUri = obj.getString("artistUri")
+                )
+            )
+        }
+
+        assertEquals(1, restoredCustom.size)
+        assertEquals("Custom 1", restoredCustom[0].title)
+        assertEquals(45000L, qm.currentPositionMs)
+        assertTrue(qm.isPlayingState)
+        assertEquals("My Album", qm.contextName)
+    }
 }

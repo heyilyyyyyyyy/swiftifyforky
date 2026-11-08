@@ -150,9 +150,9 @@ fun HomeScreen(
                     shape = RoundedCornerShape(17.dp)
                 ) {
                     Column(modifier = Modifier.padding(18.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text("Connect Spotify", color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.Bold, fontSize = 18.sp)
+                        Text(stringResource(R.string.connect_spotify), color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.Bold, fontSize = 18.sp)
                         Spacer(modifier = Modifier.height(4.dp))
-                        Text("Spotify Premium required for full playback", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 13.sp)
+                        Text(stringResource(R.string.spotify_premium_required), color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 13.sp)
                         Spacer(modifier = Modifier.height(14.dp))
                         Button(
                             onClick = onLoginClick,
@@ -162,7 +162,7 @@ fun HomeScreen(
                             ),
                             shape = CircleShape
                         ) {
-                            Text("Log in with Spotify", fontWeight = FontWeight.Bold)
+                            Text(stringResource(R.string.login_with_spotify), fontWeight = FontWeight.Bold)
                         }
                     }
                 }
@@ -365,7 +365,8 @@ fun HomeScreen(
                     Column(modifier = Modifier.weight(1f)) {
                         Text(stringResource(R.string.your_playlists), fontFamily = GoogleSansFlexFamily, color = MaterialTheme.colorScheme.onSurface, fontSize = 13.sp, fontWeight = FontWeight.Bold, maxLines = 1)
                         val count = if (userPlaylists.isNotEmpty()) userPlaylists.size else 5
-                        Text("Collections: $count", fontFamily = GoogleSansFlexFamily, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 11.sp, maxLines = 1)
+                        val collectionsText = homeContext.resources.getQuantityString(R.plurals.collections_count, count, count)
+                        Text(collectionsText, fontFamily = GoogleSansFlexFamily, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 11.sp, maxLines = 1)
                     }
                     Icon(
                         imageVector = Icons.Rounded.ChevronRight,

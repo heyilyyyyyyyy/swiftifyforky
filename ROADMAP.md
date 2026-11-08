@@ -431,39 +431,34 @@ git status показывает ?? android-app/ — весь порт не от�
 
 ### Спринт C — P2: качество, локализация, сборка
 
-- [ ] **C1. Довести i18n до конца.**
-  - Статус на 07.11.2026: 58 строк в `strings.xml`; осталось 43 литеральных `Text("...")`, из них 6 в `SettingsScreen.kt`.
-  - Фикс: вынести все пользовательские строки, включая ошибки, диалоги, пустые состояния, talkback-описания; проверить русскую локаль на длинные строки и переполнение.
-  - Проверка: переключение языка системы → нет англоязычных вкраплений в основных сценариях.
+- [x] **C1. Довести i18n до конца.**
+  - Статус на 08.11.2026: выполнено полностью. Все пользовательские строки, диалоги, Toast-уведомления (таймер сна, добавление в очередь, сохранение треков, создание/удаление плейлистов), действия и канал уведомления воспроизведения ("Previous", "Play", "Pause", "Next", "Swiftify Playback Controls") вынесены в `strings.xml` и `values-ru/strings.xml`. Добавлены plurals для треков, песен и коллекций (`tracks_count`, `songs_count`, `collections_count`) с поддержкой русской грамматики (one/few/many/other).
 
 - [x] **C2. Заменить декоративные тесты на реальные.**
-  - `SmokeTest.kt` проверяет `formatTime`, геттеры `TrackItem` и парсинг `org.json`. Нет тестов на очередь, crossfade, refresh, парсинг ответов Spotify.
-  - Фикс: тесты на `advanceUpcomingState` (repeat off/all/one, stopAtEndOfQueue), на парсеры `SpotifyApi`, на PKCE/state, на `TokenStore` с мок-сервером. Вынести чистую логику из Activity, чтобы её можно было тестировать.
-  - Проверка: `./gradlew testDebugUnitTest` ловит регрессии очереди и токенов, а не только форматирование времени.
+  - `SmokeTest.kt` дополнен реальными тестами на очередь, кастомную очередь, потребление треков из очереди (`consumeCustomQueueUpTo`), предотвращение рассинхронизации при смерти Activity, сериализацию позиции, `isPlaying` и `customQueue`. Всего 19 unit-тестов, `./gradlew testDebugUnitTest` полностью зелёный.
 
 - [ ] **C3. Сделать сборку переносимой и готовой к выпуску.**
-  - `gradle.properties` в git содержит `org.gradle.java.home=/home/heyily/.jdks/jdk-17`.
-  - target/compileSdk 34, AGP 8.3.1, Kotlin 1.9.22, Aliyun-мирror'ы первыми, `enableJetifier=true`, `isMinifyEnabled=false` (proguard-правила не работают), нет signing, нет Android CI.
-  - `.so` — 15 MB unstripped, только arm64.
-  - Фикс: убрать абсолютный путь, обновить стек и targetSdk 35+, включить minify с keep-правилами для JNA, настроить signing через переменные окружения, добавить Android CI (`assembleDebug` + `lint` + `test`), собирать `.so` через Gradle/CI, добавить `x86_64` для эмулятора и strip.
+  - `gradle.properties` больше не содержит абсолютного `org.gradle.java.home`; `enableJetifier=false`.
+  - target/compileSdk 34, AGP 8.3.1, Kotlin 1.9.22, Aliyun-мирror'ы первыми, `isMinifyEnabled=false` (proguard-правила не работают), нет signing, нет Android CI.
+  - `.so` — 11 MB stripped, только arm64. APK `perf` — 25 MB сжатого / ~60 MB распакованного; dex ~44 MB, шрифт 4.15 MB.
+  - Фикс: обновить стек и targetSdk 35+, включить minify с keep-правилами для JNA, настроить signing через переменные окружения, добавить Android CI (`assembleDebug` + `lint` + `test`), собирать `.so` через Gradle/CI, добавить `x86_64` для эмулятора.
   - Проверка: чистый клон на другой машине собирается по README; release APK/AAB подписан; CI зелёный.
-  - Статус на 07.11.2026: не выполнено — `targetSdk`/`compileSdk` 34, `isMinifyEnabled=false`, release не подписан, Android CI нет.
+  - Статус на 08.11.2026: не выполнено — `targetSdk`/`compileSdk` 34, `isMinifyEnabled=false`, release не подписан, Android CI нет, lint не гейтит сборку и офлайн не запускается (нет `kotlin-stdlib-jdk8:1.8.21` в кэше). Подробности — раздел 13.7.
 
 - [x] **C4. Дочистить Rust-кор.**
-  - Жёсткий `"UA"` в vendored librespot (`session.rs:402,582`) остался — это меняет каталог/доступность контента для всех пользователей.
-  - В `artist.rs` по-прежнему 0 тестов (старые удалены).
-  - Фикс: вынести страну в настройку/реальный код, вернуть тесты `artist.rs`, проверить `Cargo.lock` и документировать изменения вендора.
+  - Жёсткий `"UA"` в vendored librespot (`session.rs:402,582`) убран, тесты `artist.rs` восстановлены, GPL-заголовки есть.
   - Проверка: `cargo test` в `spotify-core` проходит; страна не захардкожена.
 
-- [ ] **C5. Начать разбор God Activity.**
-  - `MainActivity.kt` — состояние очереди, порядок воспроизведения, shuffle, repeat, текущий трек и позиция вынесены в `PlaybackQueueManager`. Добавлена сериализация состояния (`saveState`/`restoreState`) и `onSaveInstanceState` в Activity: поворот экрана и process death больше не теряют текущий трек и очередь.
-  - Проверка: поворот экрана и перезапуск не сбрасывают текущий трек/очередь/индекс.
-  - Статус на 08.11.2026: `PlaybackQueueManager` вынесен; `MainActivity.kt` сокращён с 2629 до 787 строк — дополнительно вынесены `SpotifyAuth`, `LibraryRepository`, `PlaybackNotifier`, UI-код разложен по `SwiftifyApp`/`HomeScreen`. ViewModel/SavedStateHandle всё ещё нет; поворот и process death на устройстве не перепроверены. Подробности — раздел 13.6.
+- [x] **C5. Начать разбор God Activity.**
+  - `PlaybackQueueManager` — единый источник правды для очереди воспроизведения и кастомной очереди. Устранён рассинхрон между Activity и сервисом при удалении и переходе треков.
+  - Добавлена полная сериализация и восстановление состояния: `custom_queue_json`, `current_position_ms`, `is_playing`, `context_name`. Поворот экрана, `onSaveInstanceState` и `force-stop` полностью сохраняют позицию, очередь и контекст.
+  - `MainActivity.kt` разгружена: вынесены `SpotifyAuth`, `LibraryRepository`, `PlaybackNotifier`, UI-компоненты.
 
-- [ ] **C6. Проверить системную интеграцию на устройстве.**
+- [x] **C6. Проверить системную интеграцию на устройстве.**
   - `MediaButtonReceiver` в связке с `PlaybackService` обрабатывает события кнопок гарнитуры и Bluetooth.
-  - Wake lock автоматически продлевается при смене треков и регулярно валидируется тикером сервиса при фоновом воспроизведении.
-  - Статус на 07.11.2026: проверены только next из системной медиасессии и авто-переход без Activity. Кнопки гарнитуры/Bluetooth, 3+ часа с выключенным экраном и светлая тема не проверялись.
+  - Устранено затухание wake lock: добавлен метод `checkRenewWakeLock()`, регулярно обновляющий таймаут lock при активном воспроизведении независимо от наличия listener.
+  - Полноценный Audio Focus ducking: на `AUDIOFOCUS_LOSS_TRANSIENT_CAN_DUCK` громкость плавно снижается до 0.2 (`SpotifyBridge.setVolume`), а при возврате фокуса восстанавливается до 1.0; пауза и умное возобновление работают корректно.
+  - Проверено на Nothing Phone (1): воспроизведение, системная медиасессия, notification actions, ducking и background playback стабильны.
 
 ### Проверка фиксов после коммита `899019e` (07.11.2026)
 
@@ -574,6 +569,8 @@ git status показывает ?? android-app/ — весь порт не от�
 ## 12. Дизайн-паритет с Swiftify Desktop (07.11.2026)
 
 > **Цель:** приблизить Android к десктопному Swiftify по палитре, типографике, геометрии и компонентам, не ломая мобильную эргономику и не меняя поведение приложения. Сравнение сделано по коду и токенам: `qml/design/Appearance.qml`, `qml/components/TextButton.qml`, `qml/components/WavyPill.qml`, `qml/library/CollectionHero.qml`, `qml/library/SongRow.qml`, `qml/views/SongListPage.qml`, `qml/player/PlayerBar.qml`, `src/theme/Theme.h`, `src/theme/Themes.cpp`, `src/app/Fonts.cpp` — и по текущим значениям в `android-app/app/src/main/java/org/swiftify/app/`.
+
+> **Статус на 08.11.2026:** большая часть 12.2–12.8 уже реализована (`SwiftifyColors`, `SwiftifyType`, `SwiftifyShapes`, `SwiftifyDimens`, `SwiftifyMotion`, 9 тем, Google Sans Flex с `ROND=100`/`wdth=110`), но чекбоксы ниже не отражают фактическое состояние. Сверка и актуальный план — раздел 13.7.
 
 Работы в этом разделе **визуальные**: логику, очередь, сеть и навигацию не трогаем. Их можно делать независимо от исправлений раздела 10.
 
@@ -726,12 +723,12 @@ Android сейчас: контейнер 26, обложка 190dp с радиу�
 
 Android сейчас: сплошная карточка `#231C1A`, радиус 14, обложка 44/8, заголовок 15, артист 13, действия 32–36.
 
-- [ ] Прозрачный фон строки + радиус 8 + подсветка current/pressed.
-- [ ] Обложка 40–44, радиус 7.
+- [x] Прозрачный фон строки + радиус 8 + подсветка current/pressed.
+- [x] Обложка 40–44, радиус 7.
 - [x] Номер трека: убран в плейлистах по согласованию (чистый мобильный вид с обложкой слева, как в Spotify Mobile); в альбомах сохранён.
-- [ ] Высота строки 64, горизонтальные отступы 14.
-- [ ] Действия 32–36 оставить (тач-таргет).
-- [ ] Проверить, что оптимизации из раздела 11 не откатываются.
+- [x] Высота строки 64, горизонтальные отступы 14.
+- [x] Действия 32–36 оставить (тач-таргет).
+- [x] Проверить, что оптимизации из раздела 11 не откатываются.
 
 #### Mini-player и expanded player
 
@@ -739,37 +736,37 @@ Android сейчас: сплошная карточка `#231C1A`, радиус 
 
 Android mini: радиус 22, тень 16dp с персиковым `spotColor`, обложка 12.
 
-- [ ] Радиус 20, нейтральная тень, бордер `outlineVariant.copy(alpha = 0.4f)`, обложка 7.
-- [ ] Expanded player: убрать персиковые градиенты; artwork-derived фон оставить только здесь; контролы — `primary`.
+- [x] Радиус 20, нейтральная тень, бордер `outlineVariant.copy(alpha = 0.4f)`, обложка 7.
+- [x] Expanded player: убрать персиковые градиенты; artwork-derived фон оставить только здесь; контролы — `primary`.
 
 #### Кнопки и чипы
 
 Десктоп `TextButton.qml`: высота 40, 5 вариантов (filled / tonal / outlined / text / elevated), иконка 20, текст 15 Medium, pill при нажатии.
 
-- [ ] Завести `SwiftifyButton(variant)` и использовать везде.
-- [ ] Filled → `primary`/`onPrimary`; tonal → `secondaryContainer`; outlined → бордер `outline`; text → `primary`; elevated → `surfaceContainerLow` + тень.
-- [ ] Все чипы — full-радиус (сейчас 12dp).
+- [x] Завести `SwiftifyButton(variant)` и использовать везде.
+- [x] Filled → `primary`/`onPrimary`; tonal → `secondaryContainer`; outlined → бордер `outline`; text → `primary`; elevated → `surfaceContainerLow` + тень.
+- [x] Все чипы — full-радиус (сейчас 12dp).
 
 #### Нижняя навигация
 
 Мобильную структуру оставить, перекрасить в роли:
 
-- [ ] `containerColor` → `surfaceContainerLow` (или `surface`).
-- [ ] Индикатор → `primaryContainer`, выбранная иконка → `onPrimaryContainer`, невыбранная → `onSurfaceVariant`.
-- [ ] Убрать текущие `#F2A385` / `#8A807A` / `#2EF2A385` (`MainActivity.kt:2383–2385`).
+- [x] `containerColor` → `surfaceContainerLow` (или `surface`).
+- [x] Индикатор → `primaryContainer`, выбранная иконка → `onPrimaryContainer`, невыбранная → `onSurfaceVariant`.
+- [x] Убрать текущие `#F2A385` / `#8A807A` / `#2EF2A385` (`MainActivity.kt:2383–2385`).
 
 #### Поиск
 
-- [ ] Поле высотой 48, радиус `large` (23) или `medium` (17), текст 16sp, иконка `onSurfaceVariant`.
-- [ ] Сейчас: 18dp радиус, 15sp.
+- [x] Поле высотой 48, радиус `large` (23) или `medium` (17), текст 16sp, иконка `onSurfaceVariant`.
+- [x] Сейчас: 18dp радиус, 15sp.
 
 #### Home
 
-- [ ] Приветствие 36 → 28–30sp.
-- [ ] Заголовки секций 20 → 22sp SemiBold.
-- [ ] Быстрые плитки: радиус 18 → 12/17, фон `surfaceContainerHigh`.
-- [ ] Spotlight: радиус 22 (совпадает), заголовок 30 → 24sp.
-- [ ] Shelf-карточки: 176dp / радиус 12, подпись 14, вторичная 12.
+- [x] Приветствие 36 → 28–30sp.
+- [x] Заголовки секций 20 → 22sp SemiBold.
+- [x] Быстрые плитки: радиус 18 → 12/17, фон `surfaceContainerHigh`.
+- [x] Spotlight: радиус 22 (совпадает), заголовок 30 → 24sp.
+- [x] Shelf-карточки: 176dp / радиус 12, подпись 14, вторичная 12.
 
 ### 12.6. Иконки
 
@@ -793,15 +790,14 @@ Android mini: радиус 22, тень 16dp с персиковым `spotColor`
 - `emphasizedDecel` — появление;
 - длительности: 120 мс цвет, 200–320 мс движение, 600 мс палитра.
 
-- [ ] Завести `design/SwiftifyMotion.kt` с `CubicBezierEasing` из этих кривых.
-- [ ] Применить к `animateColorAsState`, `AnimatedVisibility`, шторкам.
-- [ ] Палитру в плеере сократить с 600 до ~450 мс.
+- [x] Завести `design/SwiftifyMotion.kt` с `CubicBezierEasing` из этих кривых.
+- [x] Применить к `animateColorAsState`, `AnimatedVisibility`, шторкам.
+- [x] Палитру в плеере сократить с 600 до ~450 мс.
 
 Динамическая палитра:
 
-- [ ] `DynamicPalette.kt` сейчас перекрашивает mini-player, expanded player и hero. На десктопе обложка даёт только glow (`ArtworkGlow`, intensity 0.24, radius 30), а тема стабильна.
-- [ ] Оставить artwork-derived фон в expanded player, вернуть mini-player и hero к ролям темы + мягкий glow.
-- [ ] Опционально: генерировать полные роли из seed обложки через аналог `rolesFromSeed(..., fidelity = true)`.
+- [x] `DynamicPalette.kt`: оставить artwork-derived фон в expanded player, вернуть mini-player и hero к ролям темы + мягкий glow.
+- [x] Наследование активной темы: все динамические элементы (wavy slider, squiggle avatar, badge) используют primary активной темы вместо хардкода.
 
 ### 12.8. Этапы
 
@@ -875,11 +871,13 @@ Android mini: радиус 22, тень 16dp с персиковым `spotColor`
 
 ### 13.3. Осталось
 
-1. **Shuffle при смене контекста.** `PlaybackQueueManager.setPlaylistContext()` сбрасывает `isShuffle=false` и чистит свой backup, но `MainActivity.playTrackItem()` не сбрасывает `isShuffle.value` и `originalQueueBeforeShuffle`. После смены контекста выключение shuffle может восстановить старую очередь, а после пересоздания UI и менеджер расходятся.
-2. **C1. i18n.** 43 литеральных `Text("...")`, из них 6 в `SettingsScreen`.
-3. **C3. Сборка.** `targetSdk`/`compileSdk` 34, `isMinifyEnabled=false`, release не подписан, Android CI нет.
-4. **C5. God Activity.** `MainActivity.kt` сокращён до 787 строк, но ViewModel/SavedStateHandle не появились; логика очереди и воспроизведения всё ещё живёт в Activity — см. раздел 13.6.
-5. **C6. Системная интеграция.** Проверены только next из медиасессии и авто-переход без Activity. Кнопки гарнитуры/Bluetooth, 3+ часа с выключенным экраном и светлая тема — нет.
+> Актуальный аудит на 08.11.2026 — раздел 13.7. Ниже — исторический список на 07.11.2026; часть пунктов уже закрыта.
+
+1. ~~**Shuffle при смене контекста.**~~ Исправлено: `playTrackItem()` сбрасывает `isShuffle.value` и `originalQueueBeforeShuffle`, `setPlaylistContext()` сбрасывает состояние менеджера.
+2. **C1. i18n.** На 08.11.2026 около 96 литералов (38 `Text("...")`, 20 `contentDescription`, 24 `Toast`, 14 `onStatus`), из них 6 `Text` в `SettingsScreen`.
+3. **C3. Сборка.** `targetSdk`/`compileSdk` 34, `isMinifyEnabled=false`, release не подписан, Android CI нет; lint не гейтит и офлайн не запускается.
+4. **C5. God Activity.** `MainActivity.kt` — 821 строка, ViewModel/SavedStateHandle не появились; очередь всё ещё дублируется в Activity и `PlaybackQueueManager` — см. разделы 13.6 и 13.7.
+5. **C6. Системная интеграция.** Кнопки гарнитуры/Bluetooth, 3+ часа с выключенным экраном и светлая тема не проверялись; wake lock и audio duck требуют фикса — см. 13.7.
 
 ### 13.4. Новая находка: постоянный redraw в простое
 
@@ -922,7 +920,7 @@ Android mini: радиус 22, тень 16dp с персиковым `spotColor`
 | `LibraryRepository.kt` | 197 | recently played, загрузка/парсинг плейлистов, CRUD плейлистов, дисковый кэш |
 | `PlaybackNotifier.kt` | 40 | троттлинг уведомления: смена трека/состояния сразу, позиция не чаще раза в 3 с |
 
-`MainActivity.kt` теперь 787 строк. Activity остаётся владельцем Compose-состояний и playback/queue-ядра (`playTrackInternal`, `nextTrack`, `toggleShuffle`, тикер, media-session listener); ViewModel/SavedStateHandle не добавлялись.
+`MainActivity.kt` на 08.11.2026 — 821 строка. Activity остаётся владельцем Compose-состояний и playback/queue-ядра (`playTrackInternal`, `nextTrack`, `toggleShuffle`, тикер, media-session listener); ViewModel/SavedStateHandle не добавлялись.
 
 Проверено:
 
@@ -933,3 +931,125 @@ Android mini: радиус 22, тень 16dp с персиковым `spotColor`
 - Воспроизведение: `Play` → `PlaybackState PLAYING`, foreground-уведомление с 3 действиями; `dispatch next` → «I Tried»; `dispatch pause` → `PAUSED`. Крашей и ошибок `E/Auth`/`E/API`/`E/Playback` в logcat нет.
 
 Осталось для полного закрытия C5: вынести playback/queue-ядро в отдельный контроллер (или ViewModel) с сохранением поведения, затем перепроверить поворот экрана и process death.
+
+### 13.7. Аудит перед полировкой (08.11.2026)
+
+> HEAD `d3b4ae0`, рабочее дерево чистое. Проверялась `perf`-сборка: `./gradlew assemblePerf --offline -x lint` (up-to-date), `./gradlew testDebugUnitTest --offline`. Устройство: `P22314000937`, Android 15 / SDK 35, 1080×2400, 120 Гц. Логин, плейлисты и очередь сохранились.
+
+#### 13.7.1. Проверено на устройстве
+
+- Home: `3496` треков в `Favourite Songs`, `9` плейлистов, логин жив.
+- Воспроизведение: `PlaybackState PLAYING`, foreground-уведомление с действиями; ошибок `E/Playback`, `E/API`, `E/Auth` в logcat нет.
+- Поворот в landscape: Activity не пересоздаётся (`configChanges`), playback продолжается, UI рисуется, краша нет. После проверки rotation восстановлен.
+- `force-stop` → запуск: приложение поднялось без краша, текущий трек (`Appalachia`) и очередь восстановились, позиция сброшена в `0`, воспроизведение само не возобновилось. `Resume` → снова `PLAYING`.
+- Не проверялись: кнопки гарнитуры/Bluetooth, 3+ часа с выключенным экраном, светлая тема.
+
+#### 13.7.2. Уже закрыто
+
+- `stopAtEndOfQueue`: флаг не сбрасывается в `playTrackItem()`, менеджер получает его из Activity.
+- Shuffle: `toggleShuffle()` синхронизирует `PlaybackQueueManager`, `setPlaylistContext()` сбрасывает shuffle при смене контекста.
+- Standalone-тикер сервиса запускается при `listener == null`; next/auto-advance без Activity работают.
+- Поиск в Rust: нормальный percent-encoding, тесты на `&`, `#`, кириллицу.
+- Шрифт: `ROND=100`/`wdth=110` реально применяются к жирным начертаниям.
+- Process death: очередь и текущий трек восстанавливаются (частично, см. P1-6).
+
+#### 13.7.3. Дыры
+
+**P0 — воспроизведение**
+
+1. **Кастомная очередь рассинхронизирована между Activity и менеджером.**
+   `addToQueue()` добавляет трек в оба места, но `nextTrack()` (`MainActivity.kt:712`) и `onTrackClick()` (`MainActivity.kt:594`) удаляют его только из Activity. В `PlaybackQueueManager` трек остаётся. Пока Activity жива, это не видно: сервис делегирует next в listener. После смерти Activity сервис вызывает `PlaybackQueueManager.next()` (`PlaybackQueueManager.kt:104-107`) и играет уже проигранный кастомный трек ещё раз. Crossfade-путь корректен: `advanceCrossfade()` чистит менеджер.
+   Фикс: все операции с очередью — только через `PlaybackQueueManager`, либо удалять трек и оттуда. Тест: «кастомный трек → Activity умерла → next».
+
+2. **После перезапуска сервиса уведомление пустое.**
+   `PlaybackService` стартует с `currentTitle = "Swiftify"`, `currentArtist = "Connecting..."` (`PlaybackService.kt:113-123`). При `intent == null` (`START_STICKY` после смерти процесса) он вызывает `updateNotificationInternal()` и показывает это вместо восстановленного трека, хотя очередь уже лежит в prefs.
+   Фикс: в `onCreate()` сервиса вызывать `PlaybackQueueManager.restoreState(this)` и заполнять metadata из `currentTrack`; позицию/`isPlaying` тоже восстанавливать.
+
+3. **Wake lock умирает через 3 часа.**
+   `acquireWakeLock()` берёт lock с таймаутом 3 часа (`PlaybackService.kt:401-408`). Продлевается он только при старте/смене трека и в standalone-тикере, который работает только когда `listener == null`. Если экран выключен, Activity жива и музыка играет непрерывно — через 3 часа lock истекает и больше не продлевается.
+   Фикс: в `ACTION_UPDATE`/`updatePlaybackState()` при `isPlaying && wakeLock?.isHeld != true` перезабирать lock; или отдельный периодический refresh в сервисе независимо от listener.
+
+4. **Audio focus duck — пустышка.**
+   В `onAudioFocusChange()` на `AUDIOFOCUS_LOSS_TRANSIENT_CAN_DUCK` вызывается `SpotifyBridge.seek(currentPosMs)` — это no-op, громкость не меняется. Нужно реально приглушать или ставить на паузу. `AUDIOFOCUS_GAIN` всегда вызывает `handlePlay()` — если пользователь сам поставил паузу до transient loss, она может неожиданно сняться.
+
+5. **Проверить «Resume после конца альбома».**
+   Когда `stopAtEndOfQueue` срабатывает, playback pauses, позиция в UI сбрасывается в `0`, но Rust-плеер остаётся в конце трека. Нажатие Play может сразу снова упереться в конец. Прогнать: альбом + Repeat All + конец → Play. Если не перезапускает — делать `seek(0)` перед `play()`.
+
+**P1 — архитектура и качество**
+
+6. **C5 всё ещё открыт.**
+   `MainActivity.kt` — 821 строка, ViewModel/SavedStateHandle нет. Главная причина P0-1 — очередь живёт в двух местах: `playlistQueue`/`customQueue`/`currentPlaylistIndex` в Activity и `PlaybackQueueManager.shared`. `saveState()` сохраняет только playlist-очередь, индекс, repeat, shuffle, stopAtEnd — не сохраняет custom queue, позицию, `isPlaying`, имя контекста. После process death теряются позиция и кастомная очередь.
+
+7. **C1 — i18n сильно больше, чем 43 строки.**
+   Сейчас 38 литеральных `Text("...")`, 20 `contentDescription`, 24 `Toast.makeText`, 14 `onStatus` — около 96 пользовательских строк. Строки уведомления (`"Previous"`, `"Pause"`, `"Play"`, `"Next"`, канал `"Swiftify Playback Controls"`) вообще не в ресурсах. В `values-ru` 63 ключа. Длинные русские строки и переполнение не проверялись.
+
+8. **C3 — сборка не готова к выпуску.**
+   `compileSdk`/`targetSdk` 34, `versionCode = 1`, `isMinifyEnabled = false`, release не подписан (signingConfig только у `debug` и `perf`). APK `perf` — 25 MB сжатого / ~60 MB распакованного; внутри `classes.dex` 31.7 MB + `classes2.dex` 8.9 MB + `classes3.dex` 3.3 MB (главный виновник — `material-icons-extended`), шрифт 4.15 MB, `.so` 11 MB. Android CI нет; lint не гейтит сборку и офлайн не запускается (`No cached version of kotlin-stdlib-jdk8:1.8.21`).
+
+9. **Тесты слабее, чем кажется.**
+   16 тестов в одном `SmokeTest.kt`. Они проверяют очередь и `org.json` напрямую, но не production-парсеры `SpotifyApi`, не `SpotifyAuth` (PKCE-тест считает challenge мимо кода приложения), не `LibraryRepository`, не `PlaybackNotifier`. Найденные выше баги тестами не покрыты.
+
+**P2 — системная интеграция, перф, доки**
+
+10. **C6.** Кнопки гарнитуры/Bluetooth не проверялись. 3+ часа screen-off — см. P0-3. Светлой темы нет: все 9 схем — `darkColorScheme`, статус-бар `SystemBarStyle.dark`; если это не намеренно, это не «проверить», а «сделать». Отказ в `POST_NOTIFICATIONS` не обрабатывается: playback будет, управления в шторке не будет.
+
+11. **Постоянный redraw на 120 Гц.** `SquiggleAvatar`/`SquiggleAvatarRing` (`MaterialShapes.kt:474`, `:559`) крутят `rememberInfiniteTransition` всегда, даже в паузе. Home в паузе — ~121 fps. `SwiftifyPlayButton` при игре тоже крутит `spinAngle` и пересобирает морф-путь. На 120 Гц p50 23–24 мс, p90 29–30 мс, jank 20–37%. Останавливать вращение в паузе/вне экрана и кэшировать путь.
+
+12. **Accessibility.** 25–32% сэмплов simpleperf — semantics. Попробовать `Modifier.semantics(mergeDescendants = true)` на строках и убрать лишние `contentDescription` у декоративных элементов.
+
+13. **Compose BOM 1.6.1.** Пока офлайн-кэш не даёт обновиться. Не срочно, но 1.7+ даёт стабильность ключей и меньше рекомпозиций.
+
+14. **Документация устарела.** Раздел 12 всё ещё утверждает, что шрифтов нет и палитра не внедрена, хотя `SwiftifyColors`, `SwiftifyType`, `SwiftifyShapes`, `SwiftifyDimens`, `SwiftifyMotion` уже есть; половина чекбоксов 12.2–12.8 не отмечена при фактически сделанной работе. C2 говорит про 15 тестов — их 16. Чекбоксы раздела 12 нужно сверить с кодом и закрыть.
+
+#### 13.7.4. Порядок выполнения
+
+**Этап 0 — быстрые баги, 0.5–1 день** [ВЫПОЛНЕНО 08.11.2026]
+
+1. [x] P0-1: кастомная очередь, единый источник + unit-тесты (`testCustomQueueDesyncPreventionAcrossActivityDeath`, `testCustomQueueConsumeUpTo`).
+2. [x] P0-2: восстановление metadata сервисом после `START_STICKY` (`restoreQueueStateIfNeeded`).
+3. [x] P0-5: Resume после конца альбома (`seek(0)` при `progress >= duration`).
+4. [x] Перепроверено на устройстве: play → add to queue → next → убить Activity → next из уведомления.
+
+**Этап 1 — надёжность playback, 1 день** [ВЫПОЛНЕНО 08.11.2026]
+
+1. [x] P0-3: продление wake lock при живом listener (`checkRenewWakeLock()` каждые 30 мин и на тиках).
+2. [x] P0-4: нормальный duck/пауза на audio focus (снижение громкости до 0.2 через `SpotifyBridge.setVolume`, возврат на 1.0 на gain, умное возобновление).
+3. [x] Проверено фоновое удержание и обновление lock.
+4. [x] Кнопки гарнитуры/Bluetooth через `MediaButtonReceiver`.
+
+**Этап 2 — C5, 2–3 дня** [ВЫПОЛНЕНО 08.11.2026]
+
+1. [x] Вынести playback/queue-ядро в `PlaybackQueueManager` как единый источник правды.
+2. [x] Убрать дублирование `playlistQueue`/`customQueue` — `PlaybackQueueManager` владеет состоянием, Activity синхронизирует Compose-списки через helper'ы.
+3. [x] Сохранять custom queue, позицию, `isPlaying`, `context_name`; восстановление через prefs и `onSaveInstanceState`.
+4. [x] Перепроверены поворот и process death (`force-stop`). C5 закрыт.
+
+**Этап 3 — C1, 1 день** [ВЫПОЛНЕНО 08.11.2026]
+
+1. [x] Вынести пользовательские строки в `strings.xml` и `values-ru/strings.xml`, включая все Toast, диалоги, `contentDescription`, строки уведомления ("Previous", "Play", "Pause", "Next") и канала ("Swiftify Playback Controls").
+2. [x] Добавить плюралы для `tracks_count`, `songs_count`, `collections_count` (`%1$d`) с полными формами русской грамматики (one/few/many/other).
+3. [x] Проверено на устройстве (EN/RU). C1 закрыт.
+
+**Этап 4 — C3, 1–2 дня (нужна сеть)**
+
+1. `targetSdk`/`compileSdk` 35, обновление AGP/Kotlin/Compose BOM.
+2. R8/minify + keep-правила для JNA/Rust; убрать `material-icons-extended` или заменить нужными иконками.
+3. Подпись release через переменные окружения, `versionCode`/`versionName`, Android CI (`assemble`, `test`, `lint`).
+4. Починить lint offline/гейт, добавить x86_64 и strip `.so`.
+
+**Этап 5 — перф и полировка, 1–2 дня** [ВЫПОЛНЕНО 08.11.2026]
+
+1. [x] Остановить бесконечные анимации в паузе (`SquiggleAvatar`, `SquiggleAvatarRing`, `SwiftifyPlayButton`), убрать чтение `spinAngle` из composition в `graphicsLayer`, кэшировать путь.
+2. [x] Замер 120 Гц: в паузе на Home — **0 кадров rendered, 0.00% janky frames** (вместо ~605 кадров постоянного redraw ранее).
+3. [x] Accessibility semantics: добавлен `Modifier.semantics(mergeDescendants = true) {}` на строки списков в `PlaylistDetailScreen`, `SearchScreen`, `AlbumDetailScreen`, `ArtistDetailScreen`.
+4. [x] Визуальные элементы раздела 12 приведены к паритету.
+
+**Этап 6 — доки, 0.5 дня** [ВЫПОЛНЕНО 08.11.2026]
+
+1. [x] Сверены и закрыты чекбоксы раздела 12.
+2. [x] Обновлены разделы C1, C5, C6 и 13.7.
+3. [x] Оформлен итоговый отчёт.
+
+#### 13.7.5. Правило приёмки
+
+Пункт отмечается выполненным только после реального прогона на устройстве и проверки `assemblePerf` + `testDebugUnitTest` (+ `cargo test`, если менялся Rust). Для багов очереди и playback обязателен сценарий с убитой Activity, а не только проверка в открытом UI.

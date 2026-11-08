@@ -44,14 +44,18 @@ class PlaybackQueueManager {
     var repeatMode: PlaybackRepeatMode = PlaybackRepeatMode.OFF
     var isShuffle: Boolean = false
     var stopAtEndOfQueue: Boolean = false
+    var currentPositionMs: Long = 0L
+    var isPlayingState: Boolean = false
+    var contextName: String = ""
 
-    fun setPlaylistContext(tracks: List<TrackItem>, startIndex: Int = 0, stopAtEnd: Boolean = false) {
+    fun setPlaylistContext(tracks: List<TrackItem>, startIndex: Int = 0, stopAtEnd: Boolean = false, contextTitle: String = "") {
         playlistQueue.clear()
         playlistQueue.addAll(tracks)
         customQueue.clear()
         originalQueueBeforeShuffle.clear()
         isShuffle = false
         stopAtEndOfQueue = stopAtEnd
+        contextName = contextTitle
         currentPlaylistIndex = if (startIndex in tracks.indices) startIndex else 0
         currentTrack = playlistQueue.getOrNull(currentPlaylistIndex)
     }
@@ -66,6 +70,19 @@ class PlaybackQueueManager {
 
     fun clearCustomQueue() {
         customQueue.clear()
+    }
+
+    fun consumeCustomQueueUpTo(uri: String): TrackItem? {
+        val idx = customQueue.indexOfFirst { it.uri == uri }
+        if (idx >= 0) {
+            val target = customQueue[idx]
+            for (i in 0..idx) {
+                customQueue.removeAt(0)
+            }
+            currentTrack = target
+            return target
+        }
+        return null
     }
 
     fun getUpcomingTrack(): TrackItem? {
@@ -198,12 +215,29 @@ class PlaybackQueueManager {
                 obj.put("artistUri", track.artistUri)
                 jsonArray.put(obj)
             }
+            val customArray = JSONArray()
+            for (track in customQueue) {
+                val obj = JSONObject()
+                obj.put("title", track.title)
+                obj.put("artist", track.artist)
+                obj.put("album", track.album)
+                obj.put("artworkUrl", track.artworkUrl)
+                obj.put("durationMs", track.durationMs)
+                obj.put("uri", track.uri)
+                obj.put("albumUri", track.albumUri)
+                obj.put("artistUri", track.artistUri)
+                customArray.put(obj)
+            }
             prefs.edit()
                 .putString("queue_json", jsonArray.toString())
+                .putString("custom_queue_json", customArray.toString())
                 .putInt("current_index", currentPlaylistIndex)
                 .putInt("repeat_mode", repeatMode.value)
                 .putBoolean("is_shuffle", isShuffle)
                 .putBoolean("stop_at_end", stopAtEndOfQueue)
+                .putLong("current_position_ms", currentPositionMs)
+                .putBoolean("is_playing", isPlayingState)
+                .putString("context_name", contextName)
                 .apply()
         } catch (_: Exception) {}
     }
@@ -229,15 +263,42 @@ class PlaybackQueueManager {
                     )
                 )
             }
-            if (restored.isNotEmpty()) {
+
+            val customStr = prefs.getString("custom_queue_json", null)
+            val restoredCustom = mutableListOf<TrackItem>()
+            if (!customStr.isNullOrEmpty()) {
+                val customJsonArray = JSONArray(customStr)
+                for (i in 0 until customJsonArray.length()) {
+                    val obj = customJsonArray.getJSONObject(i)
+                    restoredCustom.add(
+                        TrackItem(
+                            title = obj.optString("title"),
+                            artist = obj.optString("artist"),
+                            album = obj.optString("album"),
+                            artworkUrl = obj.optString("artworkUrl"),
+                            durationMs = obj.optLong("durationMs"),
+                            uri = obj.optString("uri"),
+                            albumUri = obj.optString("albumUri"),
+                            artistUri = obj.optString("artistUri")
+                        )
+                    )
+                }
+            }
+
+            if (restored.isNotEmpty() || restoredCustom.isNotEmpty()) {
                 playlistQueue.clear()
                 playlistQueue.addAll(restored)
+                customQueue.clear()
+                customQueue.addAll(restoredCustom)
                 val idx = prefs.getInt("current_index", 0)
                 currentPlaylistIndex = if (idx in restored.indices) idx else 0
                 currentTrack = playlistQueue.getOrNull(currentPlaylistIndex)
                 repeatMode = PlaybackRepeatMode.fromInt(prefs.getInt("repeat_mode", 0))
                 isShuffle = prefs.getBoolean("is_shuffle", false)
                 stopAtEndOfQueue = prefs.getBoolean("stop_at_end", false)
+                currentPositionMs = prefs.getLong("current_position_ms", 0L)
+                isPlayingState = prefs.getBoolean("is_playing", false)
+                contextName = prefs.getString("context_name", "") ?: ""
                 return true
             }
         } catch (_: Exception) {}

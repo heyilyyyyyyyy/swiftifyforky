@@ -16,6 +16,7 @@ import android.media.AudioManager
 import android.os.Build
 import android.os.IBinder
 import android.os.PowerManager
+import android.os.SystemClock
 import android.support.v4.media.MediaMetadataCompat
 import android.support.v4.media.session.MediaSessionCompat
 import android.support.v4.media.session.PlaybackStateCompat
@@ -133,7 +134,10 @@ class PlaybackService : Service(), AudioManager.OnAudioFocusChangeListener {
     private var audioManager: AudioManager? = null
     private var audioFocusRequest: AudioFocusRequest? = null
     private var wakeLock: PowerManager.WakeLock? = null
+    private var lastWakeLockTimeMs = 0L
     private var isNoisyReceiverRegistered = false
+    private var wasPlayingBeforeFocusLoss = false
+    private var isDucked = false
 
     private val noisyReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
@@ -153,6 +157,8 @@ class PlaybackService : Service(), AudioManager.OnAudioFocusChangeListener {
 
         val powerManager = getSystemService(Context.POWER_SERVICE) as? PowerManager
         wakeLock = powerManager?.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "swiftify:playback_wakelock")
+
+        restoreQueueStateIfNeeded()
 
         mediaSession = MediaSessionCompat(this, "SwiftifyMediaSession").apply {
             setFlags(
@@ -193,6 +199,30 @@ class PlaybackService : Service(), AudioManager.OnAudioFocusChangeListener {
 
     private var standaloneTickerJob: Job? = null
 
+    private fun restoreQueueStateIfNeeded() {
+        if (currentTitle == "Swiftify" && currentArtist == "Connecting...") {
+            PlaybackQueueManager.shared.restoreState(this)
+            val restored = PlaybackQueueManager.shared.currentTrack
+            if (restored != null) {
+                currentTitle = restored.title
+                currentArtist = restored.artist
+                currentAlbum = restored.album
+                currentArtUrl = restored.artworkUrl
+                currentDurMs = restored.durationMs
+                currentPosMs = PlaybackQueueManager.shared.currentPositionMs
+                if (currentArtUrl.isNotEmpty()) {
+                    loadArtworkBitmap(currentArtUrl)
+                }
+            }
+        }
+    }
+
+    private fun checkRenewWakeLock() {
+        if (isPlaying && (wakeLock?.isHeld != true || SystemClock.elapsedRealtime() - lastWakeLockTimeMs > 30 * 60 * 1000L)) {
+            acquireWakeLock()
+        }
+    }
+
     fun checkStartStandaloneTicker() {
         if (isPlaying) {
             startStandaloneTicker()
@@ -204,9 +234,7 @@ class PlaybackService : Service(), AudioManager.OnAudioFocusChangeListener {
         standaloneTickerJob = scope.launch {
             while (isActive && isPlaying) {
                 delay(500)
-                if (isPlaying && wakeLock?.isHeld != true) {
-                    acquireWakeLock()
-                }
+                checkRenewWakeLock()
                 if (listener == null && isPlaying) {
                     val pos = SpotifyBridge.playbackPositionMs()
                     val dur = SpotifyBridge.playbackDurationMs()
@@ -226,6 +254,10 @@ class PlaybackService : Service(), AudioManager.OnAudioFocusChangeListener {
             isPlaying = true
             acquireWakeLock()
             registerNoisyReceiver()
+            if (currentDurMs > 0 && currentPosMs >= currentDurMs) {
+                SpotifyBridge.seek(0)
+                currentPosMs = 0L
+            }
             val l = listener
             if (l != null) {
                 SpotifyBridge.play()
@@ -365,19 +397,33 @@ class PlaybackService : Service(), AudioManager.OnAudioFocusChangeListener {
         when (focusChange) {
             AudioManager.AUDIOFOCUS_LOSS -> {
                 android.util.Log.d("PlaybackService", "AudioFocus LOSS -> pause")
+                wasPlayingBeforeFocusLoss = false
+                isDucked = false
                 handlePause()
             }
             AudioManager.AUDIOFOCUS_LOSS_TRANSIENT -> {
                 android.util.Log.d("PlaybackService", "AudioFocus LOSS_TRANSIENT -> pause")
+                wasPlayingBeforeFocusLoss = isPlaying
+                isDucked = false
                 handlePause()
             }
             AudioManager.AUDIOFOCUS_LOSS_TRANSIENT_CAN_DUCK -> {
-                android.util.Log.d("PlaybackService", "AudioFocus LOSS_TRANSIENT_CAN_DUCK -> ducking volume")
-                SpotifyBridge.seek(currentPosMs) // keep position
+                android.util.Log.d("PlaybackService", "AudioFocus LOSS_TRANSIENT_CAN_DUCK -> ducking volume to 0.2")
+                if (isPlaying) {
+                    isDucked = true
+                    SpotifyBridge.setVolume(0.2f)
+                }
             }
             AudioManager.AUDIOFOCUS_GAIN -> {
-                android.util.Log.d("PlaybackService", "AudioFocus GAIN -> resume")
-                handlePlay()
+                android.util.Log.d("PlaybackService", "AudioFocus GAIN -> resume / restore volume")
+                if (isDucked) {
+                    isDucked = false
+                    SpotifyBridge.setVolume(1.0f)
+                }
+                if (wasPlayingBeforeFocusLoss) {
+                    wasPlayingBeforeFocusLoss = false
+                    handlePlay()
+                }
             }
         }
     }
@@ -403,7 +449,8 @@ class PlaybackService : Service(), AudioManager.OnAudioFocusChangeListener {
             if (wakeLock?.isHeld == true) {
                 wakeLock?.release()
             }
-            wakeLock?.acquire(3 * 3600 * 1000L) // 3 hours timeout, safely refreshed periodically and on track switches
+            wakeLock?.acquire(3 * 3600 * 1000L) // 3 hours timeout, safely refreshed periodically
+            lastWakeLockTimeMs = SystemClock.elapsedRealtime()
         } catch (_: Exception) {}
     }
 
@@ -420,7 +467,8 @@ class PlaybackService : Service(), AudioManager.OnAudioFocusChangeListener {
         MediaButtonReceiver.handleIntent(mediaSession, intent)
 
         if (intent == null) {
-            // Process was recreated: ensure ongoing notification is kept alive
+            // Process was recreated: ensure state is restored from prefs
+            restoreQueueStateIfNeeded()
             updateNotificationInternal()
             return START_STICKY
         }
@@ -433,6 +481,7 @@ class PlaybackService : Service(), AudioManager.OnAudioFocusChangeListener {
             ACTION_UPDATE_POSITION -> {
                 currentPosMs = intent.getLongExtra(EXTRA_POSITION_MS, currentPosMs)
                 isPlaying = intent.getBooleanExtra(EXTRA_IS_PLAYING, isPlaying)
+                checkRenewWakeLock()
                 updatePlaybackState()
             }
             ACTION_UPDATE -> {
@@ -453,6 +502,8 @@ class PlaybackService : Service(), AudioManager.OnAudioFocusChangeListener {
                     unregisterNoisyReceiver()
                     standaloneTickerJob?.cancel()
                     standaloneTickerJob = null
+                } else if (isPlaying) {
+                    checkRenewWakeLock()
                 }
                 if (isPlaying && listener == null) {
                     startStandaloneTicker()
@@ -528,7 +579,7 @@ class PlaybackService : Service(), AudioManager.OnAudioFocusChangeListener {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
         val prevAction = NotificationCompat.Action.Builder(
-            android.R.drawable.ic_media_previous, "Previous", prevIntent
+            android.R.drawable.ic_media_previous, getString(R.string.notif_prev), prevIntent
         ).build()
 
         val playPauseIntent = PendingIntent.getService(
@@ -540,7 +591,7 @@ class PlaybackService : Service(), AudioManager.OnAudioFocusChangeListener {
         )
         val playPauseAction = NotificationCompat.Action.Builder(
             if (isPlaying) android.R.drawable.ic_media_pause else android.R.drawable.ic_media_play,
-            if (isPlaying) "Pause" else "Play",
+            if (isPlaying) getString(R.string.notif_pause) else getString(R.string.notif_play),
             playPauseIntent
         ).build()
 
@@ -550,7 +601,7 @@ class PlaybackService : Service(), AudioManager.OnAudioFocusChangeListener {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
         val nextAction = NotificationCompat.Action.Builder(
-            android.R.drawable.ic_media_next, "Next", nextIntent
+            android.R.drawable.ic_media_next, getString(R.string.notif_next), nextIntent
         ).build()
 
         val activityIntent = PendingIntent.getActivity(
@@ -590,10 +641,10 @@ class PlaybackService : Service(), AudioManager.OnAudioFocusChangeListener {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val channel = NotificationChannel(
                 CHANNEL_ID,
-                "Swiftify Playback Controls",
+                getString(R.string.notif_channel_name),
                 NotificationManager.IMPORTANCE_LOW
             ).apply {
-                description = "Active music playback controls and artwork"
+                description = getString(R.string.notif_channel_desc)
                 setShowBadge(false)
             }
             getSystemService(NotificationManager::class.java)?.createNotificationChannel(channel)

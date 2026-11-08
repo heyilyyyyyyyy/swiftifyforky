@@ -240,6 +240,14 @@ object SpotifyBridge {
         }
     }
 
+    fun setVolume(volume: Float) {
+        coreHandle?.let { h ->
+            val clamped = volume.coerceIn(0f, 1f)
+            val err = SwiftifyCoreLib.INSTANCE.swiftify_core_set_volume(h, clamped)
+            if (err != null) SwiftifyCoreLib.INSTANCE.swiftify_string_free(err)
+        }
+    }
+
     fun setStreamQuality(kbps: Int) {
         coreHandle?.let { h ->
             val err = SwiftifyCoreLib.INSTANCE.swiftify_core_set_stream_quality(h, kbps)

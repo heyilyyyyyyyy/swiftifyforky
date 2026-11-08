@@ -89,11 +89,11 @@ class MainActivity : ComponentActivity() {
         if (minutes <= 0) {
             sleepTimerRemainingSeconds.intValue = 0
             if (minutes == 0) {
-                Toast.makeText(this, "Sleep timer turned off", Toast.LENGTH_SHORT).show()
+                Toast.makeText(this, getString(R.string.toast_sleep_timer_off), Toast.LENGTH_SHORT).show()
             }
         } else {
             sleepTimerRemainingSeconds.intValue = minutes * 60
-            Toast.makeText(this, "Sleep timer set for $minutes min", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, getString(R.string.toast_sleep_timer_set, minutes), Toast.LENGTH_SHORT).show()
             sleepTimerJob = lifecycleScope.launch {
                 while (sleepTimerRemainingSeconds.intValue > 0) {
                     delay(1000L)
@@ -104,7 +104,7 @@ class MainActivity : ComponentActivity() {
                 sleepTimerMinutes.intValue = 0
                 sleepTimerRemainingSeconds.intValue = 0
                 syncPlaybackServiceNotification(0L)
-                Toast.makeText(applicationContext, "Sleep timer finished. Playback paused.", Toast.LENGTH_LONG).show()
+                Toast.makeText(applicationContext, getString(R.string.toast_sleep_timer_finished), Toast.LENGTH_LONG).show()
             }
         }
     }
@@ -296,6 +296,12 @@ class MainActivity : ComponentActivity() {
                 repeatMode.intValue = PlaybackQueueManager.shared.repeatMode.value
                 isShuffle.value = PlaybackQueueManager.shared.isShuffle
                 stopAtEndOfQueue.value = PlaybackQueueManager.shared.stopAtEndOfQueue
+                syncCustomQueue()
+                progressMs.longValue = PlaybackQueueManager.shared.currentPositionMs
+                if (PlaybackQueueManager.shared.contextName.isNotEmpty()) {
+                    queueContextName.value = PlaybackQueueManager.shared.contextName
+                }
+                syncVisibleQueue()
             }
         }
 
@@ -503,46 +509,56 @@ class MainActivity : ComponentActivity() {
         )
     }
 
+    private fun syncCustomQueue() {
+        customQueue.clear()
+        customQueue.addAll(PlaybackQueueManager.shared.customQueue)
+    }
+
     private fun advanceUpcomingState(upcoming: TrackItem) {
-        if (customQueue.isNotEmpty() && customQueue.first().uri == upcoming.uri) {
-            customQueue.removeAt(0)
-        } else if (currentPlaylistIndex + 1 < playlistQueue.size && playlistQueue[currentPlaylistIndex + 1].uri == upcoming.uri) {
+        PlaybackQueueManager.shared.advanceCrossfade(upcoming)
+        syncCustomQueue()
+        if (currentPlaylistIndex + 1 < playlistQueue.size && playlistQueue[currentPlaylistIndex + 1].uri == upcoming.uri) {
             currentPlaylistIndex++
         } else if (repeatMode.intValue == 1 && playlistQueue.isNotEmpty() && playlistQueue[0].uri == upcoming.uri) {
             currentPlaylistIndex = 0
         }
-        PlaybackQueueManager.shared.advanceCrossfade(upcoming)
         livePlayingTrack.value = upcoming
         progressMs.longValue = 0L
         isCrossfading.value = false
         syncVisibleQueue()
         preloadUpcomingTrack()
+        PlaybackQueueManager.shared.currentPositionMs = 0L
+        PlaybackQueueManager.shared.isPlayingState = true
+        PlaybackQueueManager.shared.saveState(this)
         syncPlaybackServiceNotification(0L, upcoming.durationMs, force = true)
     }
 
     private fun addToQueue(item: TrackItem) {
-        customQueue.add(item)
         PlaybackQueueManager.shared.addToCustomQueue(item)
+        syncCustomQueue()
         syncVisibleQueue()
         preloadUpcomingTrack()
+        PlaybackQueueManager.shared.saveState(this)
         Log.d("Queue", "Added '${item.title}' to custom queue (total: ${customQueue.size})")
     }
 
     private fun removeFromCustomQueue(index: Int) {
-        if (index in customQueue.indices) {
-            val removed = customQueue.removeAt(index)
-            PlaybackQueueManager.shared.removeFromCustomQueue(index)
-            syncVisibleQueue()
-            preloadUpcomingTrack()
+        val removed = PlaybackQueueManager.shared.removeFromCustomQueue(index)
+        syncCustomQueue()
+        syncVisibleQueue()
+        preloadUpcomingTrack()
+        PlaybackQueueManager.shared.saveState(this)
+        if (removed != null) {
             Log.d("Queue", "Removed '${removed.title}' from custom queue")
         }
     }
 
     private fun clearCustomQueue() {
-        customQueue.clear()
         PlaybackQueueManager.shared.clearCustomQueue()
+        syncCustomQueue()
         syncVisibleQueue()
         preloadUpcomingTrack()
+        PlaybackQueueManager.shared.saveState(this)
         Log.d("Queue", "Cleared custom queue")
     }
 
@@ -560,7 +576,8 @@ class MainActivity : ComponentActivity() {
             playlistQueue.addAll(queueContext)
             val idx = playlistQueue.indexOfFirst { it.uri == item.uri }
             currentPlaylistIndex = if (idx >= 0) idx else 0
-            customQueue.clear()
+            PlaybackQueueManager.shared.clearCustomQueue()
+            syncCustomQueue()
         } else {
             val existingIdx = playlistQueue.indexOfFirst { it.uri == item.uri }
             if (existingIdx >= 0) {
@@ -573,8 +590,11 @@ class MainActivity : ComponentActivity() {
         PlaybackQueueManager.shared.setPlaylistContext(
             tracks = playlistQueue.toList(),
             startIndex = currentPlaylistIndex,
-            stopAtEnd = stopAtEndOfQueue.value
+            stopAtEnd = stopAtEndOfQueue.value,
+            contextTitle = queueContextName.value
         )
+        PlaybackQueueManager.shared.currentPositionMs = 0L
+        PlaybackQueueManager.shared.isPlayingState = true
         PlaybackQueueManager.shared.saveState(this)
         playTrackInternal(item)
     }
@@ -588,11 +608,10 @@ class MainActivity : ComponentActivity() {
             }
             return
         }
-        val customIdx = customQueue.indexOfFirst { it.uri == clicked.uri }
-        if (customIdx >= 0) {
-            for (i in 0..customIdx) {
-                customQueue.removeAt(0)
-            }
+        val customTarget = PlaybackQueueManager.shared.consumeCustomQueueUpTo(clicked.uri)
+        if (customTarget != null) {
+            syncCustomQueue()
+            PlaybackQueueManager.shared.saveState(this)
             playTrackInternal(clicked)
             return
         }
@@ -611,6 +630,10 @@ class MainActivity : ComponentActivity() {
             isPlaying.value = true
             ensureSessionValid()
             if (curr != null) {
+                if (curr.durationMs > 0 && progressMs.longValue >= curr.durationMs) {
+                    SpotifyBridge.seek(0)
+                    progressMs.longValue = 0L
+                }
                 val ok = SpotifyBridge.play()
                 if (!ok) {
                     Log.d("Playback", "SpotifyBridge.play() failed or player was stopped -> reloading track '${curr.title}'")
@@ -688,7 +711,7 @@ class MainActivity : ComponentActivity() {
             sleepTimerRemainingSeconds.intValue = 0
             progressMs.longValue = 0L
             syncPlaybackServiceNotification(0L)
-            Toast.makeText(this, "Sleep timer finished. Playback paused at end of track.", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, getString(R.string.toast_sleep_timer_finished_track), Toast.LENGTH_SHORT).show()
             return
         }
 
@@ -708,8 +731,13 @@ class MainActivity : ComponentActivity() {
         }
 
         // Custom play-next queue takes priority
-        if (customQueue.isNotEmpty()) {
-            val next = customQueue.removeAt(0)
+        if (PlaybackQueueManager.shared.customQueue.isNotEmpty()) {
+            val next = PlaybackQueueManager.shared.customQueue.removeAt(0)
+            syncCustomQueue()
+            PlaybackQueueManager.shared.currentTrack = next
+            PlaybackQueueManager.shared.currentPositionMs = 0L
+            PlaybackQueueManager.shared.isPlayingState = true
+            PlaybackQueueManager.shared.saveState(this)
             Log.d("Queue", "Playing next from custom queue: ${next.title}")
             playTrackInternal(next)
             return
@@ -792,7 +820,7 @@ class MainActivity : ComponentActivity() {
         customQueue.clear()
         playlistQueue.clear()
         authState.value = AuthState.LoggedOut
-        Toast.makeText(this, "Logged out of Spotify", Toast.LENGTH_SHORT).show()
+        Toast.makeText(this, getString(R.string.toast_logged_out), Toast.LENGTH_SHORT).show()
     }
 
     override fun onResume() {
@@ -807,10 +835,16 @@ class MainActivity : ComponentActivity() {
 
     override fun onSaveInstanceState(outState: android.os.Bundle) {
         super.onSaveInstanceState(outState)
+        PlaybackQueueManager.shared.currentPositionMs = progressMs.longValue
+        PlaybackQueueManager.shared.isPlayingState = isPlaying.value
+        PlaybackQueueManager.shared.contextName = queueContextName.value
         PlaybackQueueManager.shared.saveState(this)
     }
 
     override fun onDestroy() {
+        PlaybackQueueManager.shared.currentPositionMs = progressMs.longValue
+        PlaybackQueueManager.shared.isPlayingState = isPlaying.value
+        PlaybackQueueManager.shared.contextName = queueContextName.value
         PlaybackQueueManager.shared.saveState(this)
         super.onDestroy()
         PlaybackService.listener = null

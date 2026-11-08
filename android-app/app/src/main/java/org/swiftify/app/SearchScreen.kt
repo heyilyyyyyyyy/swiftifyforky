@@ -31,6 +31,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -526,7 +527,7 @@ fun SearchScreen(
                     if (selectedCategory == "All") {
                         if (isArtistTopResult && topArtist != null) {
                             item(key = "top_result_artist_${topArtist.uri}", contentType = "top_result") {
-                                Text("Top result", color = MaterialTheme.colorScheme.onSurface, fontSize = 18.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(vertical = 10.dp))
+                                Text(stringResource(R.string.search_top_result), color = MaterialTheme.colorScheme.onSurface, fontSize = 18.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(vertical = 10.dp))
                                 Row(
                                     modifier = Modifier
                                         .fillMaxWidth()
@@ -578,7 +579,7 @@ fun SearchScreen(
                         } else if (searchResultsTracks.isNotEmpty()) {
                             val topSong = searchResultsTracks.first()
                             item(key = "top_result_song_${topSong.uri}", contentType = "top_result") {
-                                Text("Top result", color = MaterialTheme.colorScheme.onSurface, fontSize = 18.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(vertical = 10.dp))
+                                Text(stringResource(R.string.search_top_result), color = MaterialTheme.colorScheme.onSurface, fontSize = 18.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(vertical = 10.dp))
                                 Row(
                                     modifier = Modifier
                                         .fillMaxWidth()
@@ -690,6 +691,7 @@ fun SearchScreen(
                                 Row(
                                     modifier = Modifier
                                         .fillMaxWidth()
+                                        .semantics(mergeDescendants = true) {}
                                         .offset { IntOffset(offsetX.roundToInt(), 0) }
                                         .clip(RoundedCornerShape(8.dp))
                                         .background(
@@ -730,7 +732,7 @@ fun SearchScreen(
                                             onDragStopped = {
                                                 if (swipeArmed) {
                                                     onAddToQueue?.invoke(track)
-                                                    Toast.makeText(currentContext, "Added '${track.title}' to queue", Toast.LENGTH_SHORT).show()
+                                                    Toast.makeText(currentContext, currentContext.getString(R.string.toast_added_to_queue, track.title), Toast.LENGTH_SHORT).show()
                                                 }
                                                 dragDistance = 0f
                                                 coroutineScope.launch {

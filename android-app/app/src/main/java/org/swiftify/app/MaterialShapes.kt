@@ -39,6 +39,7 @@ import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Density
@@ -293,16 +294,22 @@ fun SwiftifyPlayButton(
         label = "pressScale"
     )
 
-    val infiniteTransition = rememberInfiniteTransition(label = "playSpin")
-    val spinAngle by infiniteTransition.animateFloat(
-        initialValue = 0f,
-        targetValue = 360f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(durationMillis = 14000, easing = LinearEasing),
-            repeatMode = RepeatMode.Restart
-        ),
-        label = "spinAngle"
-    )
+    val shouldSpin = isPlaying || morphProgress > 0.05f
+    val spinAngle = if (shouldSpin) {
+        val infiniteTransition = rememberInfiniteTransition(label = "playSpin")
+        val angle by infiniteTransition.animateFloat(
+            initialValue = 0f,
+            targetValue = 360f,
+            animationSpec = infiniteRepeatable(
+                animation = tween(durationMillis = 14000, easing = LinearEasing),
+                repeatMode = RepeatMode.Restart
+            ),
+            label = "spinAngle"
+        )
+        angle
+    } else {
+        0f
+    }
 
     val glyphPop = remember { Animatable(1f) }
     var lastIsPlaying by remember { mutableStateOf(isPlaying) }
@@ -338,12 +345,11 @@ fun SwiftifyPlayButton(
         )
 
         // Morphing & spinning cookie button body
-        val currentSpin = if (isPlaying || morphProgress > 0.05f) spinAngle else 0f
         Canvas(
             modifier = Modifier
                 .fillMaxSize()
                 .graphicsLayer {
-                    rotationZ = currentSpin
+                    rotationZ = spinAngle
                 }
                 .clickable(
                     interactionSource = interactionSource,
@@ -471,16 +477,24 @@ fun SquiggleAvatarRing(
     continuousRotation: Boolean = true
 ) {
     val resolvedColor = if (color.isSpecified) color else MaterialTheme.colorScheme.primary
-    val infiniteTransition = rememberInfiniteTransition(label = "squiggleRingSpin")
-    val ringAngle by infiniteTransition.animateFloat(
-        initialValue = 0f,
-        targetValue = 360f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(durationMillis = 20000, easing = LinearEasing),
-            repeatMode = RepeatMode.Restart
-        ),
-        label = "ringAngle"
-    )
+    val ringAngle = if (continuousRotation) {
+        val infiniteTransition = rememberInfiniteTransition(label = "squiggleRingSpin")
+        val angle by infiniteTransition.animateFloat(
+            initialValue = 0f,
+            targetValue = 360f,
+            animationSpec = infiniteRepeatable(
+                animation = tween(durationMillis = 20000, easing = LinearEasing),
+                repeatMode = RepeatMode.Restart
+            ),
+            label = "ringAngle"
+        )
+        angle
+    } else {
+        0f
+    }
+
+    val strokePx = with(LocalDensity.current) { strokeWidth.toPx() }
+    val ampPx = with(LocalDensity.current) { amplitude.toPx() }
 
     Canvas(
         modifier = modifier.graphicsLayer {
@@ -489,8 +503,6 @@ fun SquiggleAvatarRing(
             }
         }
     ) {
-        val strokePx = strokeWidth.toPx()
-        val ampPx = amplitude.toPx()
         val path = buildSquigglePath(
             width = size.width,
             height = size.height,
@@ -556,16 +568,21 @@ fun SquiggleAvatar(
     continuousRotation: Boolean = true
 ) {
     val resolvedRingColor = if (ringColor.isSpecified) ringColor else MaterialTheme.colorScheme.primary
-    val infiniteTransition = rememberInfiniteTransition(label = "squiggleSpin")
-    val ringAngle by infiniteTransition.animateFloat(
-        initialValue = 0f,
-        targetValue = 360f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(durationMillis = 20000, easing = LinearEasing),
-            repeatMode = RepeatMode.Restart
-        ),
-        label = "ringAngle"
-    )
+    val ringAngle = if (continuousRotation) {
+        val infiniteTransition = rememberInfiniteTransition(label = "squiggleSpin")
+        val angle by infiniteTransition.animateFloat(
+            initialValue = 0f,
+            targetValue = 360f,
+            animationSpec = infiniteRepeatable(
+                animation = tween(durationMillis = 20000, easing = LinearEasing),
+                repeatMode = RepeatMode.Restart
+            ),
+            label = "ringAngle"
+        )
+        angle
+    } else {
+        0f
+    }
 
     Box(
         modifier = modifier,

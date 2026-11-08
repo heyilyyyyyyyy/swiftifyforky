@@ -74,4 +74,72 @@
     <string name="settings_target_device">Target Device</string>
     <string name="settings_architecture">Architecture</string>
     <string name="settings_swiftify_core">Swiftify Core</string>
+
+    <!-- Search Screen -->
+    <string name="search_top_result">Top result</string>
+
+    <!-- Playlist / Album Actions & Dialogs -->
+    <string name="dialog_playlist_name">Playlist name</string>
+    <string name="dialog_playlist_desc">Description (optional)</string>
+    <string name="btn_create">Create</string>
+    <string name="btn_delete">Delete</string>
+    <string name="btn_retry">Retry</string>
+    <string name="btn_close">Close</string>
+    <string name="menu_refresh_playlist">Refresh Playlist</string>
+    <string name="menu_delete_playlist">Delete Playlist</string>
+    <string name="dialog_delete_playlist_title">Delete Playlist</string>
+    <string name="dialog_delete_playlist_message">Are you sure you want to delete \'%1$s\'? This cannot be undone.</string>
+    <string name="swipe_add_to_queue">Add to Queue</string>
+    <string name="swipe_to_queue">Swipe to queue</string>
+
+    <!-- Expanded Player Menu & Dialogs -->
+    <string name="menu_audio_info">Audio Info</string>
+    <string name="menu_go_to_album">Go to Album</string>
+    <string name="menu_go_to_artist">Go to Artist</string>
+    <string name="menu_add_to_playlist">Add to Playlist</string>
+    <string name="menu_copy_uri">Copy Spotify URI</string>
+    <string name="title_sleep_timer">Sleep Timer</string>
+    <string name="no_editable_playlists">No editable playlists found.</string>
+
+    <!-- Notification & Media Controls -->
+    <string name="notif_prev">Previous</string>
+    <string name="notif_pause">Pause</string>
+    <string name="notif_play">Play</string>
+    <string name="notif_next">Next</string>
+    <string name="notif_channel_name">Swiftify Playback Controls</string>
+    <string name="notif_channel_desc">Active music playback controls and artwork</string>
+
+    <!-- Toast Notifications -->
+    <string name="toast_sleep_timer_off">Sleep timer turned off</string>
+    <string name="toast_sleep_timer_set">Sleep timer set for %1$d min</string>
+    <string name="toast_sleep_timer_finished">Sleep timer finished. Playback paused.</string>
+    <string name="toast_sleep_timer_finished_track">Sleep timer finished. Playback paused at end of track.</string>
+    <string name="toast_logged_out">Logged out of Spotify</string>
+    <string name="toast_added_to_queue">Added \'%1$s\' to queue</string>
+    <string name="toast_copied_uri">Copied Spotify URI</string>
+    <string name="toast_failed_saved_tracks">Failed to update Saved Tracks</string>
+    <string name="toast_audio_quality_set">Audio quality set to %1$d kbps</string>
+    <string name="toast_auth_invalid_state">Authentication rejected: invalid state</string>
+    <string name="toast_created_playlist">Created playlist \'%1$s\'</string>
+    <string name="toast_failed_create_playlist">Failed to create playlist</string>
+    <string name="toast_deleted_playlist">Deleted playlist \'%1$s\'</string>
+    <string name="toast_failed_delete_playlist">Failed to delete playlist</string>
+    <string name="toast_added_to_playlist">Added \'%1$s\' to %2$s</string>
+    <string name="toast_failed_add_to_playlist">Failed to add track to playlist</string>
+    <string name="toast_removed_from_playlist">Removed \'%1$s\' from %2$s</string>
+    <string name="toast_failed_remove_from_playlist">Failed to remove track from playlist</string>
+
+    <!-- Plurals -->
+    <plurals name="tracks_count">
+        <item quantity="one">%1$d track</item>
+        <item quantity="other">%1$d tracks</item>
+    </plurals>
+    <plurals name="songs_count">
+        <item quantity="one">%1$d song</item>
+        <item quantity="other">%1$d songs</item>
+    </plurals>
+    <plurals name="collections_count">
+        <item quantity="one">%1$d collection</item>
+        <item quantity="other">%1$d collections</item>
+    </plurals>
 </resources>

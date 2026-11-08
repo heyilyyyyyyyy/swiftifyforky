@@ -10,6 +10,8 @@ import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.semantics
 import android.widget.Toast
 import androidx.compose.ui.unit.IntOffset
 import kotlin.math.roundToInt
@@ -423,17 +425,17 @@ fun PlaylistDetailScreen(
                     modifier = Modifier.background(MaterialTheme.colorScheme.surfaceContainerHigh)
                 ) {
                     DropdownMenuItem(
-                        text = { Text("Copy Spotify URI", color = MaterialTheme.colorScheme.onSurface, fontSize = 13.sp) },
+                        text = { Text(stringResource(R.string.menu_copy_uri), color = MaterialTheme.colorScheme.onSurface, fontSize = 13.sp) },
                         onClick = {
                             isMoreMenuOpen = false
                             val cm = context.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as? ClipboardManager
                             val clip = ClipData.newPlainText("Spotify URI", playlist.uri)
                             cm?.setPrimaryClip(clip)
-                            Toast.makeText(context, "Copied Spotify URI", Toast.LENGTH_SHORT).show()
+                            Toast.makeText(context, context.getString(R.string.toast_copied_uri), Toast.LENGTH_SHORT).show()
                         }
                     )
                     DropdownMenuItem(
-                        text = { Text("Refresh Playlist", color = MaterialTheme.colorScheme.onSurface, fontSize = 13.sp) },
+                        text = { Text(stringResource(R.string.menu_refresh_playlist), color = MaterialTheme.colorScheme.onSurface, fontSize = 13.sp) },
                         onClick = {
                             isMoreMenuOpen = false
                             reloadTrigger++
@@ -441,7 +443,7 @@ fun PlaylistDetailScreen(
                     )
                     if (playlist.uri.startsWith("spotify:playlist:") && onDeletePlaylist != null) {
                         DropdownMenuItem(
-                            text = { Text("Delete Playlist", color = MaterialTheme.colorScheme.error, fontSize = 13.sp) },
+                            text = { Text(stringResource(R.string.menu_delete_playlist), color = MaterialTheme.colorScheme.error, fontSize = 13.sp) },
                             onClick = {
                                 isMoreMenuOpen = false
                                 showDeleteConfirmation = true
@@ -455,8 +457,8 @@ fun PlaylistDetailScreen(
         if (showDeleteConfirmation) {
             AlertDialog(
                 onDismissRequest = { showDeleteConfirmation = false },
-                title = { Text("Delete Playlist", color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.Bold, fontSize = 18.sp) },
-                text = { Text("Are you sure you want to delete '${playlist.name}'? This cannot be undone.", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 14.sp) },
+                title = { Text(stringResource(R.string.dialog_delete_playlist_title), color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.Bold, fontSize = 18.sp) },
+                text = { Text(stringResource(R.string.dialog_delete_playlist_message, playlist.name), color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 14.sp) },
                 containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
                 confirmButton = {
                     Button(
@@ -470,12 +472,12 @@ fun PlaylistDetailScreen(
                         ),
                         shape = RoundedCornerShape(12.dp)
                     ) {
-                        Text("Delete", fontWeight = FontWeight.Bold)
+                        Text(stringResource(R.string.btn_delete), fontWeight = FontWeight.Bold)
                     }
                 },
                 dismissButton = {
                     TextButton(onClick = { showDeleteConfirmation = false }) {
-                        Text("Cancel", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(stringResource(R.string.cancel), color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 }
             )
@@ -655,7 +657,7 @@ fun PlaylistDetailScreen(
                             colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh),
                             shape = RoundedCornerShape(18.dp)
                         ) {
-                            Text("Retry", color = MaterialTheme.colorScheme.primary, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                            Text(stringResource(R.string.btn_retry), color = MaterialTheme.colorScheme.primary, fontSize = 13.sp, fontWeight = FontWeight.Bold)
                         }
                     }
                 }
@@ -709,7 +711,7 @@ fun PlaylistDetailScreen(
                             )
                             Spacer(modifier = Modifier.width(8.dp))
                             Text(
-                                text = if (swipeArmed) "Add to Queue" else "Swipe to queue",
+                                text = if (swipeArmed) stringResource(R.string.swipe_add_to_queue) else stringResource(R.string.swipe_to_queue),
                                 color = MaterialTheme.colorScheme.primary,
                                 fontSize = 13.sp,
                                 fontWeight = FontWeight.Bold
@@ -721,6 +723,7 @@ fun PlaylistDetailScreen(
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
+                            .semantics(mergeDescendants = true) {}
                             .height(64.dp)
                             .offset { IntOffset(offsetX.roundToInt(), 0) }
                             .clip(RoundedCornerShape(8.dp))
@@ -757,7 +760,7 @@ fun PlaylistDetailScreen(
                                 onDragStopped = {
                                     if (swipeArmed) {
                                         onAddToQueue?.invoke(track)
-                                        Toast.makeText(context, "Added '${track.title}' to queue", Toast.LENGTH_SHORT).show()
+                                        Toast.makeText(context, context.getString(R.string.toast_added_to_queue, track.title), Toast.LENGTH_SHORT).show()
                                     }
                                     dragDistance = 0f
                                     coroutineScope.launch {
@@ -870,13 +873,13 @@ fun PlaylistDetailScreen(
                         } else {
                             savedTrackUris.value + track.uri
                         }
-                        Toast.makeText(context, "Failed to update Saved Tracks", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(context, context.getString(R.string.toast_failed_saved_tracks), Toast.LENGTH_SHORT).show()
                     }
                 }
             },
             onAddToQueue = {
                 onAddToQueue?.invoke(track)
-                Toast.makeText(context, "Added '${track.title}' to queue", Toast.LENGTH_SHORT).show()
+                Toast.makeText(context, context.getString(R.string.toast_added_to_queue, track.title), Toast.LENGTH_SHORT).show()
             },
             onGoToArtist = {
                 onArtistClick?.invoke(track.artist)

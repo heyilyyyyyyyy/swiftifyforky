@@ -193,9 +193,9 @@ class LibraryRepository(
             val newPl = SpotifyApi.createPlaylist(context, name, description)
             if (newPl != null) {
                 playlists.add(0, newPl)
-                Toast.makeText(context, "Created playlist '${newPl.name}'", Toast.LENGTH_SHORT).show()
+                Toast.makeText(context, context.getString(R.string.toast_created_playlist, newPl.name), Toast.LENGTH_SHORT).show()
             } else {
-                Toast.makeText(context, "Failed to create playlist", Toast.LENGTH_SHORT).show()
+                Toast.makeText(context, context.getString(R.string.toast_failed_create_playlist), Toast.LENGTH_SHORT).show()
             }
         }
     }
@@ -205,9 +205,9 @@ class LibraryRepository(
             val ok = SpotifyApi.deletePlaylist(context, playlist.uri)
             if (ok) {
                 playlists.removeAll { it.uri == playlist.uri }
-                Toast.makeText(context, "Deleted playlist '${playlist.name}'", Toast.LENGTH_SHORT).show()
+                Toast.makeText(context, context.getString(R.string.toast_deleted_playlist, playlist.name), Toast.LENGTH_SHORT).show()
             } else {
-                Toast.makeText(context, "Failed to delete playlist", Toast.LENGTH_SHORT).show()
+                Toast.makeText(context, context.getString(R.string.toast_failed_delete_playlist), Toast.LENGTH_SHORT).show()
             }
         }
     }
@@ -216,9 +216,9 @@ class LibraryRepository(
         scope.launch {
             val ok = SpotifyApi.addTrackToPlaylist(context, playlist.uri, track.uri)
             if (ok) {
-                Toast.makeText(context, "Added '${track.title}' to ${playlist.name}", Toast.LENGTH_SHORT).show()
+                Toast.makeText(context, context.getString(R.string.toast_added_to_playlist, track.title, playlist.name), Toast.LENGTH_SHORT).show()
             } else {
-                Toast.makeText(context, "Failed to add track to playlist", Toast.LENGTH_SHORT).show()
+                Toast.makeText(context, context.getString(R.string.toast_failed_add_to_playlist), Toast.LENGTH_SHORT).show()
             }
         }
     }
@@ -227,9 +227,9 @@ class LibraryRepository(
         scope.launch {
             val ok = SpotifyApi.removeTrackFromPlaylist(context, playlist.uri, track.uri)
             if (ok) {
-                Toast.makeText(context, "Removed '${track.title}' from ${playlist.name}", Toast.LENGTH_SHORT).show()
+                Toast.makeText(context, context.getString(R.string.toast_removed_from_playlist, track.title, playlist.name), Toast.LENGTH_SHORT).show()
             } else {
-                Toast.makeText(context, "Failed to remove track from playlist", Toast.LENGTH_SHORT).show()
+                Toast.makeText(context, context.getString(R.string.toast_failed_remove_from_playlist), Toast.LENGTH_SHORT).show()
             }
         }
     }

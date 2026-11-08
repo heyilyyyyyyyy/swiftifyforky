@@ -18,6 +18,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -211,7 +212,7 @@ fun AllPlaylistsScreen(
                         OutlinedTextField(
                             value = newName,
                             onValueChange = { newName = it },
-                            label = { Text("Playlist name") },
+                            label = { Text(stringResource(R.string.dialog_playlist_name)) },
                             singleLine = true,
                             colors = OutlinedTextFieldDefaults.colors(
                                 focusedBorderColor = MaterialTheme.colorScheme.primary,
@@ -225,7 +226,7 @@ fun AllPlaylistsScreen(
                         OutlinedTextField(
                             value = newDesc,
                             onValueChange = { newDesc = it },
-                            label = { Text("Description (optional)") },
+                            label = { Text(stringResource(R.string.dialog_playlist_desc)) },
                             maxLines = 3,
                             colors = OutlinedTextFieldDefaults.colors(
                                 focusedBorderColor = MaterialTheme.colorScheme.primary,
@@ -254,14 +255,14 @@ fun AllPlaylistsScreen(
                         ),
                         shape = RoundedCornerShape(12.dp)
                     ) {
-                        Text("Create", fontWeight = FontWeight.Bold)
+                        Text(stringResource(R.string.btn_create), fontWeight = FontWeight.Bold)
                     }
                 },
                 dismissButton = {
                     TextButton(
                         onClick = { showCreateDialog = false }
                     ) {
-                        Text("Cancel", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(stringResource(R.string.cancel), color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 }
             )

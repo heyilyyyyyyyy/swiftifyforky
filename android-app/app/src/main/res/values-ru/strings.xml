@@ -74,4 +74,78 @@
     <string name="settings_target_device">Устройство</string>
     <string name="settings_architecture">Архитектура</string>
     <string name="settings_swiftify_core">Ядро Swiftify</string>
+
+    <!-- Search Screen -->
+    <string name="search_top_result">Лучший результат</string>
+
+    <!-- Playlist / Album Actions & Dialogs -->
+    <string name="dialog_playlist_name">Название плейлиста</string>
+    <string name="dialog_playlist_desc">Описание (необязательно)</string>
+    <string name="btn_create">Создать</string>
+    <string name="btn_delete">Удалить</string>
+    <string name="btn_retry">Повторить</string>
+    <string name="btn_close">Закрыть</string>
+    <string name="menu_refresh_playlist">Обновить плейлист</string>
+    <string name="menu_delete_playlist">Удалить плейлист</string>
+    <string name="dialog_delete_playlist_title">Удалить плейлист</string>
+    <string name="dialog_delete_playlist_message">Вы уверены, что хотите удалить «%1$s»? Это действие нельзя отменить.</string>
+    <string name="swipe_add_to_queue">В очередь</string>
+    <string name="swipe_to_queue">Свайп в очередь</string>
+
+    <!-- Expanded Player Menu & Dialogs -->
+    <string name="menu_audio_info">Свойства аудио</string>
+    <string name="menu_go_to_album">Перейти к альбому</string>
+    <string name="menu_go_to_artist">Перейти к исполнителю</string>
+    <string name="menu_add_to_playlist">Добавить в плейлист</string>
+    <string name="menu_copy_uri">Скопировать Spotify URI</string>
+    <string name="title_sleep_timer">Таймер сна</string>
+    <string name="no_editable_playlists">Нет доступных для редактирования плейлистов.</string>
+
+    <!-- Notification & Media Controls -->
+    <string name="notif_prev">Предыдущий</string>
+    <string name="notif_pause">Пауза</string>
+    <string name="notif_play">Воспроизведение</string>
+    <string name="notif_next">Следующий</string>
+    <string name="notif_channel_name">Управление воспроизведением Swiftify</string>
+    <string name="notif_channel_desc">Элементы управления воспроизведением и обложка</string>
+
+    <!-- Toast Notifications -->
+    <string name="toast_sleep_timer_off">Таймер сна отключён</string>
+    <string name="toast_sleep_timer_set">Таймер сна установлен на %1$d мин</string>
+    <string name="toast_sleep_timer_finished">Таймер сна сработал. Воспроизведение приостановлено.</string>
+    <string name="toast_sleep_timer_finished_track">Таймер сна сработал. Воспроизведение приостановлено в конце трека.</string>
+    <string name="toast_logged_out">Вы вышли из Spotify</string>
+    <string name="toast_added_to_queue">Трек «%1$s» добавлен в очередь</string>
+    <string name="toast_copied_uri">Spotify URI скопирован</string>
+    <string name="toast_failed_saved_tracks">Не удалось обновить сохранённые треки</string>
+    <string name="toast_audio_quality_set">Качество звука: %1$d кбит/с</string>
+    <string name="toast_auth_invalid_state">Авторизация отклонена: неверный state</string>
+    <string name="toast_created_playlist">Плейлист «%1$s» создан</string>
+    <string name="toast_failed_create_playlist">Не удалось создать плейлист</string>
+    <string name="toast_deleted_playlist">Плейлист «%1$s» удалён</string>
+    <string name="toast_failed_delete_playlist">Не удалось удалить плейлист</string>
+    <string name="toast_added_to_playlist">Трек «%1$s» добавлен в %2$s</string>
+    <string name="toast_failed_add_to_playlist">Не удалось добавить трек в плейлист</string>
+    <string name="toast_removed_from_playlist">Трек «%1$s» удалён из %2$s</string>
+    <string name="toast_failed_remove_from_playlist">Не удалось удалить трек из плейлиста</string>
+
+    <!-- Plurals -->
+    <plurals name="tracks_count">
+        <item quantity="one">%1$d трек</item>
+        <item quantity="few">%1$d трека</item>
+        <item quantity="many">%1$d треков</item>
+        <item quantity="other">%1$d трека</item>
+    </plurals>
+    <plurals name="songs_count">
+        <item quantity="one">%1$d песня</item>
+        <item quantity="few">%1$d песни</item>
+        <item quantity="many">%1$d песен</item>
+        <item quantity="other">%1$d песни</item>
+    </plurals>
+    <plurals name="collections_count">
+        <item quantity="one">%1$d коллекция</item>
+        <item quantity="few">%1$d коллекции</item>
+        <item quantity="many">%1$d коллекций</item>
+        <item quantity="other">%1$d коллекции</item>
+    </plurals>
 </resources>
