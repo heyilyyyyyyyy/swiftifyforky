@@ -103,12 +103,14 @@ fun HomeScreen(
                 Spacer(modifier = Modifier.height(4.dp))
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Box(
-                        modifier = Modifier
-                            .size(24.dp)
-                            .clip(CircleShape)
-                            .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)),
+                        modifier = Modifier.size(26.dp),
                         contentAlignment = Alignment.Center
                     ) {
+                        MaterialExpressiveShape(
+                            shape = "sunny",
+                            color = MaterialTheme.colorScheme.primary.copy(alpha = 0.20f),
+                            modifier = Modifier.fillMaxSize()
+                        )
                         Icon(
                             imageVector = greetingIcon,
                             contentDescription = null,
@@ -124,20 +126,6 @@ fun HomeScreen(
                         fontWeight = FontWeight.Medium
                     )
                 }
-            }
-            Box(
-                modifier = Modifier
-                    .size(38.dp)
-                    .clip(CircleShape)
-                    .background(MaterialTheme.colorScheme.surfaceContainerHigh),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    imageVector = Icons.Rounded.MoreVert,
-                    contentDescription = "Options",
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.size(20.dp)
-                )
             }
         }
 
