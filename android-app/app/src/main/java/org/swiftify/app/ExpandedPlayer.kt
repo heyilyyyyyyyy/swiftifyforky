@@ -44,7 +44,11 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
+import org.swiftify.app.design.GoogleSansFlexFamily
 import org.swiftify.app.design.SwiftifyMotion
+import androidx.compose.runtime.snapshotFlow
+import kotlinx.coroutines.flow.filter
+import kotlinx.coroutines.flow.first
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -412,13 +416,36 @@ fun ExpandedPlayer(
                             var rippleTrigger by remember { mutableIntStateOf(0) }
                             var scrollDeltaSign by remember { mutableFloatStateOf(1f) }
 
-                            LaunchedEffect(activeLineIdx, lyricLines.size) {
-                                if (activeLineIdx in lyricLines.indices) {
+                            // Initial positioning: jump directly to currently active line once measured
+                            LaunchedEffect(isLineSynced, lyricLines.size) {
+                                if (isLineSynced && activeLineIdx in lyricLines.indices) {
+                                    snapshotFlow { lyricsListState.layoutInfo.totalItemsCount }
+                                        .filter { it > 0 }
+                                        .first()
+                                    lyricsListState.scrollToItem(activeLineIdx, 0)
+                                }
+                            }
+
+                            // Follow playback: smoothly animate scroll maintaining active line at top
+                            LaunchedEffect(activeLineIdx) {
+                                if (activeLineIdx in lyricLines.indices && isLineSynced) {
                                     scrollDeltaSign = if (activeLineIdx > lastLineIdx) 1f else -1f
                                     lastLineIdx = activeLineIdx
                                     rippleTrigger++
-                                    if (isLineSynced) {
-                                        // Keep active line at the top, past lines scroll up and away
+
+                                    val visible = lyricsListState.layoutInfo.visibleItemsInfo.find { it.index == activeLineIdx }
+                                    if (visible != null) {
+                                        val delta = visible.offset
+                                        if (abs(delta) > 2 && !lyricsListState.isScrollInProgress) {
+                                            lyricsListState.animateScrollBy(
+                                                value = delta.toFloat(),
+                                                animationSpec = tween(
+                                                    durationMillis = 420,
+                                                    easing = SwiftifyMotion.EmphasizedDecel
+                                                )
+                                            )
+                                        }
+                                    } else {
                                         lyricsListState.animateScrollToItem(
                                             index = activeLineIdx,
                                             scrollOffset = 0
@@ -450,8 +477,8 @@ fun ExpandedPlayer(
                                             )
                                         },
                                     contentPadding = PaddingValues(
-                                        top = 24.dp,
-                                        bottom = (maxHeight - 64.dp).coerceAtLeast(120.dp)
+                                        top = 32.dp,
+                                        bottom = (maxHeight - 80.dp).coerceAtLeast(140.dp)
                                     ),
                                     verticalArrangement = Arrangement.spacedBy(16.dp),
                                     horizontalAlignment = Alignment.CenterHorizontally
@@ -486,8 +513,8 @@ fun ExpandedPlayer(
                                             label = "lyricScale"
                                         )
                                         val pillBg by animateColorAsState(
-                                            targetValue = if (isCurrent) palette.accent.copy(alpha = 0.24f) else Color.Transparent,
-                                            animationSpec = tween(durationMillis = 280, easing = SwiftifyMotion.EmphasizedDecel),
+                                            targetValue = if (isCurrent) palette.accent.copy(alpha = 0.22f) else Color.Transparent,
+                                            animationSpec = tween(durationMillis = 320, easing = SwiftifyMotion.EmphasizedDecel),
                                             label = "lyricPillBg"
                                         )
                                         val textColor by animateColorAsState(
@@ -526,7 +553,7 @@ fun ExpandedPlayer(
                                                     .wrapContentSize()
                                                     .padding(horizontal = 20.dp)
                                                     .drawBehind {
-                                                        if (isCurrent && isLineSynced) {
+                                                        if (isLineSynced && pillBg.alpha > 0.005f) {
                                                             val ampPx = 3.2.dp.toPx()
                                                             val wavePx = 14.dp.toPx()
                                                             val path = buildWavyPillPath(
@@ -547,10 +574,11 @@ fun ExpandedPlayer(
                                             ) {
                                                 Text(
                                                     text = if (line.words.isNotEmpty()) line.words else "♪",
+                                                    fontFamily = GoogleSansFlexFamily,
                                                     color = textColor,
-                                                    fontSize = if (isCurrent) 22.sp else 18.sp,
+                                                    fontSize = if (isCurrent) 24.sp else 19.sp,
                                                     fontWeight = if (isCurrent) FontWeight.Bold else FontWeight.SemiBold,
-                                                    lineHeight = if (isCurrent) 30.sp else 25.sp,
+                                                    lineHeight = if (isCurrent) 32.sp else 26.sp,
                                                     textAlign = TextAlign.Center
                                                 )
                                             }
@@ -831,6 +859,7 @@ fun ExpandedPlayer(
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = track.title,
+                    fontFamily = GoogleSansFlexFamily,
                     color = Color.White,
                     fontSize = 25.sp,
                     fontWeight = FontWeight.ExtraBold,
@@ -841,6 +870,7 @@ fun ExpandedPlayer(
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
                     text = track.artist,
+                    fontFamily = GoogleSansFlexFamily,
                     color = Color(0xCCFFFFFF),
                     fontSize = 16.sp,
                     fontWeight = FontWeight.SemiBold,
