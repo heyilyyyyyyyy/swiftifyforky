@@ -109,11 +109,11 @@ fun sampleShapeRadius(shape: String, theta: Float, reach: Float): Float {
         }
         "cookie4" -> {
             val lobe = (0.5f + 0.5f * cos(4f * theta)).pow(1.0f)
-            reach * (1.0f - 0.12f + 0.12f * lobe)
+            reach * (1.0f - 0.14f + 0.14f * lobe)
         }
         "cookie6" -> {
             val lobe = (0.5f + 0.5f * cos(6f * theta)).pow(1.0f)
-            reach * (1.0f - 0.10f + 0.10f * lobe)
+            reach * (1.0f - 0.12f + 0.12f * lobe)
         }
         "cookie7" -> {
             val lobe = (0.5f + 0.5f * cos(7f * theta)).pow(1.0f)
@@ -177,34 +177,34 @@ enum class ExpressiveArrowDirection { DOWN, UP, LEFT, RIGHT }
 private fun buildArrowPolygonPath(cx: Float, cy: Float, reach: Float, direction: ExpressiveArrowDirection): Path {
     val raw = when (direction) {
         ExpressiveArrowDirection.DOWN -> listOf(
-            Offset(cx, cy + reach * 0.84f),
-            Offset(cx + reach * 0.72f, cy - reach * 0.58f),
-            Offset(cx, cy - reach * 0.20f),
-            Offset(cx - reach * 0.72f, cy - reach * 0.58f)
+            Offset(cx, cy + reach * 0.85f),
+            Offset(cx + reach * 0.90f, cy - reach * 0.84f),
+            Offset(cx, cy - reach * 0.61f),
+            Offset(cx - reach * 0.90f, cy - reach * 0.84f)
         )
         ExpressiveArrowDirection.UP -> listOf(
-            Offset(cx, cy - reach * 0.84f),
-            Offset(cx - reach * 0.72f, cy + reach * 0.58f),
-            Offset(cx, cy + reach * 0.20f),
-            Offset(cx + reach * 0.72f, cy + reach * 0.58f)
+            Offset(cx, cy - reach * 0.85f),
+            Offset(cx - reach * 0.90f, cy + reach * 0.84f),
+            Offset(cx, cy + reach * 0.61f),
+            Offset(cx + reach * 0.90f, cy + reach * 0.84f)
         )
         ExpressiveArrowDirection.LEFT -> listOf(
-            Offset(cx - reach * 0.84f, cy),
-            Offset(cx + reach * 0.58f, cy - reach * 0.72f),
-            Offset(cx + reach * 0.20f, cy),
-            Offset(cx + reach * 0.58f, cy + reach * 0.72f)
+            Offset(cx - reach * 0.85f, cy),
+            Offset(cx + reach * 0.84f, cy - reach * 0.90f),
+            Offset(cx + reach * 0.61f, cy),
+            Offset(cx + reach * 0.84f, cy + reach * 0.90f)
         )
         ExpressiveArrowDirection.RIGHT -> listOf(
-            Offset(cx + reach * 0.84f, cy),
-            Offset(cx - reach * 0.58f, cy + reach * 0.72f),
-            Offset(cx - reach * 0.20f, cy),
-            Offset(cx - reach * 0.58f, cy - reach * 0.72f)
+            Offset(cx + reach * 0.85f, cy),
+            Offset(cx - reach * 0.84f, cy + reach * 0.90f),
+            Offset(cx - reach * 0.61f, cy),
+            Offset(cx - reach * 0.84f, cy - reach * 0.90f)
         )
     }
 
     val path = Path()
     val n = raw.size
-    val cr = reach * 0.26f
+    val cr = reach * 0.36f
 
     for (i in 0 until n) {
         val prev = raw[(i - 1 + n) % n]

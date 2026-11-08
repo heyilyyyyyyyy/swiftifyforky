@@ -982,13 +982,29 @@ fun ExpandedPlayer(
             val shuffleInteraction = remember { MutableInteractionSource() }
             val isShufflePressed by shuffleInteraction.collectIsPressedAsState()
             val shuffleScale by animateFloatAsState(
-                targetValue = if (isShufflePressed) 0.80f else if (isShuffle) 1.08f else 1.0f,
-                animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessMedium)
+                targetValue = if (isShufflePressed) 0.82f else 1.0f,
+                animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessMedium),
+                label = "shuffleScale"
+            )
+            val cloverAlpha by animateFloatAsState(
+                targetValue = if (isShuffle) 1.0f else if (isShufflePressed) 0.25f else 0.0f,
+                animationSpec = tween(durationMillis = 180),
+                label = "cloverAlpha"
+            )
+            val cloverScale by animateFloatAsState(
+                targetValue = if (isShuffle) 1.0f else 0.40f,
+                animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessMedium),
+                label = "cloverScale"
+            )
+            val shuffleIconTint by animateColorAsState(
+                targetValue = if (isShuffle) palette.onAccent else Color(0x99FFFFFF),
+                animationSpec = tween(durationMillis = 180),
+                label = "shuffleTint"
             )
             Box(
                 modifier = Modifier
                     .size(52.dp)
-                    .clip(CircleShape)
+                    .scale(shuffleScale)
                     .clickable(
                         interactionSource = shuffleInteraction,
                         indication = null,
@@ -997,28 +1013,23 @@ fun ExpandedPlayer(
                     ),
                 contentAlignment = Alignment.Center
             ) {
-                val cloverAlpha by animateFloatAsState(if (isShuffle) 0.35f else 0f)
-                val cloverScale by animateFloatAsState(if (isShuffle) 1.0f else 0.6f)
                 if (cloverAlpha > 0.01f) {
                     MaterialExpressiveShape(
                         shape = "clover4",
                         color = palette.accent.copy(alpha = cloverAlpha),
-                        modifier = Modifier.size(48.dp).graphicsLayer {
-                            scaleX = cloverScale
-                            scaleY = cloverScale
-                        }
+                        modifier = Modifier
+                            .size(46.dp)
+                            .graphicsLayer {
+                                scaleX = cloverScale
+                                scaleY = cloverScale
+                            }
                     )
                 }
                 Icon(
                     imageVector = Icons.Rounded.Shuffle,
                     contentDescription = "Shuffle",
-                    tint = if (isShuffle) palette.accent else Color(0x99FFFFFF),
-                    modifier = Modifier
-                        .size(24.dp)
-                        .graphicsLayer {
-                            scaleX = shuffleScale
-                            scaleY = shuffleScale
-                        }
+                    tint = shuffleIconTint,
+                    modifier = Modifier.size(24.dp)
                 )
             }
 
@@ -1037,9 +1048,14 @@ fun ExpandedPlayer(
                 targetValue = if (isPrevPressed) 0.85f else 1.0f,
                 animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessMedium)
             )
+            val prevScale by animateFloatAsState(
+                targetValue = if (isPrevPressed) 0.88f else 1.0f,
+                animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessMedium)
+            )
             Box(
                 modifier = Modifier
                     .size(52.dp)
+                    .scale(prevScale)
                     .clickable(
                         interactionSource = prevInteraction,
                         indication = null,
@@ -1100,9 +1116,14 @@ fun ExpandedPlayer(
                 targetValue = if (isNextPressed) 0.85f else 1.0f,
                 animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessMedium)
             )
+            val nextScale by animateFloatAsState(
+                targetValue = if (isNextPressed) 0.88f else 1.0f,
+                animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessMedium)
+            )
             Box(
                 modifier = Modifier
                     .size(52.dp)
+                    .scale(nextScale)
                     .clickable(
                         interactionSource = nextInteraction,
                         indication = null,
@@ -1140,13 +1161,39 @@ fun ExpandedPlayer(
             val repeatInteraction = remember { MutableInteractionSource() }
             val isRepeatPressed by repeatInteraction.collectIsPressedAsState()
             val repeatScale by animateFloatAsState(
-                targetValue = if (isRepeatPressed) 0.80f else if (repeatMode > 0) 1.08f else 1.0f,
-                animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessMedium)
+                targetValue = if (isRepeatPressed) 0.82f else 1.0f,
+                animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessMedium),
+                label = "repeatScale"
+            )
+            val repeatAlpha by animateFloatAsState(
+                targetValue = if (repeatMode > 0) 1.0f else if (isRepeatPressed) 0.25f else 0.0f,
+                animationSpec = tween(durationMillis = 180),
+                label = "repeatAlpha"
+            )
+            val repeatShapeScale by animateFloatAsState(
+                targetValue = if (repeatMode > 0) 1.0f else 0.40f,
+                animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessMedium),
+                label = "repeatShapeScale"
+            )
+            val repeatMorphProgress by animateFloatAsState(
+                targetValue = if (repeatMode == 2) 1.0f else 0.0f,
+                animationSpec = spring(dampingRatio = 0.55f, stiffness = 320f),
+                label = "repeatMorph"
+            )
+            val repeatIconRotation by animateFloatAsState(
+                targetValue = if (repeatMode == 2) 360f else 0f,
+                animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessMedium),
+                label = "repeatIconRotation"
+            )
+            val repeatIconTint by animateColorAsState(
+                targetValue = if (repeatMode > 0) palette.onAccent else Color(0x99FFFFFF),
+                animationSpec = tween(durationMillis = 180),
+                label = "repeatTint"
             )
             Box(
                 modifier = Modifier
                     .size(52.dp)
-                    .clip(CircleShape)
+                    .scale(repeatScale)
                     .clickable(
                         interactionSource = repeatInteraction,
                         indication = null,
@@ -1155,22 +1202,6 @@ fun ExpandedPlayer(
                     ),
                 contentAlignment = Alignment.Center
             ) {
-                val repeatAlpha by animateFloatAsState(if (repeatMode > 0) 0.35f else 0f)
-                val repeatShapeScale by animateFloatAsState(
-                    targetValue = if (repeatMode > 0) 1.0f else 0.6f,
-                    animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessMedium)
-                )
-                val repeatMorphProgress by animateFloatAsState(
-                    targetValue = if (repeatMode == 2) 1.0f else 0.0f,
-                    animationSpec = spring(dampingRatio = 0.55f, stiffness = 320f),
-                    label = "repeatMorph"
-                )
-                val repeatIconRotation by animateFloatAsState(
-                    targetValue = if (repeatMode == 2) 360f else 0f,
-                    animationSpec = spring(dampingRatio = 0.6f, stiffness = 380f),
-                    label = "repeatIconRotation"
-                )
-
                 if (repeatAlpha > 0.01f) {
                     MorphedExpressiveShape(
                         fromShape = "cookie6",
@@ -1178,7 +1209,7 @@ fun ExpandedPlayer(
                         morphProgress = repeatMorphProgress,
                         color = palette.accent.copy(alpha = repeatAlpha),
                         modifier = Modifier
-                            .size(48.dp)
+                            .size(46.dp)
                             .graphicsLayer {
                                 scaleX = repeatShapeScale
                                 scaleY = repeatShapeScale
@@ -1187,12 +1218,9 @@ fun ExpandedPlayer(
                 }
 
                 Box(
-                    modifier = Modifier
-                        .graphicsLayer {
-                            scaleX = repeatScale
-                            scaleY = repeatScale
-                            rotationZ = repeatIconRotation
-                        },
+                    modifier = Modifier.graphicsLayer {
+                        rotationZ = repeatIconRotation
+                    },
                     contentAlignment = Alignment.Center
                 ) {
                     Crossfade(
@@ -1203,7 +1231,7 @@ fun ExpandedPlayer(
                         Icon(
                             imageVector = if (isSingleTrack) Icons.Rounded.RepeatOne else Icons.Rounded.Repeat,
                             contentDescription = "Repeat",
-                            tint = if (repeatMode > 0) palette.accent else Color(0x99FFFFFF),
+                            tint = repeatIconTint,
                             modifier = Modifier.size(24.dp)
                         )
                     }
