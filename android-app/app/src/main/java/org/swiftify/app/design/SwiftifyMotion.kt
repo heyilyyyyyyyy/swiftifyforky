@@ -9,6 +9,9 @@ object SwiftifyMotion {
     val ExpressiveDefaultSpatial = CubicBezierEasing(0.38f, 1.21f, 0.22f, 1.00f)
     val EmphasizedDecel = CubicBezierEasing(0.05f, 0.7f, 0.1f, 1.0f)
 
+    // Qt's Easing.OutCubic, used by PageHost's page fade
+    val OutCubic = CubicBezierEasing(0.215f, 0.61f, 0.355f, 1f)
+
     // Durations
     const val DurationColorMs = 120
     const val DurationMotionFastMs = 200

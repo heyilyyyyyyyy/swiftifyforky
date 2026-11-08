@@ -25,7 +25,10 @@ import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -91,6 +94,8 @@ fun SwiftifyApp(
     var activeAlbumTitle by remember { mutableStateOf("Album") }
     var activeAlbumArtwork by remember { mutableStateOf("") }
     var artistPickerList by remember { mutableStateOf<List<ArtistItem>?>(null) }
+    val density = LocalDensity.current
+    val detailRisePx = with(density) { 14.dp.roundToPx() }
 
     val openAlbumByTrack: (TrackItem) -> Unit = { t ->
         val albTitle = if (t.album.isNotEmpty()) t.album else t.title
@@ -178,6 +183,10 @@ fun SwiftifyApp(
     }
 
     Box(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
+        // The hero flyer is drawn over the pages but must stay under the
+        // player and the nav bar, as on the desktop (Main.qml). Measure where
+        // the bottom bar begins so the overlay can clip itself there.
+        var bottomBarTopPx by remember { mutableFloatStateOf(Float.MAX_VALUE) }
         Scaffold(
             containerColor = MaterialTheme.colorScheme.background,
             bottomBar = {
@@ -185,6 +194,7 @@ fun SwiftifyApp(
                     modifier = Modifier
                         .fillMaxWidth()
                         .background(Color.Transparent)
+                        .onGloballyPositioned { bottomBarTopPx = it.positionInRoot().y }
                 ) {
                     // Floating Mini Player (Independent floating box above navigation)
                     if (currentTrack != null) {
@@ -345,10 +355,18 @@ fun SwiftifyApp(
                         val isExitingDetail = initialState is ScreenDestination.Artist || initialState is ScreenDestination.Album || initialState is ScreenDestination.Playlist || initialState is ScreenDestination.AllPlaylists
 
                         if (targetState is ScreenDestination.Artist && heroFlightData != null) {
-                            fadeIn(animationSpec = tween(durationMillis = 320, easing = SwiftifyMotion.EmphasizedDecel))
-                                .togetherWith(
-                                    fadeOut(animationSpec = tween(durationMillis = 200))
-                                )
+                            // Desktop parity (PageHost.push + enterMotion): the
+                            // page behind is hidden at once (no crossfade, or
+                            // its avatar would ghost under the flyer), and the
+                            // new page fades in (OutCubic 210ms) while rising
+                            // 14dp on emphasized decel. The clicked avatar flies
+                            // to its hero.
+                            (fadeIn(animationSpec = tween(durationMillis = 210, easing = SwiftifyMotion.OutCubic)) +
+                                slideInVertically(
+                                    initialOffsetY = { detailRisePx },
+                                    animationSpec = tween(durationMillis = 400, easing = SwiftifyMotion.EmphasizedDecel)
+                                ))
+                                .togetherWith(ExitTransition.None)
                         } else if (initialState is ScreenDestination.Playlist && targetState is ScreenDestination.AllPlaylists) {
                             (slideInHorizontally(
                                 initialOffsetX = { -(it * 0.15f).toInt() },
@@ -631,6 +649,7 @@ fun SwiftifyApp(
             HeroFlightOverlay(
                 flightData = flight,
                 targetRect = heroTargetRect,
+                clipBottomPx = bottomBarTopPx,
                 onFlightFinished = {
                     heroFlightData = null
                 }

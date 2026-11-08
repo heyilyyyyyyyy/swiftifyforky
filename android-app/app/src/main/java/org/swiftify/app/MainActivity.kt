@@ -118,12 +118,6 @@ class MainActivity : ComponentActivity() {
         return id
     }
 
-    private fun getDeviceName(): String {
-        val mfr = Build.MANUFACTURER.replaceFirstChar { it.uppercase() }
-        val model = Build.MODEL
-        return if (model.startsWith(mfr, ignoreCase = true)) model else "$mfr $model"
-    }
-
     override fun onCreate(savedInstanceState: Bundle?) {
         enableEdgeToEdge(
             statusBarStyle = SystemBarStyle.dark(android.graphics.Color.TRANSPARENT),
@@ -153,7 +147,7 @@ class MainActivity : ComponentActivity() {
             currentThemeMode.value = SwiftifyThemeMode.fromId(savedTheme)
         }
 
-        val devName = getDeviceName()
+        val devName = SpotifyBridge.defaultDeviceName()
         SpotifyBridge.init(devName)
         SpotifyBridge.setVolume(1.0f)
 

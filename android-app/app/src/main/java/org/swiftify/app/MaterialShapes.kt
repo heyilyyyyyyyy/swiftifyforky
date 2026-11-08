@@ -8,7 +8,6 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -27,11 +26,14 @@ import androidx.compose.material.icons.rounded.Pause
 import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.Person
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.asComposePath
 import androidx.compose.ui.graphics.drawscope.translate
+import androidx.core.graphics.PathParser
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.*
@@ -52,246 +54,124 @@ import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import kotlin.math.*
 
-private val heartRadii = floatArrayOf(0.735f, 0.695f, 0.64f, 0.615f, 0.61f, 0.585f, 0.57f, 0.575f, 0.565f, 0.555f, 0.565f, 0.58f, 0.59f, 0.61f, 0.65f, 0.675f, 0.745f, 0.795f, 0.87f, 0.805f, 0.75f, 0.715f, 0.675f, 0.64f, 0.615f, 0.6f, 0.59f, 0.58f, 0.58f, 0.58f, 0.585f, 0.595f, 0.615f, 0.635f, 0.665f, 0.715f, 0.75f, 0.815f, 0.905f, 0.965f, 1.035f, 1.075f, 1.1f, 1.115f, 1.11f, 1.12f, 1.085f, 1.04f, 0.96f, 0.875f, 0.76f, 0.635f, 0.54f, 0.475f, 0.455f, 0.495f, 0.56f, 0.655f, 0.78f, 0.895f, 0.985f, 1.04f, 1.075f, 1.09f, 1.105f, 1.1f, 1.1f, 1.05f, 1.015f, 0.945f, 0.885f, 0.795f)
+// Material 3 Expressive shapes are drawn from the same cubic outlines as the
+// desktop shape atlas (ShapeOutlines.kt). Names follow the desktop library;
+// arrowLeft/arrowRight/arrowDown are the base "arrow" shape turned in place,
+// exactly as TransportButton does with spinAngle on the desktop.
+private val shapePathCache = HashMap<String, android.graphics.Path>()
 
-private val bunRadii = floatArrayOf(0.615f, 0.735f, 0.845f, 0.925f, 0.99f, 1.05f, 1.1f, 1.14f, 1.165f, 1.175f, 1.165f, 1.16f, 1.125f, 1.095f, 1.055f, 1.025f, 1.01f, 0.995f, 0.99f, 0.995f, 1.01f, 1.025f, 1.055f, 1.095f, 1.145f, 1.16f, 1.17f, 1.175f, 1.17f, 1.16f, 1.125f, 1.075f, 1.015f, 0.945f, 0.885f, 0.755f, 0.63f, 0.735f, 0.845f, 0.945f, 1.015f, 1.075f, 1.125f, 1.16f, 1.19f, 1.185f, 1.19f, 1.185f, 1.145f, 1.115f, 1.075f, 1.05f, 1.03f, 1.015f, 1.015f, 1.015f, 1.03f, 1.05f, 1.075f, 1.115f, 1.145f, 1.17f, 1.19f, 1.175f, 1.165f, 1.14f, 1.1f, 1.05f, 0.99f, 0.925f, 0.825f, 0.715f)
+private fun baseShapeName(shape: String): String = when (shape) {
+    "arrowLeft", "arrowRight", "arrowDown", "arrowUp" -> "arrow"
+    else -> shape
+}
 
-private val clamShellRadii = floatArrayOf(0.975f, 0.975f, 0.945f, 0.905f, 0.905f, 0.895f, 0.89f, 0.895f, 0.89f, 0.865f, 0.85f, 0.82f, 0.775f, 0.74f, 0.715f, 0.695f, 0.685f, 0.675f, 0.67f, 0.675f, 0.685f, 0.695f, 0.715f, 0.74f, 0.775f, 0.82f, 0.85f, 0.895f, 0.905f, 0.92f, 0.905f, 0.92f, 0.91f, 0.925f, 0.965f, 0.995f, 0.99f, 0.995f, 0.965f, 0.945f, 0.93f, 0.92f, 0.915f, 0.92f, 0.92f, 0.895f, 0.875f, 0.845f, 0.8f, 0.765f, 0.735f, 0.715f, 0.705f, 0.695f, 0.695f, 0.695f, 0.705f, 0.715f, 0.735f, 0.765f, 0.8f, 0.845f, 0.875f, 0.895f, 0.905f, 0.895f, 0.89f, 0.895f, 0.905f, 0.925f, 0.945f, 0.975f)
+private fun shapeRotationDegrees(shape: String): Float = when (shape) {
+    "arrowLeft", "arrow" -> -90f
+    "arrowRight" -> 90f
+    "arrowDown" -> 180f
+    else -> 0f
+}
 
-private fun sampleRadii(radii: FloatArray, angleRad: Float): Float {
+private fun baseOutline(shape: String): android.graphics.Path? {
+    val name = baseShapeName(shape)
+    shapePathCache[name]?.let { return it }
+    val data = MATERIAL_SHAPE_OUTLINES[name] ?: return null
+    val parsed = PathParser.createPathFromPathData(data) ?: return null
+    shapePathCache[name] = parsed
+    return parsed
+}
+
+/// Radius at [theta] as a fraction of the unit-square side, from the same
+/// sampled outlines the desktop morphs between.
+private fun shapeRadiusFraction(shape: String, theta: Float): Float? {
+    val radii = MATERIAL_SHAPE_RADII[shape] ?: return null
     val tau = 2f * PI.toFloat()
-    var normAngle = angleRad % tau
-    if (normAngle < 0f) normAngle += tau
-    val fraction = normAngle / tau * radii.size
-    val idx0 = fraction.toInt() % radii.size
-    val idx1 = (idx0 + 1) % radii.size
-    val t = fraction - fraction.toInt()
-    return radii[idx0] * (1f - t) + radii[idx1] * t
+    var angle = theta % tau
+    if (angle < 0f) angle += tau
+    val pos = angle / tau * radii.size
+    val index = pos.toInt() % radii.size
+    val next = (index + 1) % radii.size
+    val t = pos - pos.toInt()
+    return radii[index] * (1f - t) + radii[next] * t
+}
+
+/// Polar fallback for the few app-only shapes that have no cubic outline.
+private fun polarRadiusFraction(shape: String, theta: Float): Float = when (shape) {
+    "squircle" -> {
+        val c = abs(cos(theta)).pow(4f)
+        val s = abs(sin(theta)).pow(4f)
+        0.5f / (c + s).pow(0.25f)
+    }
+    else -> 0.5f
+}
+
+private fun radiusFraction(shape: String, theta: Float): Float =
+    shapeRadiusFraction(shape, theta) ?: polarRadiusFraction(shape, theta)
+
+/**
+ * Builds an authentic Material 3 Expressive shape from its normalized cubic
+ * outline. The outline is scaled to [extent] of the shortest side and centred,
+ * so it matches MaterialShapeItem's `side = extent * (shortest - 1.5)`.
+ */
+fun buildExpressivePath(shape: String, width: Float, height: Float, extent: Float = 0.95f): Path {
+    val side = (min(width, height) - 1.5f).coerceAtLeast(0f) * extent
+    val cx = width / 2f
+    val cy = height / 2f
+    val base = baseOutline(shape)
+    if (base != null) {
+        val matrix = android.graphics.Matrix()
+        matrix.setScale(side, side)
+        val rotation = shapeRotationDegrees(shape)
+        if (rotation != 0f) matrix.postRotate(rotation, side / 2f, side / 2f)
+        matrix.postTranslate(cx - side / 2f, cy - side / 2f)
+        val transformed = android.graphics.Path(base)
+        transformed.transform(matrix)
+        return transformed.asComposePath()
+    }
+
+    val path = Path()
+    val steps = 360
+    for (i in 0..steps) {
+        val theta = (i.toFloat() / steps) * (2f * PI.toFloat())
+        val r = radiusFraction(shape, theta) * side
+        val x = cx + r * cos(theta)
+        val y = cy + r * sin(theta)
+        if (i == 0) path.moveTo(x, y) else path.lineTo(x, y)
+    }
+    path.close()
+    return path
 }
 
 /**
- * Mathematically exact, bilateral symmetric Material 3 Expressive arrow / chevron shape.
- * [pointingAngle] is the orientation of the apex (0 = right, PI/2 = down, PI = left, -PI/2 = up).
+ * Morphs between two shapes by interpolating their radius profiles, which is
+ * how the desktop's shape distance fields blend: the pause cookie grows its
+ * scallops into the playing cookie without changing its centre.
  */
-fun sampleArrowRadius(theta: Float, pointingAngle: Float, reach: Float): Float {
-    val tau = 2f * PI.toFloat()
-    var diff = (theta - pointingAngle) % tau
-    if (diff < -PI.toFloat()) diff += tau
-    if (diff > PI.toFloat()) diff -= tau
-    val alpha = abs(diff) // 0 at apex, PI at inner notch
-    val wingAngle = 138f * PI.toFloat() / 180f
-    val r = if (alpha < wingAngle) {
-        val t = alpha / wingAngle
-        0.88f + 0.18f * (sin(t * PI.toFloat() / 2f)).pow(2.0f)
-    } else {
-        val t = (alpha - wingAngle) / (PI.toFloat() - wingAngle)
-        val s = 0.5f - 0.5f * cos(t * PI.toFloat())
-        1.06f - 0.50f * s
-    }
-    return reach * r
-}
-
-fun sampleShapeRadius(shape: String, theta: Float, reach: Float): Float {
-    return when (shape) {
-        "arrowDown" -> sampleArrowRadius(theta, pointingAngle = (PI.toFloat() / 2f), reach = reach)
-        "arrowUp" -> sampleArrowRadius(theta, pointingAngle = (-PI.toFloat() / 2f), reach = reach)
-        "arrowRight" -> sampleArrowRadius(theta, pointingAngle = 0f, reach = reach)
-        "arrowLeft", "arrow" -> sampleArrowRadius(theta, pointingAngle = PI.toFloat(), reach = reach)
-
-        // Material 3 Expressive soft cumulus cloud (puffy 6-lobed shape)
-        "cloud", "puffy" -> {
-            val lobe = (0.5f + 0.5f * cos(6f * theta)).pow(0.5f)
-            reach * (1.0f - 0.16f + 0.16f * lobe)
-        }
-        "softCookie" -> {
-            val lobe = (0.5f + 0.5f * cos(5f * theta)).pow(1.15f)
-            reach * (1.0f - 0.08f + 0.08f * lobe)
-        }
-        "cookie4" -> {
-            val lobe = (0.5f + 0.5f * cos(4f * theta)).pow(1.0f)
-            reach * (1.0f - 0.14f + 0.14f * lobe)
-        }
-        "cookie6" -> {
-            val lobe = (0.5f + 0.5f * cos(6f * theta)).pow(1.0f)
-            reach * (1.0f - 0.12f + 0.12f * lobe)
-        }
-        "cookie7" -> {
-            val lobe = (0.5f + 0.5f * cos(7f * theta)).pow(1.0f)
-            reach * (1.0f - 0.10f + 0.10f * lobe)
-        }
-        "cookie9" -> {
-            val lobe = (0.5f + 0.5f * cos(9f * theta)).pow(1.0f)
-            reach * (1.0f - 0.09f + 0.09f * lobe)
-        }
-        "cookie12" -> {
-            val lobe = (0.5f + 0.5f * cos(12f * theta)).pow(1.0f)
-            reach * (1.0f - 0.07f + 0.07f * lobe)
-        }
-        "clover4" -> {
-            val lobe = (0.5f + 0.5f * cos(4f * theta)).pow(0.55f)
-            reach * (1.0f - 0.38f + 0.38f * lobe)
-        }
-        "clover8" -> {
-            val lobe = (0.5f + 0.5f * cos(8f * theta)).pow(0.60f)
-            reach * (1.0f - 0.28f + 0.28f * lobe)
-        }
-        "sunny" -> {
-            val lobe = (0.5f + 0.5f * cos(8f * theta)).pow(2.2f)
-            reach * (1f - 0.14f + 0.14f * lobe)
-        }
-        "verySunny" -> {
-            val lobe = (0.5f + 0.5f * cos(8f * theta)).pow(2.6f)
-            reach * (1f - 0.26f + 0.26f * lobe)
-        }
-        "softBurst" -> {
-            val lobe = (0.5f + 0.5f * cos(10f * theta)).pow(1.5f)
-            reach * (1f - 0.16f + 0.16f * lobe)
-        }
-        "burst" -> {
-            val lobe = (0.5f + 0.5f * cos(12f * theta)).pow(2.8f)
-            reach * (1f - 0.24f + 0.24f * lobe)
-        }
-        "flower8", "flower" -> {
-            val lobe = (0.5f + 0.5f * cos(8f * theta)).pow(0.5f)
-            reach * (1f - 0.20f + 0.20f * lobe)
-        }
-        "squircle" -> {
-            val c = abs(cos(theta)).pow(4f)
-            val s = abs(sin(theta)).pow(4f)
-            reach / (c + s).pow(0.25f)
-        }
-        "heart" -> reach * sampleRadii(heartRadii, theta)
-        "bun" -> reach * sampleRadii(bunRadii, theta)
-        "clamShell" -> reach * sampleRadii(clamShellRadii, theta)
-        "ghostish" -> {
-            val lobe = (0.5f + 0.5f * cos(3f * (theta - PI.toFloat() / 2f))).pow(0.7f)
-            val rScale = if (sin(theta) < 0f) 0.95f else (0.78f + 0.22f * lobe)
-            reach * rScale
-        }
-        else -> reach
-    }
-}
-
-enum class ExpressiveArrowDirection { DOWN, UP, LEFT, RIGHT }
-
-private fun buildArrowPolygonPath(cx: Float, cy: Float, reach: Float, direction: ExpressiveArrowDirection): Path {
-    val raw = when (direction) {
-        ExpressiveArrowDirection.DOWN -> listOf(
-            Offset(cx, cy + reach * 0.85f),
-            Offset(cx + reach * 0.90f, cy - reach * 0.84f),
-            Offset(cx, cy - reach * 0.61f),
-            Offset(cx - reach * 0.90f, cy - reach * 0.84f)
-        )
-        ExpressiveArrowDirection.UP -> listOf(
-            Offset(cx, cy - reach * 0.85f),
-            Offset(cx - reach * 0.90f, cy + reach * 0.84f),
-            Offset(cx, cy + reach * 0.61f),
-            Offset(cx + reach * 0.90f, cy + reach * 0.84f)
-        )
-        ExpressiveArrowDirection.LEFT -> listOf(
-            Offset(cx - reach * 0.85f, cy),
-            Offset(cx + reach * 0.84f, cy - reach * 0.90f),
-            Offset(cx + reach * 0.61f, cy),
-            Offset(cx + reach * 0.84f, cy + reach * 0.90f)
-        )
-        ExpressiveArrowDirection.RIGHT -> listOf(
-            Offset(cx + reach * 0.85f, cy),
-            Offset(cx - reach * 0.84f, cy + reach * 0.90f),
-            Offset(cx - reach * 0.61f, cy),
-            Offset(cx - reach * 0.84f, cy - reach * 0.90f)
-        )
-    }
-
-    val path = Path()
-    val n = raw.size
-    val cr = reach * 0.36f
-
-    for (i in 0 until n) {
-        val prev = raw[(i - 1 + n) % n]
-        val curr = raw[i]
-        val next = raw[(i + 1) % n]
-
-        val vPrev = prev - curr
-        val vNext = next - curr
-        val lp = vPrev.getDistance()
-        val ln = vNext.getDistance()
-
-        val r = minOf(cr, lp * 0.45f, ln * 0.45f)
-        val pIn = curr + vPrev * (r / lp)
-        val pOut = curr + vNext * (r / ln)
-
-        if (i == 0) {
-            path.moveTo(pIn.x, pIn.y)
-        } else {
-            path.lineTo(pIn.x, pIn.y)
-        }
-        path.quadraticBezierTo(curr.x, curr.y, pOut.x, pOut.y)
-    }
-    path.close()
-    return path
-}
-
-fun buildExpressivePath(shape: String, width: Float, height: Float, steps: Int = 90): Path {
-    val cx = width / 2f
-    val cy = height / 2f
-    val reach = min(width, height) / 2f * 0.95f
-
-    when (shape) {
-        "arrowDown" -> return buildArrowPolygonPath(cx, cy, reach, ExpressiveArrowDirection.DOWN)
-        "arrowUp" -> return buildArrowPolygonPath(cx, cy, reach, ExpressiveArrowDirection.UP)
-        "arrowLeft", "arrow" -> return buildArrowPolygonPath(cx, cy, reach, ExpressiveArrowDirection.LEFT)
-        "arrowRight" -> return buildArrowPolygonPath(cx, cy, reach, ExpressiveArrowDirection.RIGHT)
-    }
-
-    val path = Path()
-    var first = true
-
-    for (i in 0..steps) {
-        val theta = (i.toFloat() / steps) * (2f * PI.toFloat())
-        val r = sampleShapeRadius(shape, theta, reach)
-        val x = cx + r * cos(theta)
-        val y = cy + r * sin(theta)
-
-        if (first) {
-            path.moveTo(x, y)
-            first = false
-        } else {
-            path.lineTo(x, y)
-        }
-    }
-    path.close()
-    return path
-}
-
 fun buildMorphedExpressivePath(
     fromShape: String,
     toShape: String,
     morphProgress: Float,
     width: Float,
     height: Float,
-    steps: Int = 90
+    extent: Float = 0.95f
 ): Path {
+    val side = (min(width, height) - 1.5f).coerceAtLeast(0f) * extent
     val cx = width / 2f
     val cy = height / 2f
-    val reach = min(width, height) / 2f * 0.95f
+    val progress = morphProgress.coerceIn(0f, 1f)
 
     val path = Path()
-    var first = true
-
+    // 2° steps are already smooth at button sizes and halve the trig work
+    // that used to run on the UI thread while the morph animates
+    val steps = 180
     for (i in 0..steps) {
         val theta = (i.toFloat() / steps) * (2f * PI.toFloat())
-        val rFrom = sampleShapeRadius(fromShape, theta, reach)
-        val rTo = sampleShapeRadius(toShape, theta, reach)
-        val r = rFrom + (rTo - rFrom) * morphProgress.coerceIn(0f, 1f)
+        val from = radiusFraction(fromShape, theta)
+        val to = radiusFraction(toShape, theta)
+        val r = (from + (to - from) * progress) * side
         val x = cx + r * cos(theta)
         val y = cy + r * sin(theta)
-
-        if (first) {
-            path.moveTo(x, y)
-            first = false
-        } else {
-            path.lineTo(x, y)
-        }
+        if (i == 0) path.moveTo(x, y) else path.lineTo(x, y)
     }
     path.close()
     return path
@@ -360,7 +240,7 @@ fun ShapeBurstEffect(
                 val pSize = p.size * scale
                 val color = tones[p.toneIndex].copy(alpha = alpha.coerceIn(0f, 1f))
 
-                val pPath = buildExpressivePath(p.shape, pSize, pSize, steps = 36)
+                val pPath = buildExpressivePath(p.shape, pSize, pSize)
                 rotate(p.turnDegrees * t, pivot = Offset(px, py)) {
                     translate(left = px - pSize / 2f, top = py - pSize / 2f) {
                         drawPath(pPath, color = color, style = Fill)
@@ -461,24 +341,30 @@ fun SwiftifyPlayButton(
                 .graphicsLayer {
                     rotationZ = spinAngle
                 }
+                // The glyph spins all the time while playing; building the
+                // 360-point morph outline inside the draw lambda rebuilt it on
+                // every frame. drawWithCache keeps the outline and only
+                // rebuilds it when the morph or the size actually changes,
+                // while the spin stays a cheap layer rotation.
+                .drawWithCache {
+                    val path = buildMorphedExpressivePath(
+                        fromShape = "softCookie",
+                        toShape = "cookie9",
+                        morphProgress = morphProgress,
+                        width = size.width,
+                        height = size.height
+                    )
+                    onDrawBehind {
+                        drawPath(path = path, color = primaryColor, style = Fill)
+                    }
+                }
                 .clickable(
                     interactionSource = interactionSource,
                     indication = null,
                     role = Role.Button,
                     onClick = onClick
                 )
-        ) {
-            val path = buildMorphedExpressivePath(
-                fromShape = "softCookie",
-                toShape = "cookie9",
-                morphProgress = morphProgress,
-                width = size.width,
-                height = size.height,
-                steps = 90
-            )
-
-            drawPath(path = path, color = primaryColor, style = Fill)
-        }
+        ) {}
 
         // Inner popping Play/Pause glyph
         Icon(
@@ -515,7 +401,7 @@ fun MaterialExpressiveShape(
                 lastWidth = size.width
                 lastHeight = size.height
                 lastShape = shape
-                cachedPath = buildExpressivePath(shape, size.width, size.height, steps = 90)
+                cachedPath = buildExpressivePath(shape, size.width, size.height)
             }
 
             val p = cachedPath ?: return@Canvas
@@ -547,8 +433,7 @@ fun MorphedExpressiveShape(
             toShape = toShape,
             morphProgress = morphProgress,
             width = size.width,
-            height = size.height,
-            steps = 90
+            height = size.height
         )
         drawPath(path = path, color = color, style = androidx.compose.ui.graphics.drawscope.Fill)
     }
@@ -1027,9 +912,9 @@ fun StyledBackButton(
         contentAlignment = Alignment.Center
     ) {
         MaterialExpressiveShape(
-            shape = "arrowLeft",
+            shape = "arrow",
             color = MaterialTheme.colorScheme.surfaceContainerHigh,
-            modifier = Modifier.fillMaxSize()
+            modifier = Modifier.fillMaxSize(0.9f)
         )
         MaterialSymbol(
             symbol = MaterialSymbols.ArrowBack,

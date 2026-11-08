@@ -90,8 +90,24 @@ object SpotifyBridge {
     private const val TAG = "SpotifyBridge"
     private const val CLIENT_ID = "65b708073fc0480ea92a077233ca87bd"
 
+    /** Lets the playback service react to connect results even when the UI is gone. */
+    fun interface ConnectListener {
+        fun onConnectResult(success: Boolean, payload: String)
+    }
+
+    private val connectListeners = java.util.concurrent.CopyOnWriteArrayList<ConnectListener>()
+
+    fun addConnectListener(listener: ConnectListener) {
+        connectListeners.addIfAbsent(listener)
+    }
+
+    fun removeConnectListener(listener: ConnectListener) {
+        connectListeners.remove(listener)
+    }
+
     @Volatile private var coreHandle: Pointer? = null
     @Volatile private var nextRequestId: Long = 1L
+    @Volatile private var connectStartedAtMs = 0L
 
     // request IDs for in-flight async calls so we can match completions
     @Volatile var connectRequestId: Long = -1L
@@ -109,7 +125,19 @@ object SpotifyBridge {
     var onConnectError: ((error: String) -> Unit)? = null
     var onPlayTrackError: ((error: String) -> Unit)? = null
 
-    fun init(defaultDeviceName: String = "Swiftify") {
+    fun defaultDeviceName(): String {
+        val mfr = android.os.Build.MANUFACTURER.replaceFirstChar { it.uppercase() }
+        val model = android.os.Build.MODEL
+        return if (model.startsWith(mfr, ignoreCase = true)) model else "$mfr $model"
+    }
+
+    /** True while a connect request is outstanding; avoids duplicate logins. */
+    fun isConnectInFlight(): Boolean {
+        val started = connectStartedAtMs
+        return started != 0L && System.currentTimeMillis() - started < 15_000L
+    }
+
+    fun init(deviceName: String = defaultDeviceName()) {
         if (coreHandle == null) {
             try {
                 val core = SwiftifyCoreLib.INSTANCE.swiftify_core_new()
@@ -122,7 +150,7 @@ object SpotifyBridge {
                 // Do NOT enable Spotify Connect during initial token auth:
                 // Spirc Connect requires stored credentials, otherwise AP returns BAD_REQUEST.
                 SwiftifyCoreLib.INSTANCE.swiftify_core_set_spotify_connect(
-                    core, false, defaultDeviceName
+                    core, false, deviceName
                 )
 
                 // Ensure Android software volume is always 100% (phone system volume rocker controls STREAM_MUSIC)
@@ -145,6 +173,7 @@ object SpotifyBridge {
         val core = coreHandle ?: return
         val id = nextId()
         connectRequestId = id
+        connectStartedAtMs = System.currentTimeMillis()
         SwiftifyCoreLib.INSTANCE.swiftify_core_set_volume(core, 1.0f)
         SwiftifyCoreLib.INSTANCE.swiftify_core_connect(core, id, accessToken, CLIENT_ID)
         Log.d(TAG, "swiftify_core_connect dispatched (request=$id)")
@@ -154,6 +183,7 @@ object SpotifyBridge {
         val core = coreHandle ?: return
         val id = nextId()
         connectRequestId = id
+        connectStartedAtMs = System.currentTimeMillis()
         SwiftifyCoreLib.INSTANCE.swiftify_core_set_volume(core, 1.0f)
         SwiftifyCoreLib.INSTANCE.swiftify_core_connect_stored(core, id, login, CLIENT_ID)
         Log.d(TAG, "swiftify_core_connect_stored dispatched (request=$id)")
@@ -378,8 +408,10 @@ object SpotifyBridge {
 
                 when (id) {
                     connectRequestId -> {
+                        connectStartedAtMs = 0L
                         if (success) onConnectSuccess?.invoke(text)
                         else onConnectError?.invoke(text)
+                        connectListeners.forEach { it.onConnectResult(success, text) }
                     }
                     playTrackRequestId, crossfadeRequestId -> {
                         if (!success) onPlayTrackError?.invoke(text)
@@ -395,16 +427,16 @@ object SpotifyBridge {
     // ── queries ───────────────────────────────────────────────────────────────
 
     fun isSessionValid(): Boolean =
-        SwiftifyCoreLib.INSTANCE.swiftify_core_session_is_valid(coreHandle)
+        coreHandle?.let { SwiftifyCoreLib.INSTANCE.swiftify_core_session_is_valid(it) } ?: false
 
     fun playbackPositionMs(): Long =
-        SwiftifyCoreLib.INSTANCE.swiftify_core_playback_position_ms(coreHandle).toLong()
+        coreHandle?.let { SwiftifyCoreLib.INSTANCE.swiftify_core_playback_position_ms(it).toLong() } ?: 0L
 
     fun playbackDurationMs(): Long =
-        SwiftifyCoreLib.INSTANCE.swiftify_core_playback_duration_ms(coreHandle).toLong()
+        coreHandle?.let { SwiftifyCoreLib.INSTANCE.swiftify_core_playback_duration_ms(it).toLong() } ?: 0L
 
     fun takeEndOfTrack(): Boolean =
-        SwiftifyCoreLib.INSTANCE.swiftify_core_take_end_of_track(coreHandle)
+        coreHandle?.let { SwiftifyCoreLib.INSTANCE.swiftify_core_take_end_of_track(it) } ?: false
 
     fun currentTrackJson(): String? {
         val handle = coreHandle ?: return null

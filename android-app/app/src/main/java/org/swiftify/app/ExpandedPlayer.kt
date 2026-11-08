@@ -39,10 +39,8 @@ import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.draw.shadow
-import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
 import org.swiftify.app.design.GoogleSansFlexFamily
@@ -59,6 +57,8 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInRoot
 import coil.compose.AsyncImage
 import org.json.JSONObject
 import kotlin.math.abs
@@ -68,6 +68,14 @@ data class LyricLine(
     val endTimeMs: Long,
     val words: String
 )
+
+// Desktop parity (ToolbarButton.Spin): OutBack with overshoot 1.6 over 520 ms.
+private val SpinOutBack = Easing { t ->
+    val s = 1.70158f * 1.6f
+    val c3 = s + 1f
+    val u = t - 1f
+    1f + c3 * u * u * u + s * u * u
+}
 
 @Composable
 fun ExpandedPlayer(
@@ -100,6 +108,13 @@ fun ExpandedPlayer(
     val context = LocalContext.current
     val palette = rememberTrackPalette(context, track.artworkUrl)
 
+    // Bounds of the lyrics viewport, used to paint its edge fade with the
+    // backdrop colour instead of an offscreen DstIn layer (which cost several
+    // milliseconds per scrolled frame).
+    var rootHeightPx by remember { mutableFloatStateOf(0f) }
+    var lyricsTopPx by remember { mutableFloatStateOf(0f) }
+    var lyricsBottomPx by remember { mutableFloatStateOf(0f) }
+
     var showOptionsMenu by remember { mutableStateOf(false) }
     var showSleepTimerDialog by remember { mutableStateOf(false) }
     var showAudioInfoDialog by remember { mutableStateOf(false) }
@@ -120,6 +135,12 @@ fun ExpandedPlayer(
         }
     }
     var selectedTab by remember { mutableIntStateOf(0) } // 0: Artwork, 1: Lyrics, 2: Queue
+
+    // The queue list is the whole context minus the current track (thousands
+    // of items). Rebuilding it on every progress tick was pure allocation.
+    val upcomingFromContext = remember(allTracks, track.uri) {
+        allTracks.filter { it.uri != track.uri }
+    }
 
     var lyricLines by remember { mutableStateOf<List<LyricLine>>(emptyList()) }
     var isLineSynced by remember { mutableStateOf(false) }
@@ -180,6 +201,7 @@ fun ExpandedPlayer(
     Box(
         modifier = Modifier
             .fillMaxSize()
+            .onGloballyPositioned { rootHeightPx = it.size.height.toFloat() }
             .background(Color(0xFF000000))
             .background(
                 Brush.verticalGradient(
@@ -292,6 +314,7 @@ fun ExpandedPlayer(
                         animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessMedium),
                         label = "optionsScale"
                     )
+                    val optionsSpin = remember { Animatable(0f) }
                     Box(
                         modifier = Modifier
                             .size(42.dp)
@@ -300,21 +323,34 @@ fun ExpandedPlayer(
                                 interactionSource = optionsInteraction,
                                 indication = null,
                                 role = Role.Button,
-                                onClick = { showOptionsMenu = true }
+                                onClick = {
+                                    showOptionsMenu = true
+                                    coroutineScope.launch {
+                                        optionsSpin.snapTo(0f)
+                                        optionsSpin.animateTo(180f, tween(durationMillis = 520, easing = SpinOutBack))
+                                    }
+                                }
                             ),
                         contentAlignment = Alignment.Center
                     ) {
-                        MaterialExpressiveShape(
-                            shape = "flower8",
-                            color = Color(0x2BFFFFFF),
-                            modifier = Modifier.fillMaxSize()
-                        )
-                        MaterialSymbol(
-                            symbol = MaterialSymbols.MoreVert,
-                            contentDescription = "Options",
-                            tint = Color.White,
-                            size = 22.dp
-                        )
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .graphicsLayer { rotationZ = optionsSpin.value },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            MaterialExpressiveShape(
+                                shape = "flower",
+                                color = Color(0x2BFFFFFF),
+                                modifier = Modifier.fillMaxSize()
+                            )
+                            MaterialSymbol(
+                                symbol = MaterialSymbols.MoreVert,
+                                contentDescription = "Options",
+                                tint = Color.White,
+                                size = 24.dp
+                            )
+                        }
                     }
 
                     DropdownMenu(
@@ -486,23 +522,42 @@ fun ExpandedPlayer(
                             BoxWithConstraints(
                                 modifier = Modifier.fillMaxSize()
                             ) {
+                                // The backdrop colour at each end of the list,
+                                // so the edge fade blends into the gradient
+                                // behind it without an offscreen layer.
+                                val topScrim = backdropAt(
+                                    if (rootHeightPx > 0f) lyricsTopPx / rootHeightPx else 0.13f,
+                                    palette.dominant,
+                                    palette.secondary
+                                )
+                                val bottomScrim = backdropAt(
+                                    if (rootHeightPx > 0f) lyricsBottomPx / rootHeightPx else 0.67f,
+                                    palette.dominant,
+                                    palette.secondary
+                                )
                                 LazyColumn(
                                     state = lyricsListState,
                                     modifier = Modifier
                                         .fillMaxSize()
-                                        .graphicsLayer {
-                                            compositingStrategy = CompositingStrategy.Offscreen
+                                        .onGloballyPositioned { coords ->
+                                            lyricsTopPx = coords.positionInRoot().y
+                                            lyricsBottomPx = lyricsTopPx + coords.size.height
                                         }
                                         .drawWithContent {
                                             drawContent()
+                                            val fade = size.height * 0.08f
                                             drawRect(
                                                 brush = Brush.verticalGradient(
-                                                    0.0f to Color.Transparent,
-                                                    0.08f to Color.Black,
-                                                    0.92f to Color.Black,
-                                                    1.0f to Color.Transparent
+                                                    listOf(topScrim, topScrim.copy(alpha = 0f))
                                                 ),
-                                                blendMode = BlendMode.DstIn
+                                                size = androidx.compose.ui.geometry.Size(size.width, fade)
+                                            )
+                                            drawRect(
+                                                brush = Brush.verticalGradient(
+                                                    listOf(bottomScrim.copy(alpha = 0f), bottomScrim)
+                                                ),
+                                                topLeft = androidx.compose.ui.geometry.Offset(0f, size.height - fade),
+                                                size = androidx.compose.ui.geometry.Size(size.width, fade)
                                             )
                                         },
                                     contentPadding = PaddingValues(
@@ -790,7 +845,6 @@ fun ExpandedPlayer(
                                 }
 
                                 // Upcoming from Context
-                                val upcomingFromContext = allTracks.filter { it.uri != track.uri }
                                 if (upcomingFromContext.isNotEmpty()) {
                                     item {
                                         Text(
@@ -1029,7 +1083,7 @@ fun ExpandedPlayer(
                     symbol = MaterialSymbols.Shuffle,
                     contentDescription = "Shuffle",
                     tint = shuffleIconTint,
-                    size = 22.dp
+                    size = 24.dp
                 )
             }
 
@@ -1041,7 +1095,7 @@ fun ExpandedPlayer(
                 animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessMedium)
             )
             val prevShapeAlpha by animateFloatAsState(
-                targetValue = if (isPrevPressed) 0.35f else 0.0f,
+                targetValue = if (isPrevPressed) 1f else 0.0f,
                 animationSpec = tween(durationMillis = 150)
             )
             val prevIconScale by animateFloatAsState(
@@ -1067,7 +1121,7 @@ fun ExpandedPlayer(
                 if (prevShapeAlpha > 0.01f) {
                     MaterialExpressiveShape(
                         shape = "arrowLeft",
-                        color = palette.accent.copy(alpha = prevShapeAlpha),
+                        color = Color(0x2BFFFFFF).copy(alpha = prevShapeAlpha),
                         modifier = Modifier
                             .size(46.dp)
                             .graphicsLayer {
@@ -1080,7 +1134,7 @@ fun ExpandedPlayer(
                     symbol = MaterialSymbols.SkipPrevious,
                     contentDescription = "Previous",
                     tint = Color.White,
-                    size = 26.dp,
+                    size = 30.dp,
                     modifier = Modifier.graphicsLayer {
                         scaleX = prevIconScale
                         scaleY = prevIconScale
@@ -1108,7 +1162,7 @@ fun ExpandedPlayer(
                 animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessMedium)
             )
             val nextShapeAlpha by animateFloatAsState(
-                targetValue = if (isNextPressed) 0.35f else 0.0f,
+                targetValue = if (isNextPressed) 1f else 0.0f,
                 animationSpec = tween(durationMillis = 150)
             )
             val nextIconScale by animateFloatAsState(
@@ -1134,7 +1188,7 @@ fun ExpandedPlayer(
                 if (nextShapeAlpha > 0.01f) {
                     MaterialExpressiveShape(
                         shape = "arrowRight",
-                        color = palette.accent.copy(alpha = nextShapeAlpha),
+                        color = Color(0x2BFFFFFF).copy(alpha = nextShapeAlpha),
                         modifier = Modifier
                             .size(46.dp)
                             .graphicsLayer {
@@ -1147,7 +1201,7 @@ fun ExpandedPlayer(
                     symbol = MaterialSymbols.SkipNext,
                     contentDescription = "Next",
                     tint = Color.White,
-                    size = 26.dp,
+                    size = 30.dp,
                     modifier = Modifier.graphicsLayer {
                         scaleX = nextIconScale
                         scaleY = nextIconScale
@@ -1230,7 +1284,7 @@ fun ExpandedPlayer(
                             symbol = if (isSingleTrack) MaterialSymbols.RepeatOne else MaterialSymbols.Repeat,
                             contentDescription = "Repeat",
                             tint = repeatIconTint,
-                            size = 22.dp
+                            size = 24.dp
                         )
                     }
                 }
@@ -1474,3 +1528,28 @@ private fun ModeTabChip(
         )
     }
 }
+
+/// The expanded player's backdrop gradient (dominant at 0.96 alpha, secondary
+/// at 0.98, then black) evaluated at [fraction] of the screen height and
+/// composited over black, the way the background brush paints it. Used to
+/// paint the lyrics edge fade with the exact backdrop colour, so it needs no
+/// offscreen layer.
+private fun backdropAt(fraction: Float, dominant: Color, secondary: Color): Color {
+    val t = fraction.coerceIn(0f, 1f)
+    return if (t <= 0.5f) {
+        mixColors(dominant.overBlack(0.96f), secondary.overBlack(0.98f), t / 0.5f)
+    } else {
+        mixColors(secondary.overBlack(0.98f), Color.Black, (t - 0.5f) / 0.5f)
+    }
+}
+
+private fun Color.overBlack(alpha: Float): Color =
+    Color(red * alpha, green * alpha, blue * alpha, 1f)
+
+private fun mixColors(from: Color, to: Color, fraction: Float): Color =
+    Color(
+        red = from.red + (to.red - from.red) * fraction,
+        green = from.green + (to.green - from.green) * fraction,
+        blue = from.blue + (to.blue - from.blue) * fraction,
+        alpha = 1f
+    )

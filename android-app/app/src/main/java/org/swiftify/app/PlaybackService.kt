@@ -32,6 +32,7 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import java.io.File
 
 interface PlaybackEventListener {
     fun onPlay()
@@ -139,6 +140,16 @@ class PlaybackService : Service(), AudioManager.OnAudioFocusChangeListener {
     private var wasPlayingBeforeFocusLoss = false
     private var isDucked = false
 
+    // The service may outlive the Activity (START_STICKY after a process
+    // death). It then owns the Spotify core itself: it logs in with the stored
+    // credentials and replays the requested track once the session is ready.
+    private var isConnecting = false
+    private var connectStartedAtMs = 0L
+    private var pendingPlayUri: String? = null
+    private val connectListener = SpotifyBridge.ConnectListener { success, payload ->
+        scope.launch(Dispatchers.Main) { onCoreConnectResult(success, payload) }
+    }
+
     private val noisyReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
             if (intent?.action == AudioManager.ACTION_AUDIO_BECOMING_NOISY) {
@@ -161,7 +172,14 @@ class PlaybackService : Service(), AudioManager.OnAudioFocusChangeListener {
         // Mobile playback always runs at 100% app software volume (system volume rocker controls STREAM_MUSIC)
         SpotifyBridge.setVolume(1.0f)
 
+        // A restarted service must not depend on the Activity having created
+        // the core: restore audio settings and log in from stored credentials.
+        SpotifyBridge.init()
+        applyStoredAudioSettings()
+        SpotifyBridge.addConnectListener(connectListener)
+
         restoreQueueStateIfNeeded()
+        connectCoreIfPossible()
 
         mediaSession = MediaSessionCompat(this, "SwiftifyMediaSession").apply {
             setFlags(
@@ -201,6 +219,77 @@ class PlaybackService : Service(), AudioManager.OnAudioFocusChangeListener {
     }
 
     private var standaloneTickerJob: Job? = null
+
+    private fun applyStoredAudioSettings() {
+        val prefs = getSharedPreferences("swiftify_prefs", Context.MODE_PRIVATE)
+        SpotifyBridge.setStreamQuality(prefs.getInt("audio_quality_kbps", 320))
+        SpotifyBridge.setVolumeNormalization(prefs.getBoolean("volume_norm", false))
+        val audioCacheDir = File(cacheDir, "spotify_audio_cache").apply { mkdirs() }
+        SpotifyBridge.setAudioCache(audioCacheDir.absolutePath, 1024L * 1024 * 1024)
+        if (prefs.getBoolean("equalizer_enabled", false)) {
+            val gains = prefs.getString("equalizer_gains", null)
+                ?.split(",")?.mapNotNull { it.toFloatOrNull() }?.toFloatArray()
+                ?: floatArrayOf(0f, 0f, 0f, 0f, 0f, 0f)
+            SpotifyBridge.setEqualizer(gains)
+        }
+    }
+
+    /** Recreates the Spotify core session after a process death. */
+    private fun connectCoreIfPossible() {
+        if (SpotifyBridge.isSessionValid()) return
+        if (isConnecting && System.currentTimeMillis() - connectStartedAtMs < 20_000L) return
+        isConnecting = false
+        if (SpotifyBridge.isConnectInFlight()) return
+
+        val login = SecureStorage.getLoginBlob(this)
+        val token = SecureStorage.getAccessToken(this)
+        if (login != null) {
+            isConnecting = true
+            connectStartedAtMs = System.currentTimeMillis()
+            SpotifyBridge.connectStored(login)
+        } else if (token != null) {
+            isConnecting = true
+            connectStartedAtMs = System.currentTimeMillis()
+            SpotifyBridge.connect(token)
+        }
+    }
+
+    /** Plays now if the session is alive, otherwise as soon as login finishes. */
+    private fun playWhenConnected(uri: String) {
+        if (SpotifyBridge.isSessionValid()) {
+            SpotifyBridge.playTrack(uri)
+        } else {
+            pendingPlayUri = uri
+            connectCoreIfPossible()
+        }
+    }
+
+    private fun onCoreConnectResult(success: Boolean, payload: String) {
+        isConnecting = false
+        if (success) {
+            if (payload.isNotEmpty()) SecureStorage.setLoginBlob(this, payload)
+            SpotifyBridge.setVolume(1.0f)
+            applyStoredAudioSettings()
+            val uri = pendingPlayUri
+            pendingPlayUri = null
+            if (uri != null) {
+                SpotifyBridge.playTrack(uri)
+                startStandaloneTicker()
+            }
+        } else {
+            android.util.Log.w("PlaybackService", "Core connect failed: $payload")
+            if (pendingPlayUri != null) {
+                // Nothing was queued in the core, so do not claim to be playing.
+                pendingPlayUri = null
+                isPlaying = false
+                standaloneTickerJob?.cancel()
+                standaloneTickerJob = null
+                releaseWakeLock()
+                unregisterNoisyReceiver()
+                updateNotificationInternal()
+            }
+        }
+    }
 
     private fun restoreQueueStateIfNeeded() {
         if (currentTitle == "Swiftify" && currentArtist == "Connecting...") {
@@ -266,11 +355,13 @@ class PlaybackService : Service(), AudioManager.OnAudioFocusChangeListener {
                 SpotifyBridge.play()
                 l.onPlay()
             } else {
-                val ok = SpotifyBridge.play()
+                val ok = SpotifyBridge.isSessionValid() && SpotifyBridge.play()
                 if (!ok) {
                     val curr = PlaybackQueueManager.shared.currentTrack
                     if (curr != null) {
-                        SpotifyBridge.playTrack(curr.uri)
+                        playWhenConnected(curr.uri)
+                    } else {
+                        connectCoreIfPossible()
                     }
                 }
                 startStandaloneTicker()
@@ -305,9 +396,10 @@ class PlaybackService : Service(), AudioManager.OnAudioFocusChangeListener {
                     currentPosMs = 0L
                     currentDurMs = track.durationMs
                     isPlaying = true
+                    requestAudioFocus()
                     acquireWakeLock()
                     registerNoisyReceiver()
-                    SpotifyBridge.playTrack(track.uri)
+                    playWhenConnected(track.uri)
                     updateNotificationInternal()
                     startStandaloneTicker()
                 }
@@ -339,9 +431,10 @@ class PlaybackService : Service(), AudioManager.OnAudioFocusChangeListener {
                     currentPosMs = 0L
                     currentDurMs = track.durationMs
                     isPlaying = true
+                    requestAudioFocus()
                     acquireWakeLock()
                     registerNoisyReceiver()
-                    SpotifyBridge.playTrack(track.uri)
+                    playWhenConnected(track.uri)
                     updateNotificationInternal()
                     startStandaloneTicker()
                 }
@@ -657,6 +750,7 @@ class PlaybackService : Service(), AudioManager.OnAudioFocusChangeListener {
     override fun onDestroy() {
         super.onDestroy()
         if (instance == this) instance = null
+        SpotifyBridge.removeConnectListener(connectListener)
         standaloneTickerJob?.cancel()
         standaloneTickerJob = null
         stopForeground(true)

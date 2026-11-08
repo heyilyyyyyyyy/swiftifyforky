@@ -294,7 +294,8 @@ fun ArtistDetailScreen(
                     waves = 20,
                     amplitude = 1.4.dp,
                     strokeWidth = 2.4.dp,
-                    gap = 4.2.dp
+                    gap = 4.2.dp,
+                    continuousRotation = false
                 )
 
                 Spacer(modifier = Modifier.height(16.dp))
