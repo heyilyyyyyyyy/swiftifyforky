@@ -24,6 +24,10 @@
     <string name="search_category_songs">Треки</string>
     <string name="search_category_artists">Исполнители</string>
     <string name="search_category_playlists">Плейлисты</string>
+    <string name="search_recent_title">Недавние поиски</string>
+    <string name="search_recent_clear">Очистить</string>
+    <string name="search_empty_history_title">История поиска пуста</string>
+    <string name="search_empty_history_desc">Ищите любимые треки, исполнителей или плейлисты</string>
 
     <string name="settings_title">Настройки</string>
     <string name="settings_appearance_theme">ОФОРМЛЕНИЕ И ТЕМА</string>

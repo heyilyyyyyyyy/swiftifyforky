@@ -30,6 +30,8 @@ import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -47,22 +49,16 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.*
 import androidx.compose.ui.graphics.vector.ImageVector
 
-data class GenreItem(
-    val name: String,
-    val icon: ImageVector,
-    val startColor: Color,
-    val endColor: Color
-)
-
-val featuredGenres = listOf(
-    GenreItem("Pop", Icons.Rounded.MusicNote, Color(0xFFD6336C), Color(0xFFF76707)),
-    GenreItem("Hip-Hop", Icons.Rounded.Headphones, Color(0xFF5C5FDC), Color(0xFFA259FF)),
-    GenreItem("Electronic", Icons.Rounded.Bolt, Color(0xFF20C997), Color(0xFF0CA678)),
-    GenreItem("Alternative", Icons.Rounded.GraphicEq, Color(0xFFA259FF), Color(0xFFD6336C)),
-    GenreItem("R&B", Icons.Rounded.Mic, Color(0xFFE03131), Color(0xFFF76707)),
-    GenreItem("Indie", Icons.Rounded.Star, Color(0xFF15AABF), Color(0xFF1C7ED6)),
-    GenreItem("Dance", Icons.Rounded.LocalFireDepartment, Color(0xFF1C7ED6), Color(0xFF5C5FDC)),
-    GenreItem("Chill", Icons.Rounded.Nightlight, Color(0xFF15AABF), Color(0xFF1C7ED6))
+data class SearchHistoryEntry(
+    val type: String, // "track", "artist", "playlist"
+    val title: String,
+    val subtitle: String,
+    val artworkUrl: String,
+    val uri: String,
+    val album: String = "",
+    val durationMs: Long = 0L,
+    val albumUri: String = "",
+    val artistUri: String = ""
 )
 
 @Composable
@@ -90,6 +86,75 @@ fun SearchScreen(
     val coroutineScope = rememberCoroutineScope()
     var searchJob by remember { mutableStateOf<Job?>(null) }
     val currentContext = LocalContext.current
+    val prefs = remember { currentContext.getSharedPreferences("swiftify_prefs", android.content.Context.MODE_PRIVATE) }
+    val searchHistory = remember { mutableStateListOf<SearchHistoryEntry>() }
+
+    fun loadHistory() {
+        val raw = prefs.getString("search_history_items", null) ?: return
+        try {
+            val arr = org.json.JSONArray(raw)
+            val list = mutableListOf<SearchHistoryEntry>()
+            for (i in 0 until arr.length()) {
+                val obj = arr.getJSONObject(i)
+                list.add(
+                    SearchHistoryEntry(
+                        type = obj.optString("type", "track"),
+                        title = obj.optString("title"),
+                        subtitle = obj.optString("subtitle"),
+                        artworkUrl = obj.optString("artworkUrl"),
+                        uri = obj.optString("uri"),
+                        album = obj.optString("album"),
+                        durationMs = obj.optLong("durationMs"),
+                        albumUri = obj.optString("albumUri"),
+                        artistUri = obj.optString("artistUri")
+                    )
+                )
+            }
+            searchHistory.clear()
+            searchHistory.addAll(list)
+        } catch (_: Exception) {}
+    }
+
+    LaunchedEffect(Unit) {
+        loadHistory()
+    }
+
+    fun persistHistory() {
+        val arr = org.json.JSONArray()
+        searchHistory.take(30).forEach { item ->
+            val obj = org.json.JSONObject()
+            obj.put("type", item.type)
+            obj.put("title", item.title)
+            obj.put("subtitle", item.subtitle)
+            obj.put("artworkUrl", item.artworkUrl)
+            obj.put("uri", item.uri)
+            obj.put("album", item.album)
+            obj.put("durationMs", item.durationMs)
+            obj.put("albumUri", item.albumUri)
+            obj.put("artistUri", item.artistUri)
+            arr.put(obj)
+        }
+        prefs.edit().putString("search_history_items", arr.toString()).apply()
+    }
+
+    fun addToHistory(entry: SearchHistoryEntry) {
+        searchHistory.removeAll { it.uri == entry.uri || (it.title == entry.title && it.type == entry.type) }
+        searchHistory.add(0, entry)
+        if (searchHistory.size > 30) {
+            searchHistory.removeRange(30, searchHistory.size)
+        }
+        persistHistory()
+    }
+
+    fun removeFromHistory(entry: SearchHistoryEntry) {
+        searchHistory.remove(entry)
+        persistHistory()
+    }
+
+    fun clearHistory() {
+        searchHistory.clear()
+        prefs.edit().remove("search_history_items").apply()
+    }
 
     fun doSearch(q: String) {
         val trimmed = q.trim()
@@ -274,53 +339,171 @@ fun SearchScreen(
 
         Spacer(modifier = Modifier.height(14.dp))
 
-        // Body: Results or Browse Genres
+        // Body: Results or Search History
         if (query.isEmpty()) {
-            Text(
-                text = "Browse all",
-                color = MaterialTheme.colorScheme.onSurface,
-                fontSize = 18.sp,
-                fontWeight = FontWeight.Bold
-            )
-            Spacer(modifier = Modifier.height(12.dp))
+            val filteredHistory = remember(searchHistory.size, selectedCategory, searchHistory.toList()) {
+                when (selectedCategory) {
+                    "Songs" -> searchHistory.filter { it.type == "track" }
+                    "Artists" -> searchHistory.filter { it.type == "artist" }
+                    "Playlists" -> searchHistory.filter { it.type == "playlist" }
+                    else -> searchHistory.toList()
+                }
+            }
 
-            LazyVerticalGrid(
-                columns = GridCells.Fixed(2),
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
-                contentPadding = PaddingValues(bottom = 110.dp)
-            ) {
-                items(featuredGenres) { genre ->
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(96.dp)
-                            .clip(RoundedCornerShape(12.dp))
-                            .background(
-                                Brush.linearGradient(
-                                    listOf(genre.startColor, genre.endColor)
-                                )
-                            )
-                            .clickable {
-                                query = genre.name
-                                doSearch(genre.name)
-                            }
-                            .padding(12.dp)
+            if (filteredHistory.isNotEmpty()) {
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = stringResource(R.string.search_recent_title),
+                        color = MaterialTheme.colorScheme.onSurface,
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                    TextButton(
+                        onClick = { clearHistory() },
+                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
                     ) {
                         Text(
-                            text = genre.name,
-                            color = Color.White,
-                            fontSize = 16.sp,
-                            fontWeight = FontWeight.Bold,
-                            modifier = Modifier.align(Alignment.TopStart)
+                            text = stringResource(R.string.search_recent_clear),
+                            color = MaterialTheme.colorScheme.primary,
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Bold
                         )
-                        Icon(
-                            imageVector = genre.icon,
-                            contentDescription = null,
-                            tint = Color.White.copy(alpha = 0.85f),
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(6.dp))
+
+                LazyColumn(
+                    modifier = Modifier.fillMaxSize(),
+                    contentPadding = PaddingValues(bottom = 110.dp),
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    items(
+                        items = filteredHistory,
+                        key = { "${it.type}_${it.uri}_${it.title}" }
+                    ) { item ->
+                        Row(
                             modifier = Modifier
-                                .size(32.dp)
-                                .align(Alignment.BottomEnd)
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(12.dp))
+                                .clickable {
+                                    addToHistory(item)
+                                    when (item.type) {
+                                        "track" -> onTrackSelect(
+                                            TrackItem(
+                                                title = item.title,
+                                                artist = item.subtitle.substringBefore(" •"),
+                                                album = item.album,
+                                                artworkUrl = item.artworkUrl,
+                                                durationMs = item.durationMs,
+                                                uri = item.uri,
+                                                albumUri = item.albumUri,
+                                                artistUri = item.artistUri
+                                            )
+                                        )
+                                        "artist" -> onArtistSelect(
+                                            ArtistItem(
+                                                name = item.title,
+                                                artworkUrl = item.artworkUrl,
+                                                uri = item.uri
+                                            )
+                                        )
+                                        "playlist" -> onPlaylistSelect(
+                                            PlaylistItem(
+                                                name = item.title,
+                                                owner = item.subtitle.substringAfter("Playlist • "),
+                                                artworkUrl = item.artworkUrl,
+                                                uri = item.uri
+                                            )
+                                        )
+                                    }
+                                }
+                                .padding(vertical = 6.dp, horizontal = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            if (item.type == "artist") {
+                                AsyncImage(
+                                    model = item.artworkUrl,
+                                    contentDescription = item.title,
+                                    modifier = Modifier.size(46.dp).clip(CircleShape),
+                                    contentScale = ContentScale.Crop
+                                )
+                            } else {
+                                AsyncImage(
+                                    model = item.artworkUrl,
+                                    contentDescription = item.title,
+                                    modifier = Modifier.size(46.dp).clip(RoundedCornerShape(8.dp)),
+                                    contentScale = ContentScale.Crop
+                                )
+                            }
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = item.title,
+                                    color = MaterialTheme.colorScheme.onSurface,
+                                    fontSize = 15.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                                Spacer(modifier = Modifier.height(2.dp))
+                                Text(
+                                    text = item.subtitle,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    fontSize = 13.sp,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
+                            IconButton(
+                                onClick = { removeFromHistory(item) },
+                                modifier = Modifier.size(36.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Rounded.Close,
+                                    contentDescription = "Remove",
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            }
+                        }
+                    }
+                }
+            } else {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .weight(1f),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        modifier = Modifier.padding(horizontal = 32.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Rounded.History,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.45f),
+                            modifier = Modifier.size(56.dp)
+                        )
+                        Spacer(modifier = Modifier.height(14.dp))
+                        Text(
+                            text = stringResource(R.string.search_empty_history_title),
+                            color = MaterialTheme.colorScheme.onSurface,
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            textAlign = TextAlign.Center
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = stringResource(R.string.search_empty_history_desc),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            fontSize = 13.sp,
+                            textAlign = TextAlign.Center
                         )
                     }
                 }
@@ -349,7 +532,18 @@ fun SearchScreen(
                                         .fillMaxWidth()
                                         .clip(RoundedCornerShape(17.dp))
                                         .background(MaterialTheme.colorScheme.surfaceContainerHigh)
-                                        .clickable { onArtistSelect(topArtist) }
+                                        .clickable {
+                                            addToHistory(
+                                                SearchHistoryEntry(
+                                                    type = "artist",
+                                                    title = topArtist.name,
+                                                    subtitle = "Artist",
+                                                    artworkUrl = topArtist.artworkUrl,
+                                                    uri = topArtist.uri
+                                                )
+                                            )
+                                            onArtistSelect(topArtist)
+                                        }
                                         .padding(16.dp),
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
@@ -390,7 +584,22 @@ fun SearchScreen(
                                         .fillMaxWidth()
                                         .clip(RoundedCornerShape(17.dp))
                                         .background(MaterialTheme.colorScheme.surfaceContainerHigh)
-                                        .clickable { onTrackSelect(topSong) }
+                                        .clickable {
+                                            addToHistory(
+                                                SearchHistoryEntry(
+                                                    type = "track",
+                                                    title = topSong.title,
+                                                    subtitle = "${topSong.artist} • Song",
+                                                    artworkUrl = topSong.artworkUrl,
+                                                    uri = topSong.uri,
+                                                    album = topSong.album,
+                                                    durationMs = topSong.durationMs,
+                                                    albumUri = topSong.albumUri,
+                                                    artistUri = topSong.artistUri
+                                                )
+                                            )
+                                            onTrackSelect(topSong)
+                                        }
                                         .padding(16.dp),
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
@@ -492,6 +701,19 @@ fun SearchScreen(
                                         )
                                         .clickable {
                                             if (offsetX == 0f) {
+                                                addToHistory(
+                                                    SearchHistoryEntry(
+                                                        type = "track",
+                                                        title = track.title,
+                                                        subtitle = "${track.artist} • Song",
+                                                        artworkUrl = track.artworkUrl,
+                                                        uri = track.uri,
+                                                        album = track.album,
+                                                        durationMs = track.durationMs,
+                                                        albumUri = track.albumUri,
+                                                        artistUri = track.artistUri
+                                                    )
+                                                )
                                                 onTrackSelect(track)
                                             }
                                         }
@@ -596,7 +818,18 @@ fun SearchScreen(
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .clip(RoundedCornerShape(8.dp))
-                                    .clickable { onArtistSelect(artist) }
+                                    .clickable {
+                                        addToHistory(
+                                            SearchHistoryEntry(
+                                                type = "artist",
+                                                title = artist.name,
+                                                subtitle = "Artist",
+                                                artworkUrl = artist.artworkUrl,
+                                                uri = artist.uri
+                                            )
+                                        )
+                                        onArtistSelect(artist)
+                                    }
                                     .padding(vertical = 8.dp, horizontal = 6.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
@@ -646,7 +879,18 @@ fun SearchScreen(
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .clip(RoundedCornerShape(8.dp))
-                                    .clickable { onPlaylistSelect(playlist) }
+                                    .clickable {
+                                        addToHistory(
+                                            SearchHistoryEntry(
+                                                type = "playlist",
+                                                title = playlist.name,
+                                                subtitle = "Playlist • ${playlist.owner}",
+                                                artworkUrl = playlist.artworkUrl,
+                                                uri = playlist.uri
+                                            )
+                                        )
+                                        onPlaylistSelect(playlist)
+                                    }
                                     .padding(vertical = 8.dp, horizontal = 6.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {

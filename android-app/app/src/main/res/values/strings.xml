@@ -24,6 +24,10 @@
     <string name="search_category_songs">Songs</string>
     <string name="search_category_artists">Artists</string>
     <string name="search_category_playlists">Playlists</string>
+    <string name="search_recent_title">Recent searches</string>
+    <string name="search_recent_clear">Clear</string>
+    <string name="search_empty_history_title">No recent searches</string>
+    <string name="search_empty_history_desc">Search for your favourite songs, artists, or playlists</string>
 
     <string name="settings_title">Settings</string>
     <string name="settings_appearance_theme">APPEARANCE &amp; THEME</string>
