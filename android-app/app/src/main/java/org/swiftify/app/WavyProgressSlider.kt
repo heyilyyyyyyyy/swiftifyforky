@@ -6,6 +6,7 @@ import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.*
@@ -27,13 +28,14 @@ fun WavyProgressSlider(
     totalMs: Long,
     isPlaying: Boolean,
     onSeek: (Long) -> Unit,
-    activeColor: Color = Color(0xFF1ED760),
+    activeColor: Color = Color.Unspecified,
     inactiveColor: Color = Color(0x33FFFFFF),
     waveAmplitude: Dp = 3.dp,
     waveLength: Dp = 22.dp,
     strokeWidth: Dp = 4.dp,
     modifier: Modifier = Modifier
 ) {
+    val resolvedActiveColor = if (activeColor.isSpecified) activeColor else MaterialTheme.colorScheme.primary
     val duration = totalMs.coerceAtLeast(1L).toFloat()
     var isDragging by remember { mutableStateOf(false) }
     var dragFraction by remember { mutableFloatStateOf(0f) }
@@ -127,7 +129,7 @@ fun WavyProgressSlider(
 
             drawPath(
                 path = path,
-                color = activeColor,
+                color = resolvedActiveColor,
                 style = Stroke(
                     width = strokePx,
                     cap = StrokeCap.Round,
@@ -143,13 +145,13 @@ fun WavyProgressSlider(
 
             // Outer soft glow
             drawCircle(
-                color = activeColor.copy(alpha = 0.28f),
+                color = resolvedActiveColor.copy(alpha = 0.28f),
                 radius = thumbRadius + 5.dp.toPx(),
                 center = androidx.compose.ui.geometry.Offset(thumbX, thumbY)
             )
             // Inner solid thumb
             drawCircle(
-                color = activeColor,
+                color = resolvedActiveColor,
                 radius = thumbRadius,
                 center = androidx.compose.ui.geometry.Offset(thumbX, thumbY)
             )

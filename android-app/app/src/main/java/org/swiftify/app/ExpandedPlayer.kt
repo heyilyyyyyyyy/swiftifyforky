@@ -1002,7 +1002,7 @@ fun ExpandedPlayer(
                 primaryColor = palette.accent,
                 onPrimaryColor = palette.onAccent,
                 secondaryColor = palette.accent.copy(alpha = 0.7f),
-                tertiaryColor = Color(0xFF1ED760)
+                tertiaryColor = palette.accent
             )
 
             // Next with rounded arrowRight shape backing on click

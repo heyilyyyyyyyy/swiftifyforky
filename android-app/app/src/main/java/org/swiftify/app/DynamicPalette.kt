@@ -4,8 +4,10 @@ import android.content.Context
 import android.graphics.Bitmap
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.tween
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.*
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.toArgb
 import androidx.palette.graphics.Palette
 import coil.imageLoader
 import coil.request.ImageRequest
@@ -25,10 +27,15 @@ val LocalTrackPalette = compositionLocalOf { TrackThemePalette() }
 
 @Composable
 fun rememberTrackPalette(context: Context, artworkUrl: String?): TrackThemePalette {
-    var palette by remember(artworkUrl) { mutableStateOf(TrackThemePalette()) }
+    val themePrimary = MaterialTheme.colorScheme.primary
+    val themePrimaryArgb = themePrimary.toArgb()
+    var palette by remember(artworkUrl, themePrimary) { mutableStateOf(TrackThemePalette(accent = themePrimary)) }
 
-    LaunchedEffect(artworkUrl) {
-        if (artworkUrl.isNullOrEmpty()) return@LaunchedEffect
+    LaunchedEffect(artworkUrl, themePrimary) {
+        if (artworkUrl.isNullOrEmpty()) {
+            palette = TrackThemePalette(accent = themePrimary)
+            return@LaunchedEffect
+        }
         withContext(Dispatchers.IO) {
             try {
                 val loader = context.imageLoader
@@ -42,7 +49,7 @@ fun rememberTrackPalette(context: Context, artworkUrl: String?): TrackThemePalet
                     if (bitmap != null) {
                         val p = Palette.from(bitmap).generate()
                         val dominantRgb = p.getDominantColor(0xFF181818.toInt())
-                        val vibrantRgb = p.getVibrantColor(0xFF1ED760.toInt())
+                        val vibrantRgb = p.getVibrantColor(themePrimaryArgb)
                         val mutedDarkRgb = p.getDarkMutedColor(0xFF121212.toInt())
 
                         // Muted dark background tone
@@ -54,7 +61,7 @@ fun rememberTrackPalette(context: Context, artworkUrl: String?): TrackThemePalet
                             palette = TrackThemePalette(
                                 dominant = bgDominant,
                                 secondary = bgSecondary,
-                                accent = if (accentCol == bgDominant) Color(0xFF1ED760) else accentCol,
+                                accent = if (accentCol == bgDominant) themePrimary else accentCol,
                                 onAccent = Color(0xFF000000),
                                 surface = Color(0x22FFFFFF)
                             )

@@ -380,10 +380,11 @@ fun SwiftifyPlayButton(
 fun MaterialExpressiveShape(
     shape: String,
     modifier: Modifier = Modifier,
-    color: Color = Color(0xFF1ED760),
+    color: Color = Color.Unspecified,
     spinAngleRad: Float = 0f,
     content: (@Composable () -> Unit)? = null
 ) {
+    val resolvedColor = if (color.isSpecified) color else MaterialTheme.colorScheme.primary
     var cachedPath by remember { mutableStateOf<Path?>(null) }
     var lastWidth by remember { mutableFloatStateOf(0f) }
     var lastHeight by remember { mutableFloatStateOf(0f) }
@@ -405,10 +406,10 @@ fun MaterialExpressiveShape(
             if (spinAngleRad != 0f) {
                 val degrees = (spinAngleRad * (180f / PI.toFloat()))
                 rotate(degrees, pivot = center) {
-                    drawPath(path = p, color = color, style = Fill)
+                    drawPath(path = p, color = resolvedColor, style = Fill)
                 }
             } else {
-                drawPath(path = p, color = color, style = Fill)
+                drawPath(path = p, color = resolvedColor, style = Fill)
             }
         }
 
@@ -462,13 +463,14 @@ fun buildSquigglePath(
 @Composable
 fun SquiggleAvatarRing(
     modifier: Modifier = Modifier,
-    color: Color = Color(0xFF1ED760),
+    color: Color = Color.Unspecified,
     waves: Int = 20,
     amplitude: Dp = 2.2.dp,
     strokeWidth: Dp = 2.5.dp,
     phase: Float = 0f,
     continuousRotation: Boolean = true
 ) {
+    val resolvedColor = if (color.isSpecified) color else MaterialTheme.colorScheme.primary
     val infiniteTransition = rememberInfiniteTransition(label = "squiggleRingSpin")
     val ringAngle by infiniteTransition.animateFloat(
         initialValue = 0f,
@@ -500,7 +502,7 @@ fun SquiggleAvatarRing(
 
         drawPath(
             path = path,
-            color = color,
+            color = resolvedColor,
             style = Stroke(
                 width = strokePx,
                 cap = StrokeCap.Round,
@@ -545,7 +547,7 @@ fun SquiggleAvatar(
     imageUrl: String,
     contentDescription: String?,
     modifier: Modifier = Modifier,
-    ringColor: Color = Color(0xFF1ED760),
+    ringColor: Color = Color.Unspecified,
     waves: Int = 20,
     amplitude: Dp = 2.0.dp,
     strokeWidth: Dp = 2.4.dp,
@@ -553,6 +555,7 @@ fun SquiggleAvatar(
     phase: Float = 0f,
     continuousRotation: Boolean = true
 ) {
+    val resolvedRingColor = if (ringColor.isSpecified) ringColor else MaterialTheme.colorScheme.primary
     val infiniteTransition = rememberInfiniteTransition(label = "squiggleSpin")
     val ringAngle by infiniteTransition.animateFloat(
         initialValue = 0f,
@@ -575,7 +578,7 @@ fun SquiggleAvatar(
                 .graphicsLayer {
                     if (continuousRotation) rotationZ = ringAngle
                 },
-            color = ringColor,
+            color = resolvedRingColor,
             waves = waves,
             amplitude = amplitude,
             strokeWidth = strokeWidth,
@@ -630,17 +633,18 @@ fun ShapeBadge(
     iconSize: Dp = 18.dp,
     shapeAlpha: Float = 0.28f,
     glyphAlpha: Float = 0.90f,
-    tint: Color = Color(0xFF1ED760)
+    tint: Color = Color.Unspecified
 ) {
+    val resolvedTint = if (tint.isSpecified) tint else MaterialTheme.colorScheme.primary
     MaterialExpressiveShape(
         shape = shape,
-        color = tint.copy(alpha = shapeAlpha),
+        color = resolvedTint.copy(alpha = shapeAlpha),
         modifier = modifier.size(size)
     ) {
         Icon(
             imageVector = icon,
             contentDescription = null,
-            tint = tint.copy(alpha = glyphAlpha),
+            tint = resolvedTint.copy(alpha = glyphAlpha),
             modifier = Modifier.size(iconSize)
         )
     }
@@ -766,12 +770,13 @@ fun WavyPillButton(
     icon: ImageVector,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
-    backgroundColor: Color = Color(0xFF1ED760),
+    backgroundColor: Color = Color.Unspecified,
     contentColor: Color = Color(0xFF000000),
     enabled: Boolean = true,
     amplitudeDp: Float = 1.8f,
     wavelengthDp: Float = 15f
 ) {
+    val resolvedBgColor = if (backgroundColor.isSpecified) backgroundColor else MaterialTheme.colorScheme.primary
     val interactionSource = remember { MutableInteractionSource() }
     val isPressed by interactionSource.collectIsPressedAsState()
     val scale by animateFloatAsState(
@@ -803,7 +808,7 @@ fun WavyPillButton(
                 )
                 drawPath(
                     path = path,
-                    color = if (enabled) backgroundColor else backgroundColor.copy(alpha = 0.4f)
+                    color = if (enabled) resolvedBgColor else resolvedBgColor.copy(alpha = 0.4f)
                 )
             }
             .padding(horizontal = 24.dp, vertical = 12.dp),
