@@ -3,6 +3,7 @@ package org.swiftify.app
 import android.content.Context
 import android.widget.Toast
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -10,7 +11,9 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.Logout
+import androidx.compose.material.icons.rounded.Palette
 import androidx.compose.material.icons.rounded.Person
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -21,8 +24,11 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import org.swiftify.app.design.GoogleSansFlexFamily
+import org.swiftify.app.design.SwiftifyThemeMode
 import java.io.File
 
 @Composable
@@ -31,7 +37,9 @@ fun SettingsScreen(
     onConnectToggle: (Boolean) -> Unit,
     onReauthorize: () -> Unit = {},
     onCrossfadeChanged: ((Boolean, Int) -> Unit)? = null,
-    onLogout: (() -> Unit)? = null
+    onLogout: (() -> Unit)? = null,
+    currentTheme: SwiftifyThemeMode = SwiftifyThemeMode.SPOTIFY,
+    onThemeChange: ((SwiftifyThemeMode) -> Unit)? = null
 ) {
     val context = LocalContext.current
     val prefs = remember { context.getSharedPreferences("swiftify_prefs", Context.MODE_PRIVATE) }
@@ -222,6 +230,147 @@ fun SettingsScreen(
                                 }
                             }
                         )
+                    }
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(20.dp))
+
+        // Section: Appearance & Theme
+        Text(
+            text = stringResource(R.string.settings_appearance_theme),
+            color = MaterialTheme.colorScheme.primary,
+            fontSize = 12.sp,
+            fontWeight = FontWeight.Bold,
+            letterSpacing = 1.sp
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(17.dp),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh)
+        ) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(46.dp)
+                            .clip(CircleShape)
+                            .background(MaterialTheme.colorScheme.surfaceContainerHighest),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Rounded.Palette,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(26.dp)
+                        )
+                    }
+                    Spacer(modifier = Modifier.width(14.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "Themes & Palette",
+                            fontFamily = GoogleSansFlexFamily,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                        Text(
+                            text = "Active: ${currentTheme.displayName}",
+                            fontFamily = GoogleSansFlexFamily,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            fontSize = 12.sp
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(14.dp))
+
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    SwiftifyThemeMode.entries.chunked(2).forEach { pair ->
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            pair.forEach { mode ->
+                                val isSelected = (currentTheme == mode)
+                                Box(
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .clip(RoundedCornerShape(12.dp))
+                                        .background(
+                                            if (isSelected) MaterialTheme.colorScheme.primary.copy(alpha = 0.16f)
+                                            else MaterialTheme.colorScheme.surfaceContainerHighest
+                                        )
+                                        .border(
+                                            width = if (isSelected) 1.5.dp else 1.dp,
+                                            color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f),
+                                            shape = RoundedCornerShape(12.dp)
+                                        )
+                                        .clickable { onThemeChange?.invoke(mode) }
+                                        .padding(12.dp)
+                                ) {
+                                    Column {
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.SpaceBetween
+                                        ) {
+                                            Box(
+                                                modifier = Modifier
+                                                    .size(24.dp)
+                                                    .clip(CircleShape)
+                                                    .background(mode.backgroundColor)
+                                                    .border(1.dp, mode.primaryColor.copy(alpha = 0.6f), CircleShape),
+                                                contentAlignment = Alignment.Center
+                                            ) {
+                                                Box(
+                                                    modifier = Modifier
+                                                        .size(10.dp)
+                                                        .clip(CircleShape)
+                                                        .background(mode.primaryColor)
+                                                )
+                                            }
+
+                                            if (isSelected) {
+                                                Icon(
+                                                    imageVector = Icons.Rounded.CheckCircle,
+                                                    contentDescription = "Selected",
+                                                    tint = MaterialTheme.colorScheme.primary,
+                                                    modifier = Modifier.size(18.dp)
+                                                )
+                                            }
+                                        }
+                                        Spacer(modifier = Modifier.height(8.dp))
+                                        Text(
+                                            text = mode.displayName,
+                                            fontFamily = GoogleSansFlexFamily,
+                                            color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
+                                            fontSize = 13.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
+                                        Text(
+                                            text = mode.subtitle,
+                                            fontFamily = GoogleSansFlexFamily,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            fontSize = 11.sp,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
+                                    }
+                                }
+                            }
+                            if (pair.size == 1) {
+                                Spacer(modifier = Modifier.weight(1f))
+                            }
+                        }
                     }
                 }
             }

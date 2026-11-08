@@ -26,6 +26,7 @@
     <string name="search_category_playlists">Плейлисты</string>
 
     <string name="settings_title">Настройки</string>
+    <string name="settings_appearance_theme">ОФОРМЛЕНИЕ И ТЕМА</string>
     <string name="settings_audio_quality">КАЧЕСТВО ЗВУКА</string>
     <string name="settings_playback_networking">ВОСПРОИЗВЕДЕНИЕ И СЕТЬ</string>
     <string name="settings_storage_cache">ХРАНИЛИЩЕ И КЭШ</string>

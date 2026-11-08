@@ -34,6 +34,7 @@ import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import org.json.JSONObject
 import org.swiftify.app.design.SwiftifyMotion
+import org.swiftify.app.design.SwiftifyThemeMode
 
 @Composable
 fun SwiftifyApp(
@@ -74,7 +75,9 @@ fun SwiftifyApp(
     sleepTimerRemainingSeconds: Int = 0,
     onSetSleepTimer: ((Int) -> Unit)? = null,
     onLogout: (() -> Unit)? = null,
-    recentlyPlayed: List<TrackItem> = emptyList()
+    recentlyPlayed: List<TrackItem> = emptyList(),
+    currentTheme: SwiftifyThemeMode = SwiftifyThemeMode.SPOTIFY,
+    onThemeChange: ((SwiftifyThemeMode) -> Unit)? = null
 ) {
     var selectedTab by remember { mutableIntStateOf(0) }
     var isPlayerExpanded by remember { mutableStateOf(false) }
@@ -544,7 +547,9 @@ fun SwiftifyApp(
                                 onConnectToggle = onConnectToggle,
                                 onReauthorize = onLoginClick,
                                 onCrossfadeChanged = onCrossfadeChanged,
-                                onLogout = onLogout
+                                onLogout = onLogout,
+                                currentTheme = currentTheme,
+                                onThemeChange = onThemeChange
                             )
                         }
                     }

@@ -2,6 +2,7 @@ package org.swiftify.app
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.height
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -19,7 +20,7 @@ import kotlin.math.sin
 @Composable
 fun WavyLine(
     modifier: Modifier = Modifier,
-    color: Color = SwiftifyColors.Primary.copy(alpha = 0.25f),
+    color: Color = MaterialTheme.colorScheme.primary.copy(alpha = 0.25f),
     wavelength: Float = 14.2f,
     amplitude: Float = 1.3f,
     strokeWidth: Float = 2.0f
@@ -60,7 +61,7 @@ fun WavyLine(
 @Composable
 fun Cookie12Border(
     modifier: Modifier = Modifier,
-    color: Color = SwiftifyColors.Primary.copy(alpha = 0.4f),
+    color: Color = MaterialTheme.colorScheme.primary.copy(alpha = 0.4f),
     lobes: Int = 12,
     strokeWidth: Dp = 1.6.dp
 ) {

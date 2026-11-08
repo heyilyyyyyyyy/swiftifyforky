@@ -8,10 +8,11 @@ import androidx.compose.ui.text.TextStyle
 
 @Composable
 fun SwiftifyTheme(
+    themeMode: SwiftifyThemeMode = SwiftifyThemeMode.SPOTIFY,
     content: @Composable () -> Unit
 ) {
     MaterialTheme(
-        colorScheme = SwiftifyColors.DarkColorScheme,
+        colorScheme = SwiftifyColors.colorSchemeFor(themeMode),
         typography = SwiftifyType.Typography,
         shapes = SwiftifyShapes.MaterialShapes,
         content = {

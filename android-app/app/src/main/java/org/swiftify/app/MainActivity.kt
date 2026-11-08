@@ -42,6 +42,7 @@ class MainActivity : ComponentActivity() {
     // Compose states
     private val authState = mutableStateOf<AuthState>(AuthState.Loading)
     private val accessTokenState = mutableStateOf<String?>(null)
+    private val currentThemeMode = mutableStateOf(SwiftifyThemeMode.SPOTIFY)
     private val tracksState = mutableStateListOf<TrackItem>()
     private val recentlyPlayedState = mutableStateListOf<TrackItem>()
     private val playlistQueue = mutableListOf<TrackItem>()
@@ -144,6 +145,7 @@ class MainActivity : ComponentActivity() {
             library.parseAndApplyPlaylists(it)
         }
         library.loadCachedRecentlyPlayed()
+        currentThemeMode.value = SwiftifyThemeMode.fromId(prefs.getString("app_theme", null))
 
         val devName = getDeviceName()
         SpotifyBridge.init(devName)
@@ -210,13 +212,18 @@ class MainActivity : ComponentActivity() {
         startPlaybackTicker()
 
         setContent {
-            org.swiftify.app.design.SwiftifyTheme {
+            org.swiftify.app.design.SwiftifyTheme(themeMode = currentThemeMode.value) {
                 Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
                     SwiftifyApp(
                         authState = authState.value,
                         tracks = tracksState,
                         recentlyPlayed = recentlyPlayedState,
                         userPlaylists = userPlaylistsState,
+                        currentTheme = currentThemeMode.value,
+                        onThemeChange = { mode ->
+                            currentThemeMode.value = mode
+                            prefs.edit().putString("app_theme", mode.id).apply()
+                        },
                         currentTrackIndex = currentTrackIndex.intValue,
                         livePlayingTrack = livePlayingTrack.value,
                         isPlaying = isPlaying.value,
