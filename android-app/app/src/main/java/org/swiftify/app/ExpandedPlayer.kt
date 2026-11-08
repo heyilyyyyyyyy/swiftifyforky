@@ -987,11 +987,19 @@ fun ExpandedPlayer(
                 )
             }
 
-            // Prev with spring press animation and circular ripple
+            // Prev with Material Expressive arrowLeft shape backing and spring animation
             val prevInteraction = remember { MutableInteractionSource() }
             val isPrevPressed by prevInteraction.collectIsPressedAsState()
-            val prevScale by animateFloatAsState(
-                targetValue = if (isPrevPressed) 0.80f else 1.0f,
+            val prevShapeScale by animateFloatAsState(
+                targetValue = if (isPrevPressed) 1.0f else 0.7f,
+                animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessMedium)
+            )
+            val prevShapeAlpha by animateFloatAsState(
+                targetValue = if (isPrevPressed) 0.35f else 0.0f,
+                animationSpec = tween(durationMillis = 150)
+            )
+            val prevIconScale by animateFloatAsState(
+                targetValue = if (isPrevPressed) 0.85f else 1.0f,
                 animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessMedium)
             )
             Box(
@@ -1006,13 +1014,16 @@ fun ExpandedPlayer(
                     ),
                 contentAlignment = Alignment.Center
             ) {
-                val prevPressAlpha by animateFloatAsState(if (isPrevPressed) 0.22f else 0f)
-                if (prevPressAlpha > 0.01f) {
-                    Box(
+                if (prevShapeAlpha > 0.01f) {
+                    MaterialExpressiveShape(
+                        shape = "arrowLeft",
+                        color = palette.accent.copy(alpha = prevShapeAlpha),
                         modifier = Modifier
-                            .size(48.dp)
-                            .clip(CircleShape)
-                            .background(Color.White.copy(alpha = prevPressAlpha))
+                            .size(52.dp)
+                            .graphicsLayer {
+                                scaleX = prevShapeScale
+                                scaleY = prevShapeScale
+                            }
                     )
                 }
                 Icon(
@@ -1022,8 +1033,8 @@ fun ExpandedPlayer(
                     modifier = Modifier
                         .size(36.dp)
                         .graphicsLayer {
-                            scaleX = prevScale
-                            scaleY = prevScale
+                            scaleX = prevIconScale
+                            scaleY = prevIconScale
                         }
                 )
             }
@@ -1040,11 +1051,19 @@ fun ExpandedPlayer(
                 tertiaryColor = palette.accent
             )
 
-            // Next with spring press animation and circular ripple
+            // Next with Material Expressive arrowRight shape backing and spring animation
             val nextInteraction = remember { MutableInteractionSource() }
             val isNextPressed by nextInteraction.collectIsPressedAsState()
-            val nextScale by animateFloatAsState(
-                targetValue = if (isNextPressed) 0.80f else 1.0f,
+            val nextShapeScale by animateFloatAsState(
+                targetValue = if (isNextPressed) 1.0f else 0.7f,
+                animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessMedium)
+            )
+            val nextShapeAlpha by animateFloatAsState(
+                targetValue = if (isNextPressed) 0.35f else 0.0f,
+                animationSpec = tween(durationMillis = 150)
+            )
+            val nextIconScale by animateFloatAsState(
+                targetValue = if (isNextPressed) 0.85f else 1.0f,
                 animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessMedium)
             )
             Box(
@@ -1059,13 +1078,16 @@ fun ExpandedPlayer(
                     ),
                 contentAlignment = Alignment.Center
             ) {
-                val nextPressAlpha by animateFloatAsState(if (isNextPressed) 0.22f else 0f)
-                if (nextPressAlpha > 0.01f) {
-                    Box(
+                if (nextShapeAlpha > 0.01f) {
+                    MaterialExpressiveShape(
+                        shape = "arrowRight",
+                        color = palette.accent.copy(alpha = nextShapeAlpha),
                         modifier = Modifier
-                            .size(48.dp)
-                            .clip(CircleShape)
-                            .background(Color.White.copy(alpha = nextPressAlpha))
+                            .size(52.dp)
+                            .graphicsLayer {
+                                scaleX = nextShapeScale
+                                scaleY = nextShapeScale
+                            }
                     )
                 }
                 Icon(
@@ -1075,8 +1097,8 @@ fun ExpandedPlayer(
                     modifier = Modifier
                         .size(36.dp)
                         .graphicsLayer {
-                            scaleX = nextScale
-                            scaleY = nextScale
+                            scaleX = nextIconScale
+                            scaleY = nextIconScale
                         }
                 )
             }
