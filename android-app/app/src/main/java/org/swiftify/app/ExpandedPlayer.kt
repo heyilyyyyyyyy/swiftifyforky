@@ -417,8 +417,8 @@ fun ExpandedPlayer(
                             var scrollDeltaSign by remember { mutableFloatStateOf(1f) }
 
                             // Initial positioning: jump directly to currently active line once measured
-                            LaunchedEffect(isLineSynced, lyricLines.size) {
-                                if (isLineSynced && activeLineIdx in lyricLines.indices) {
+                            LaunchedEffect(isLineSynced, lyricLines.size, selectedTab) {
+                                if (selectedTab == 1 && isLineSynced && activeLineIdx in lyricLines.indices) {
                                     snapshotFlow { lyricsListState.layoutInfo.totalItemsCount }
                                         .filter { it > 0 }
                                         .first()
@@ -427,30 +427,16 @@ fun ExpandedPlayer(
                             }
 
                             // Follow playback: smoothly animate scroll maintaining active line at top
-                            LaunchedEffect(activeLineIdx) {
-                                if (activeLineIdx in lyricLines.indices && isLineSynced) {
+                            LaunchedEffect(activeLineIdx, isLineSynced) {
+                                if (isLineSynced && activeLineIdx in lyricLines.indices) {
                                     scrollDeltaSign = if (activeLineIdx > lastLineIdx) 1f else -1f
                                     lastLineIdx = activeLineIdx
                                     rippleTrigger++
 
-                                    val visible = lyricsListState.layoutInfo.visibleItemsInfo.find { it.index == activeLineIdx }
-                                    if (visible != null) {
-                                        val delta = visible.offset
-                                        if (abs(delta) > 2 && !lyricsListState.isScrollInProgress) {
-                                            lyricsListState.animateScrollBy(
-                                                value = delta.toFloat(),
-                                                animationSpec = tween(
-                                                    durationMillis = 420,
-                                                    easing = SwiftifyMotion.EmphasizedDecel
-                                                )
-                                            )
-                                        }
-                                    } else {
-                                        lyricsListState.animateScrollToItem(
-                                            index = activeLineIdx,
-                                            scrollOffset = 0
-                                        )
-                                    }
+                                    lyricsListState.animateScrollToItem(
+                                        index = activeLineIdx,
+                                        scrollOffset = 0
+                                    )
                                 }
                             }
 

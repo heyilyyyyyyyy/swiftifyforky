@@ -1,11 +1,15 @@
 package org.swiftify.app
 import androidx.compose.animation.core.animate
 import androidx.compose.animation.core.spring
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.gestures.Orientation
 import androidx.compose.foundation.gestures.draggable
 import androidx.compose.foundation.gestures.rememberDraggableState
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalHapticFeedback
 import android.widget.Toast
 import androidx.compose.ui.unit.IntOffset
 import kotlin.math.roundToInt
@@ -57,6 +61,7 @@ fun formatPlaylistDuration(ms: Long): String {
     return if (hours > 0) "${hours} hr ${minutes} min" else "${minutes} min"
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun PlaylistDetailScreen(
     playlist: PlaylistItem,
@@ -89,6 +94,8 @@ fun PlaylistDetailScreen(
     }
     var showDeleteConfirmation by remember { mutableStateOf(false) }
     var targetTrackForAddToPlaylist by remember { mutableStateOf<TrackItem?>(null) }
+    var selectedTrackForOptions by remember { mutableStateOf<TrackItem?>(null) }
+    val haptic = LocalHapticFeedback.current
 
     // Fetch playlist tracks from SpotifyBridge or Web API fallback
     LaunchedEffect(playlist.uri, reloadTrigger) {
@@ -671,14 +678,13 @@ fun PlaylistDetailScreen(
                     items = keyedTracks,
                     key = { _, item -> item.key },
                     contentType = { _, _ -> "playlist_track" }
-                ) { index, item ->
+                ) { _, item ->
                 val track = item.track
                 val isCurrent = (livePlayingTrack != null && livePlayingTrack.uri == track.uri)
                 var dragDistance by remember(item.key) { mutableFloatStateOf(0f) }
                 var offsetX by remember(item.key) { mutableFloatStateOf(0f) }
                 val showSwipeHint by remember { derivedStateOf { offsetX > 15f } }
                 val swipeArmed by remember { derivedStateOf { offsetX > 100f } }
-                val isTrackSaved = savedTrackUris.value.contains(track.uri)
                 val density = LocalDensity.current
                 val swipeThresholdPx = remember(density) { with(density) { 28.dp.toPx() } }
 
@@ -725,11 +731,19 @@ fun PlaylistDetailScreen(
                                     else -> Color.Transparent
                                 }
                             )
-                            .clickable {
-                                if (offsetX == 0f) {
-                                    onTrackSelect(track, displayTracks)
+                            .combinedClickable(
+                                onClick = {
+                                    if (offsetX == 0f) {
+                                        onTrackSelect(track, displayTracks)
+                                    }
+                                },
+                                onLongClick = {
+                                    if (offsetX == 0f) {
+                                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                        selectedTrackForOptions = track
+                                    }
                                 }
-                            }
+                            )
                             .draggable(
                                 orientation = Orientation.Horizontal,
                                 state = rememberDraggableState { delta ->
@@ -806,102 +820,6 @@ fun PlaylistDetailScreen(
                         )
                     }
 
-                    // Star button (Save / Liked Track)
-                    Box(
-                        modifier = Modifier
-                            .size(36.dp)
-                            .clip(CircleShape)
-                            .clickable {
-                                val next = !isTrackSaved
-                                savedTrackUris.value = if (next) {
-                                    savedTrackUris.value + track.uri
-                                } else {
-                                    savedTrackUris.value - track.uri
-                                }
-                                coroutineScope.launch {
-                                    val success = SpotifyApi.setTrackSaved(context, track.uri, next)
-                                    if (!success) {
-                                        savedTrackUris.value = if (next) {
-                                            savedTrackUris.value - track.uri
-                                        } else {
-                                            savedTrackUris.value + track.uri
-                                        }
-                                        Toast.makeText(context, "Failed to update Saved Tracks", Toast.LENGTH_SHORT).show()
-                                    }
-                                }
-                            },
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            imageVector = if (isTrackSaved) Icons.Rounded.Star else Icons.Rounded.StarBorder,
-                            contentDescription = "Save",
-                            tint = if (isTrackSaved) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.size(20.dp)
-                        )
-                    }
-
-                    // Track more options dropdown
-                    var isTrackMenuOpen by remember { mutableStateOf(false) }
-                    Box(
-                        modifier = Modifier
-                            .size(36.dp)
-                            .clip(CircleShape)
-                            .clickable { isTrackMenuOpen = true },
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            imageVector = Icons.Rounded.MoreVert,
-                            contentDescription = "Track options",
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.size(20.dp)
-                        )
-
-                        DropdownMenu(
-                            expanded = isTrackMenuOpen,
-                            onDismissRequest = { isTrackMenuOpen = false },
-                            modifier = Modifier.background(MaterialTheme.colorScheme.surfaceContainerHigh)
-                        ) {
-                            DropdownMenuItem(
-                                text = { Text("Add to Queue", color = MaterialTheme.colorScheme.onSurface, fontSize = 13.sp) },
-                                onClick = {
-                                    isTrackMenuOpen = false
-                                    onAddToQueue?.invoke(track)
-                                    Toast.makeText(context, "Added '${track.title}' to queue", Toast.LENGTH_SHORT).show()
-                                }
-                            )
-                            DropdownMenuItem(
-                                text = { Text("Add to Playlist...", color = MaterialTheme.colorScheme.onSurface, fontSize = 13.sp) },
-                                onClick = {
-                                    isTrackMenuOpen = false
-                                    targetTrackForAddToPlaylist = track
-                                }
-                            )
-                            if (playlist.uri.startsWith("spotify:playlist:") && onRemoveTrackFromPlaylist != null) {
-                                DropdownMenuItem(
-                                    text = { Text("Remove from this Playlist", color = MaterialTheme.colorScheme.error, fontSize = 13.sp) },
-                                    onClick = {
-                                        isTrackMenuOpen = false
-                                        playlistTracks.remove(track)
-                                        onRemoveTrackFromPlaylist.invoke(playlist, track)
-                                    }
-                                )
-                            }
-                            DropdownMenuItem(
-                                text = { Text("Share Song", color = MaterialTheme.colorScheme.onSurface, fontSize = 13.sp) },
-                                onClick = {
-                                    isTrackMenuOpen = false
-                                    val cleanTrackId = track.uri.removePrefix("spotify:track:").trim()
-                                    val sendIntent = Intent().apply {
-                                        action = Intent.ACTION_SEND
-                                        putExtra(Intent.EXTRA_TEXT, "Listen to '${track.title}' by ${track.artist}: https://open.spotify.com/track/$cleanTrackId")
-                                        type = "text/plain"
-                                    }
-                                    context.startActivity(Intent.createChooser(sendIntent, "Share Track"))
-                                }
-                            )
-                        }
-                    }
-
                     Spacer(modifier = Modifier.width(6.dp))
 
                     Text(
@@ -926,6 +844,57 @@ fun PlaylistDetailScreen(
             onPlaylistSelect = { selectedPlaylist ->
                 targetTrackForAddToPlaylist = null
                 onAddTrackToPlaylist?.invoke(selectedPlaylist, target)
+            }
+        )
+    }
+
+    if (selectedTrackForOptions != null) {
+        val track = selectedTrackForOptions!!
+        val isTrackSaved = savedTrackUris.value.contains(track.uri)
+        TrackOptionsBottomSheet(
+            track = track,
+            isSaved = isTrackSaved,
+            onDismiss = { selectedTrackForOptions = null },
+            onToggleSave = {
+                val next = !isTrackSaved
+                savedTrackUris.value = if (next) {
+                    savedTrackUris.value + track.uri
+                } else {
+                    savedTrackUris.value - track.uri
+                }
+                coroutineScope.launch {
+                    val success = SpotifyApi.setTrackSaved(context, track.uri, next)
+                    if (!success) {
+                        savedTrackUris.value = if (next) {
+                            savedTrackUris.value - track.uri
+                        } else {
+                            savedTrackUris.value + track.uri
+                        }
+                        Toast.makeText(context, "Failed to update Saved Tracks", Toast.LENGTH_SHORT).show()
+                    }
+                }
+            },
+            onAddToQueue = {
+                onAddToQueue?.invoke(track)
+                Toast.makeText(context, "Added '${track.title}' to queue", Toast.LENGTH_SHORT).show()
+            },
+            onGoToArtist = {
+                onArtistClick?.invoke(track.artist)
+            },
+            onGoToAlbum = {
+                onTrackTitleClick?.invoke(track)
+            },
+            onAddToPlaylist = if (onAddTrackToPlaylist != null) {
+                { targetTrackForAddToPlaylist = track }
+            } else null,
+            onShare = {
+                val cleanTrackId = track.uri.removePrefix("spotify:track:").trim()
+                val sendIntent = Intent().apply {
+                    action = Intent.ACTION_SEND
+                    putExtra(Intent.EXTRA_TEXT, "Listen to '${track.title}' by ${track.artist}: https://open.spotify.com/track/$cleanTrackId")
+                    type = "text/plain"
+                }
+                context.startActivity(Intent.createChooser(sendIntent, "Share Track"))
             }
         )
     }
