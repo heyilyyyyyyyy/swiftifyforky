@@ -54,36 +54,9 @@ import kotlin.math.*
 
 private val heartRadii = floatArrayOf(0.735f, 0.695f, 0.64f, 0.615f, 0.61f, 0.585f, 0.57f, 0.575f, 0.565f, 0.555f, 0.565f, 0.58f, 0.59f, 0.61f, 0.65f, 0.675f, 0.745f, 0.795f, 0.87f, 0.805f, 0.75f, 0.715f, 0.675f, 0.64f, 0.615f, 0.6f, 0.59f, 0.58f, 0.58f, 0.58f, 0.585f, 0.595f, 0.615f, 0.635f, 0.665f, 0.715f, 0.75f, 0.815f, 0.905f, 0.965f, 1.035f, 1.075f, 1.1f, 1.115f, 1.11f, 1.12f, 1.085f, 1.04f, 0.96f, 0.875f, 0.76f, 0.635f, 0.54f, 0.475f, 0.455f, 0.495f, 0.56f, 0.655f, 0.78f, 0.895f, 0.985f, 1.04f, 1.075f, 1.09f, 1.105f, 1.1f, 1.1f, 1.05f, 1.015f, 0.945f, 0.885f, 0.795f)
 
-private val bunRadii = floatArrayOf(0.615f, 0.735f, 0.845f, 0.925f, 0.99f, 1.05f, 1.1f, 1.14f, 1.165f, 1.175f, 1.165f, 1.16f, 1.125f, 1.095f, 1.055f, 1.025f, 1.01f, 0.995f, 0.99f, 0.995f, 1.01f, 1.025f, 1.055f, 1.095f, 1.145f, 1.16f, 1.17f, 1.175f, 1.17f, 1.16f, 1.125f, 1.075f, 1.015f, 0.945f, 0.885f, 0.755f, 0.63f, 0.735f, 0.845f, 0.945f, 1.015f, 1.075f, 1.125f, 1.16f, 1.19f, 0.9f, 1.19f, 1.185f, 1.145f, 1.115f, 1.075f, 1.05f, 1.03f, 1.015f, 1.015f, 1.015f, 1.03f, 1.05f, 1.075f, 1.115f, 1.145f, 1.17f, 1.19f, 1.175f, 1.165f, 1.14f, 1.1f, 1.05f, 0.99f, 0.925f, 0.825f, 0.715f)
+private val bunRadii = floatArrayOf(0.615f, 0.735f, 0.845f, 0.925f, 0.99f, 1.05f, 1.1f, 1.14f, 1.165f, 1.175f, 1.165f, 1.16f, 1.125f, 1.095f, 1.055f, 1.025f, 1.01f, 0.995f, 0.99f, 0.995f, 1.01f, 1.025f, 1.055f, 1.095f, 1.145f, 1.16f, 1.17f, 1.175f, 1.17f, 1.16f, 1.125f, 1.075f, 1.015f, 0.945f, 0.885f, 0.755f, 0.63f, 0.735f, 0.845f, 0.945f, 1.015f, 1.075f, 1.125f, 1.16f, 1.19f, 1.185f, 1.19f, 1.185f, 1.145f, 1.115f, 1.075f, 1.05f, 1.03f, 1.015f, 1.015f, 1.015f, 1.03f, 1.05f, 1.075f, 1.115f, 1.145f, 1.17f, 1.19f, 1.175f, 1.165f, 1.14f, 1.1f, 1.05f, 0.99f, 0.925f, 0.825f, 0.715f)
 
 private val clamShellRadii = floatArrayOf(0.975f, 0.975f, 0.945f, 0.905f, 0.905f, 0.895f, 0.89f, 0.895f, 0.89f, 0.865f, 0.85f, 0.82f, 0.775f, 0.74f, 0.715f, 0.695f, 0.685f, 0.675f, 0.67f, 0.675f, 0.685f, 0.695f, 0.715f, 0.74f, 0.775f, 0.82f, 0.85f, 0.895f, 0.905f, 0.92f, 0.905f, 0.92f, 0.91f, 0.925f, 0.965f, 0.995f, 0.99f, 0.995f, 0.965f, 0.945f, 0.93f, 0.92f, 0.915f, 0.92f, 0.92f, 0.895f, 0.875f, 0.845f, 0.8f, 0.765f, 0.735f, 0.715f, 0.705f, 0.695f, 0.695f, 0.695f, 0.705f, 0.715f, 0.735f, 0.765f, 0.8f, 0.845f, 0.875f, 0.895f, 0.905f, 0.895f, 0.89f, 0.895f, 0.905f, 0.925f, 0.945f, 0.975f)
-
-private val cookie12Radii = floatArrayOf(0.975f, 0.955f, 0.905f, 0.88f, 0.905f, 0.96f, 0.96f, 0.96f, 0.905f, 0.895f, 0.905f, 0.96f, 0.96f, 0.96f, 0.905f, 0.88f, 0.905f, 0.955f, 0.975f, 0.955f, 0.905f, 0.88f, 0.905f, 0.96f, 0.985f, 0.965f, 0.92f, 0.895f, 0.92f, 0.96f, 0.985f, 0.985f, 0.93f, 0.905f, 0.925f, 0.975f, 0.99f, 0.975f, 0.925f, 0.905f, 0.93f, 0.985f, 0.985f, 0.99f, 0.93f, 0.92f, 0.93f, 0.99f, 0.985f, 0.985f, 0.93f, 0.905f, 0.925f, 0.975f, 0.99f, 0.975f, 0.925f, 0.905f, 0.93f, 0.985f, 0.985f, 0.96f, 0.92f, 0.895f, 0.92f, 0.965f, 0.985f, 0.96f, 0.905f, 0.88f, 0.905f, 0.955f)
-
-private val cookie9Radii = floatArrayOf(0.935f, 0.895f, 0.885f, 0.905f, 0.93f, 0.96f, 0.96f, 0.96f, 0.95f, 0.895f, 0.89f, 0.895f, 0.94f, 0.96f, 0.97f, 0.965f, 0.945f, 0.915f, 0.895f, 0.915f, 0.945f, 0.965f, 0.99f, 0.975f, 0.94f, 0.92f, 0.905f, 0.92f, 0.95f, 0.965f, 0.985f, 0.985f, 0.95f, 0.925f, 0.905f, 0.915f, 0.95f, 0.975f, 0.985f, 0.97f, 0.95f, 0.92f, 0.89f, 0.92f, 0.955f, 0.98f, 0.98f, 0.965f, 0.94f, 0.895f, 0.885f, 0.905f, 0.945f, 0.975f, 0.975f, 0.955f, 0.925f, 0.89f, 0.885f, 0.895f, 0.94f, 0.96f, 0.955f, 0.95f, 0.93f, 0.895f, 0.87f, 0.895f, 0.93f, 0.965f, 0.965f, 0.955f)
-
-
-private val softCookieRadii = floatArrayOf(
-    0.99f, 0.995f, 0.98f, 0.965f, 0.95f, 0.94f, 0.94f, 0.925f, 0.93f, 0.92f, 0.95f, 0.96f, 0.985f, 0.985f, 0.99f, 0.985f, 0.985f, 0.975f, 0.95f, 0.955f, 0.945f, 0.945f, 0.93f, 0.94f, 0.945f, 0.965f, 0.98f, 0.98f, 1.01f, 0.995f, 1.005f, 0.985f, 0.99f, 0.965f, 0.965f, 0.955f, 0.95f, 0.955f, 0.965f, 0.965f, 0.99f, 1.005f, 1.005f, 1.015f, 1.015f, 1.005f, 0.985f, 0.99f, 0.96f, 0.96f, 0.95f, 0.965f, 0.965f, 0.975f, 0.975f, 0.995f, 1.01f, 1.005f, 1.015f, 1.005f, 0.985f, 0.965f, 0.955f, 0.95f, 0.95f, 0.94f, 0.94f, 0.94f, 0.965f, 0.97f, 0.985f, 0.995f
-)
-
-
-
-private val clover4Radii = floatArrayOf(
-    0.815f, 0.855f, 0.905f, 0.945f, 0.99f, 1.03f, 1.055f, 1.065f, 1.085f, 1.09f, 1.085f, 1.065f, 1.055f, 1.03f, 0.99f, 0.945f, 0.905f, 0.855f, 0.815f, 0.855f, 0.905f, 0.945f, 0.99f, 1.03f, 1.055f, 1.09f, 1.085f, 1.09f, 1.105f, 1.09f, 1.075f, 1.05f, 1.015f, 0.965f, 0.925f, 0.875f, 0.83f, 0.875f, 0.925f, 0.965f, 1.015f, 1.05f, 1.075f, 1.1f, 1.11f, 1.12f, 1.11f, 1.1f, 1.075f, 1.05f, 1.015f, 0.965f, 0.925f, 0.875f, 0.83f, 0.875f, 0.925f, 0.965f, 1.015f, 1.05f, 1.075f, 1.09f, 1.105f, 1.09f, 1.085f, 1.09f, 1.055f, 1.03f, 0.99f, 0.945f, 0.905f, 0.855f
-)
-
-private val cookie4Radii = floatArrayOf(
-    0.75f, 0.775f, 0.805f, 0.86f, 0.905f, 0.96f, 0.985f, 1.015f, 1.035f, 1.035f, 1.035f, 1.015f, 0.985f, 0.96f, 0.905f, 0.86f, 0.805f, 0.775f, 0.75f, 0.775f, 0.805f, 0.84f, 0.905f, 0.96f, 1.005f, 1.03f, 1.045f, 1.065f, 1.045f, 1.04f, 1.005f, 0.985f, 0.93f, 0.88f, 0.825f, 0.795f, 0.775f, 0.795f, 0.805f, 0.86f, 0.93f, 0.985f, 1.02f, 1.04f, 1.06f, 1.065f, 1.06f, 1.04f, 1.02f, 0.985f, 0.93f, 0.86f, 0.805f, 0.795f, 0.775f, 0.795f, 0.825f, 0.88f, 0.93f, 0.985f, 1.005f, 1.04f, 1.045f, 1.065f, 1.045f, 1.03f, 1.005f, 0.96f, 0.905f, 0.84f, 0.805f, 0.775f
-)
-
-private val cookie6Radii = floatArrayOf(
-    0.855f, 0.875f, 0.885f, 0.925f, 0.93f, 0.94f, 0.94f, 0.94f, 0.93f, 0.92f, 0.89f, 0.87f, 0.845f, 0.85f, 0.885f, 0.905f, 0.925f, 0.935f, 0.95f, 0.935f, 0.945f, 0.925f, 0.905f, 0.875f, 0.86f, 0.87f, 0.905f, 0.92f, 0.95f, 0.96f, 0.96f, 0.96f, 0.95f, 0.945f, 0.905f, 0.895f, 0.87f, 0.875f, 0.905f, 0.945f, 0.95f, 0.96f, 0.985f, 0.965f, 0.955f, 0.95f, 0.92f, 0.895f, 0.87f, 0.88f, 0.91f, 0.945f, 0.965f, 0.955f, 0.975f, 0.955f, 0.945f, 0.925f, 0.905f, 0.875f, 0.87f, 0.89f, 0.905f, 0.92f, 0.95f, 0.96f, 0.96f, 0.94f, 0.93f, 0.925f, 0.885f, 0.855f
-)
-
-private val arrowRadii = floatArrayOf(
-    0.775f, 0.835f, 0.885f, 0.945f, 1.015f, 1.05f, 1.075f, 1.09f, 1.085f, 1.065f, 1.035f, 0.965f, 0.89f, 0.83f, 0.78f, 0.76f, 0.725f, 0.695f, 0.695f, 0.715f, 0.725f, 0.76f, 0.8f, 0.85f, 0.915f, 0.965f, 1.01f, 1.035f, 1.045f, 1.04f, 1.02f, 0.985f, 0.95f, 0.88f, 0.805f, 0.755f, 0.71f, 0.675f, 0.665f, 0.635f, 0.63f, 0.61f, 0.615f, 0.615f, 0.615f, 0.64f, 0.64f, 0.675f, 0.7f, 0.72f, 0.76f, 0.8f, 0.825f, 0.855f, 0.87f, 0.875f, 0.865f, 0.84f, 0.8f, 0.785f, 0.745f, 0.725f, 0.705f, 0.695f, 0.67f, 0.675f, 0.665f, 0.675f, 0.675f, 0.695f, 0.725f, 0.755f
-)
 
 private fun sampleRadii(radii: FloatArray, angleRad: Float): Float {
     val tau = 2f * PI.toFloat()
@@ -96,31 +69,100 @@ private fun sampleRadii(radii: FloatArray, angleRad: Float): Float {
     return radii[idx0] * (1f - t) + radii[idx1] * t
 }
 
+/**
+ * Mathematically exact, bilateral symmetric Material 3 Expressive arrow / chevron shape.
+ * [pointingAngle] is the orientation of the apex (0 = right, PI/2 = down, PI = left, -PI/2 = up).
+ */
+fun sampleArrowRadius(theta: Float, pointingAngle: Float, reach: Float): Float {
+    val tau = 2f * PI.toFloat()
+    var diff = (theta - pointingAngle) % tau
+    if (diff < -PI.toFloat()) diff += tau
+    if (diff > PI.toFloat()) diff -= tau
+    val alpha = abs(diff) // 0 at apex, PI at inner notch
+    val wingAngle = 138f * PI.toFloat() / 180f
+    val r = if (alpha < wingAngle) {
+        val t = alpha / wingAngle
+        0.88f + 0.18f * (sin(t * PI.toFloat() / 2f)).pow(2.0f)
+    } else {
+        val t = (alpha - wingAngle) / (PI.toFloat() - wingAngle)
+        val s = 0.5f - 0.5f * cos(t * PI.toFloat())
+        1.06f - 0.50f * s
+    }
+    return reach * r
+}
+
 fun sampleShapeRadius(shape: String, theta: Float, reach: Float): Float {
     return when (shape) {
-        "softCookie" -> reach * sampleRadii(softCookieRadii, theta)
-        "cookie9" -> reach * sampleRadii(cookie9Radii, theta)
-        "clover4" -> reach * sampleRadii(clover4Radii, theta)
-        "cookie4" -> reach * sampleRadii(cookie4Radii, theta)
-        "cookie6" -> reach * sampleRadii(cookie6Radii, theta)
-        "arrowRight" -> reach * sampleRadii(arrowRadii, theta + (269.1f * PI.toFloat() / 180f))
-        "arrowLeft" -> reach * sampleRadii(arrowRadii, theta + (89.1f * PI.toFloat() / 180f))
-        "heart" -> reach * sampleRadii(heartRadii, theta)
-        "bun" -> reach * sampleRadii(bunRadii, theta)
-        "clamShell" -> reach * sampleRadii(clamShellRadii, theta)
-        "cookie12" -> reach * sampleRadii(cookie12Radii, theta)
+        "arrowDown" -> sampleArrowRadius(theta, pointingAngle = (PI.toFloat() / 2f), reach = reach)
+        "arrowUp" -> sampleArrowRadius(theta, pointingAngle = (-PI.toFloat() / 2f), reach = reach)
+        "arrowRight" -> sampleArrowRadius(theta, pointingAngle = 0f, reach = reach)
+        "arrowLeft", "arrow" -> sampleArrowRadius(theta, pointingAngle = PI.toFloat(), reach = reach)
+
+        // Material 3 Expressive soft cumulus cloud (puffy 6-lobed shape)
+        "cloud", "puffy" -> {
+            val lobe = (0.5f + 0.5f * cos(6f * theta)).pow(0.5f)
+            reach * (1.0f - 0.16f + 0.16f * lobe)
+        }
+        "softCookie" -> {
+            val lobe = (0.5f + 0.5f * cos(5f * theta)).pow(1.15f)
+            reach * (1.0f - 0.08f + 0.08f * lobe)
+        }
+        "cookie4" -> {
+            val lobe = (0.5f + 0.5f * cos(4f * theta)).pow(1.0f)
+            reach * (1.0f - 0.12f + 0.12f * lobe)
+        }
+        "cookie6" -> {
+            val lobe = (0.5f + 0.5f * cos(6f * theta)).pow(1.0f)
+            reach * (1.0f - 0.10f + 0.10f * lobe)
+        }
+        "cookie7" -> {
+            val lobe = (0.5f + 0.5f * cos(7f * theta)).pow(1.0f)
+            reach * (1.0f - 0.10f + 0.10f * lobe)
+        }
+        "cookie9" -> {
+            val lobe = (0.5f + 0.5f * cos(9f * theta)).pow(1.0f)
+            reach * (1.0f - 0.09f + 0.09f * lobe)
+        }
+        "cookie12" -> {
+            val lobe = (0.5f + 0.5f * cos(12f * theta)).pow(1.0f)
+            reach * (1.0f - 0.07f + 0.07f * lobe)
+        }
+        "clover4" -> {
+            val lobe = (0.5f + 0.5f * cos(4f * theta)).pow(0.55f)
+            reach * (1.0f - 0.38f + 0.38f * lobe)
+        }
+        "clover8" -> {
+            val lobe = (0.5f + 0.5f * cos(8f * theta)).pow(0.60f)
+            reach * (1.0f - 0.28f + 0.28f * lobe)
+        }
         "sunny" -> {
             val lobe = (0.5f + 0.5f * cos(8f * theta)).pow(2.2f)
             reach * (1f - 0.14f + 0.14f * lobe)
+        }
+        "verySunny" -> {
+            val lobe = (0.5f + 0.5f * cos(8f * theta)).pow(2.6f)
+            reach * (1f - 0.26f + 0.26f * lobe)
         }
         "softBurst" -> {
             val lobe = (0.5f + 0.5f * cos(10f * theta)).pow(1.5f)
             reach * (1f - 0.16f + 0.16f * lobe)
         }
+        "burst" -> {
+            val lobe = (0.5f + 0.5f * cos(12f * theta)).pow(2.8f)
+            reach * (1f - 0.24f + 0.24f * lobe)
+        }
         "flower" -> {
             val lobe = (0.5f + 0.5f * cos(8f * theta)).pow(0.45f)
             reach * (1f - 0.32f + 0.32f * lobe)
         }
+        "squircle" -> {
+            val c = abs(cos(theta)).pow(4f)
+            val s = abs(sin(theta)).pow(4f)
+            reach / (c + s).pow(0.25f)
+        }
+        "heart" -> reach * sampleRadii(heartRadii, theta)
+        "bun" -> reach * sampleRadii(bunRadii, theta)
+        "clamShell" -> reach * sampleRadii(clamShellRadii, theta)
         "ghostish" -> {
             val lobe = (0.5f + 0.5f * cos(3f * (theta - PI.toFloat() / 2f))).pow(0.7f)
             val rScale = if (sin(theta) < 0f) 0.95f else (0.78f + 0.22f * lobe)
@@ -910,8 +952,6 @@ fun StyledBackButton(
         modifier = modifier
             .size(38.dp)
             .scale(scale)
-            .clip(androidx.compose.foundation.shape.RoundedCornerShape(14.dp))
-            .background(MaterialTheme.colorScheme.surfaceContainerHigh)
             .clickable(
                 interactionSource = interactionSource,
                 indication = null,
@@ -920,6 +960,11 @@ fun StyledBackButton(
             ),
         contentAlignment = Alignment.Center
     ) {
+        MaterialExpressiveShape(
+            shape = "arrowLeft",
+            color = MaterialTheme.colorScheme.surfaceContainerHigh,
+            modifier = Modifier.fillMaxSize()
+        )
         Icon(
             imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
             contentDescription = "Back",

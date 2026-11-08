@@ -207,13 +207,31 @@ fun ExpandedPlayer(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                IconButton(
-                    onClick = onCollapse,
+                // Collapse button: Arrow Down with arrowDown Material Expressive shape backing & spring scale
+                val collapseInteraction = remember { MutableInteractionSource() }
+                val isCollapsePressed by collapseInteraction.collectIsPressedAsState()
+                val collapseScale by animateFloatAsState(
+                    targetValue = if (isCollapsePressed) 0.85f else 1.0f,
+                    animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessMedium),
+                    label = "collapseScale"
+                )
+                Box(
                     modifier = Modifier
                         .size(42.dp)
-                        .clip(CircleShape)
-                        .background(Color(0x2BFFFFFF))
+                        .scale(collapseScale)
+                        .clickable(
+                            interactionSource = collapseInteraction,
+                            indication = null,
+                            role = Role.Button,
+                            onClick = onCollapse
+                        ),
+                    contentAlignment = Alignment.Center
                 ) {
+                    MaterialExpressiveShape(
+                        shape = "arrowDown",
+                        color = Color(0x2BFFFFFF),
+                        modifier = Modifier.fillMaxSize()
+                    )
                     Icon(
                         imageVector = Icons.Rounded.KeyboardArrowDown,
                         contentDescription = "Collapse",
@@ -267,13 +285,30 @@ fun ExpandedPlayer(
                 }
 
                 Box {
-                    IconButton(
-                        onClick = { showOptionsMenu = true },
+                    val optionsInteraction = remember { MutableInteractionSource() }
+                    val isOptionsPressed by optionsInteraction.collectIsPressedAsState()
+                    val optionsScale by animateFloatAsState(
+                        targetValue = if (isOptionsPressed) 0.85f else 1.0f,
+                        animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessMedium),
+                        label = "optionsScale"
+                    )
+                    Box(
                         modifier = Modifier
                             .size(42.dp)
-                            .clip(CircleShape)
-                            .background(Color(0x2BFFFFFF))
+                            .scale(optionsScale)
+                            .clickable(
+                                interactionSource = optionsInteraction,
+                                indication = null,
+                                role = Role.Button,
+                                onClick = { showOptionsMenu = true }
+                            ),
+                        contentAlignment = Alignment.Center
                     ) {
+                        MaterialExpressiveShape(
+                            shape = "cloud",
+                            color = Color(0x2BFFFFFF),
+                            modifier = Modifier.fillMaxSize()
+                        )
                         Icon(
                             imageVector = Icons.Rounded.MoreVert,
                             contentDescription = "Options",
