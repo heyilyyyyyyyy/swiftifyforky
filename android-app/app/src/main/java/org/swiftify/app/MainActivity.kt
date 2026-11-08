@@ -2,10 +2,8 @@ package org.swiftify.app
 
 import org.swiftify.app.design.*
 import android.content.Context
-import android.content.Intent
 import android.content.SharedPreferences
 import android.content.pm.PackageManager
-import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.util.Log
@@ -15,99 +13,22 @@ import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.lifecycle.lifecycleScope
-import androidx.browser.customtabs.CustomTabsIntent
-import androidx.compose.animation.*
-import androidx.compose.animation.core.*
-import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.lazy.itemsIndexed
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.scale
-import androidx.compose.ui.draw.shadow
-import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.*
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Rect
-import androidx.compose.ui.unit.IntOffset
-import kotlin.math.roundToInt
-import androidx.compose.ui.layout.positionInRoot
-import androidx.compose.ui.layout.onGloballyPositioned
-import androidx.compose.ui.layout.LayoutCoordinates
-import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Path
-import androidx.compose.ui.graphics.RectangleShape
-import androidx.compose.ui.graphics.StrokeCap
-import androidx.compose.ui.graphics.StrokeJoin
-import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.Dp
-import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
-import coil.compose.AsyncImage
 import kotlinx.coroutines.*
-import org.json.JSONObject
-import java.io.BufferedReader
 import java.io.File
-import java.io.InputStreamReader
-import java.net.HttpURLConnection
-import java.net.InetAddress
-import java.net.ServerSocket
-import java.net.URL
-import java.security.MessageDigest
-import java.security.SecureRandom
-import java.util.Base64
-import java.util.Calendar
 import java.util.UUID
-import kotlin.math.PI
-import kotlin.math.sin
 
-// ─── PKCE helpers ─────────────────────────────────────────────────────────────
+// ─── Preferences ──────────────────────────────────────────────────────────────
 
-private fun generateCodeVerifier(): String {
-    val bytes = ByteArray(64)
-    SecureRandom().nextBytes(bytes)
-    return Base64.getUrlEncoder().withoutPadding().encodeToString(bytes)
-}
-
-private fun generateCodeChallenge(verifier: String): String {
-    val digest = MessageDigest.getInstance("SHA-256").digest(verifier.toByteArray(Charsets.US_ASCII))
-    return Base64.getUrlEncoder().withoutPadding().encodeToString(digest)
-}
-
-// ─── Spotify OAuth constants matching Swiftify desktop ─────────────────────────
-
-private const val CLIENT_ID = "65b708073fc0480ea92a077233ca87bd"
-private const val REDIRECT_PORT = 8898
-private const val REDIRECT_URI = "http://127.0.0.1:8898/login"
-private const val SCOPES = "streaming user-read-playback-state user-read-recently-played user-library-read user-library-modify playlist-read-private playlist-read-collaborative playlist-modify-private playlist-modify-public user-follow-read user-read-private"
 private const val PREFS_NAME = "swiftify_prefs"
 private const val KEY_LOGIN_BLOB = "login_blob"
 private const val KEY_ACCESS_TOKEN = "access_token"
 private const val KEY_REFRESH_TOKEN = "refresh_token"
 private const val KEY_TOKEN_EXPIRES_AT = "token_expires_at"
-private const val KEY_CACHED_PLAYLISTS = "cached_playlists_json"
 
 private data class PollResult(val pos: Long, val dur: Long, val trackJson: String?, val trackEnded: Boolean)
 
@@ -116,9 +37,7 @@ private data class PollResult(val pos: Long, val dur: Long, val trackJson: Strin
 class MainActivity : ComponentActivity() {
 
     private lateinit var prefs: SharedPreferences
-    private var codeVerifier: String = ""
-    private var oauthStateParam: String = ""
-    private var authServer: ServerSocket? = null
+    private lateinit var library: LibraryRepository
 
     // Compose states
     private val authState = mutableStateOf<AuthState>(AuthState.Loading)
@@ -149,6 +68,18 @@ class MainActivity : ComponentActivity() {
 
     private var playbackTickerJob: Job? = null
     private val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
+
+    private val auth by lazy {
+        SpotifyAuth(
+            context = this,
+            scope = scope,
+            currentAuthState = { authState.value },
+            onAuthState = { authState.value = it },
+            onStatus = { statusMsg.value = it },
+            onToken = { accessTokenState.value = it }
+        )
+    }
+    private val notifier by lazy { PlaybackNotifier(this) }
 
     private fun setSleepTimer(minutes: Int) {
         sleepTimerJob?.cancel()
@@ -198,6 +129,7 @@ class MainActivity : ComponentActivity() {
         )
         super.onCreate(savedInstanceState)
         prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        library = LibraryRepository(this, prefs, scope, tracksState, userPlaylistsState)
 
         // Request runtime notification permission on Android 13+
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
@@ -208,7 +140,7 @@ class MainActivity : ComponentActivity() {
 
         // Instant playlists from disk cache
         prefs.getString(KEY_CACHED_PLAYLISTS, null)?.let {
-            parseAndApplyPlaylists(it)
+            library.parseAndApplyPlaylists(it)
         }
 
         val devName = getDeviceName()
@@ -316,10 +248,10 @@ class MainActivity : ComponentActivity() {
                         onRemoveFromCustomQueue = { idx -> removeFromCustomQueue(idx) },
                         onClearCustomQueue = { clearCustomQueue() },
                         queueContextName = queueContextName.value,
-                        onCreatePlaylist = { n, d -> createPlaylist(n, d) },
-                        onDeletePlaylist = { p -> deletePlaylist(p) },
-                        onAddTrackToPlaylist = { p, t -> addTrackToPlaylist(p, t) },
-                        onRemoveTrackFromPlaylist = { p, t -> removeTrackFromPlaylist(p, t) },
+                        onCreatePlaylist = { n, d -> library.createPlaylist(n, d) },
+                        onDeletePlaylist = { p -> library.deletePlaylist(p) },
+                        onAddTrackToPlaylist = { p, t -> library.addTrackToPlaylist(p, t) },
+                        onRemoveTrackFromPlaylist = { p, t -> library.removeTrackFromPlaylist(p, t) },
                         sleepTimerMinutes = sleepTimerMinutes.intValue,
                         sleepTimerRemainingSeconds = sleepTimerRemainingSeconds.intValue,
                         onSetSleepTimer = { mins -> setSleepTimer(mins) },
@@ -336,7 +268,7 @@ class MainActivity : ComponentActivity() {
         SpotifyApi.onTokenUpdated = { token ->
             accessTokenState.value = token
         }
-        refreshAccessToken()
+        auth.refreshAccessToken()
 
         // Restore playback queue state if recreating after process death or configuration change
         if (playlistQueue.isEmpty()) {
@@ -364,163 +296,8 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    fun refreshAccessToken(force: Boolean = false, onComplete: ((String?) -> Unit)? = null) {
-        scope.launch {
-            val token = SpotifyApi.getValidToken(this@MainActivity, forceRefresh = force)
-            withContext(Dispatchers.Main) {
-                if (token != null) {
-                    accessTokenState.value = token
-                }
-                onComplete?.invoke(token)
-            }
-        }
-    }
-
     private fun startSpotifyLogin() {
-        try {
-            codeVerifier = generateCodeVerifier()
-            val challenge = generateCodeChallenge(codeVerifier)
-            oauthStateParam = java.util.UUID.randomUUID().toString()
-
-            // Start loopback HTTP server on 127.0.0.1:8898
-            startLocalRedirectServer()
-
-            val url = Uri.Builder()
-                .scheme("https")
-                .authority("accounts.spotify.com")
-                .path("/authorize")
-                .appendQueryParameter("client_id", CLIENT_ID)
-                .appendQueryParameter("response_type", "code")
-                .appendQueryParameter("redirect_uri", REDIRECT_URI)
-                .appendQueryParameter("scope", SCOPES)
-                .appendQueryParameter("state", oauthStateParam)
-                .appendQueryParameter("code_challenge_method", "S256")
-                .appendQueryParameter("code_challenge", challenge)
-                .build()
-
-            authState.value = AuthState.Connecting
-            statusMsg.value = "Waiting for authorization in browser..."
-            CustomTabsIntent.Builder().build().launchUrl(this, url)
-        } catch (e: Exception) {
-            Log.e("Auth", "Failed to start login", e)
-            statusMsg.value = "Login init failed: ${e.message}"
-        }
-    }
-
-    private fun startLocalRedirectServer() {
-        try {
-            authServer?.close()
-        } catch (_: Exception) {}
-
-        scope.launch(Dispatchers.IO) {
-            try {
-                val server = ServerSocket(REDIRECT_PORT, 1, InetAddress.getByName("127.0.0.1"))
-                server.soTimeout = 120_000 // 2 min timeout
-                authServer = server
-                Log.d("AuthServer", "Listening on http://127.0.0.1:$REDIRECT_PORT/login")
-
-                val socket = server.accept()
-                val reader = BufferedReader(InputStreamReader(socket.getInputStream()))
-                val requestLine = reader.readLine() ?: ""
-                Log.d("AuthServer", "Request: $requestLine")
-
-                // Parse: GET /login?code=... HTTP/1.1
-                val urlPart = requestLine.split(" ").getOrNull(1) ?: ""
-                val uri = Uri.parse("http://127.0.0.1$urlPart")
-                val code = uri.getQueryParameter("code")
-                val error = uri.getQueryParameter("error")
-                val returnedState = uri.getQueryParameter("state")
-                val isStateValid = returnedState != null && returnedState == oauthStateParam
-
-                val responseHtml = if (isStateValid && code != null) {
-                    """
-                    <!doctype html><html><head><meta charset="utf-8">
-                    <title>Swiftify</title>
-                    <style>body{font-family:sans-serif;background:#161413;color:#fff;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;text-align:center;}h2{color:#F2A385;}</style>
-                    </head><body><div><h2>✓ Signed In to Swiftify!</h2><p>You can return to the Swiftify app now.</p></div></body></html>
-                    """.trimIndent()
-                } else {
-                    """
-                    <!doctype html><html><head><meta charset="utf-8">
-                    <title>Swiftify</title>
-                    <style>body{font-family:sans-serif;background:#161413;color:#fff;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;text-align:center;}h2{color:#FF6B6B;}</style>
-                    </head><body><div><h2>✕ Authentication Failed</h2><p>${if (!isStateValid) "Invalid security state (CSRF verification failed)" else (error ?: "Cancelled")}</p></div></body></html>
-                    """.trimIndent()
-                }
-
-                val responseBytes = responseHtml.toByteArray(Charsets.UTF_8)
-                val out = socket.getOutputStream()
-                out.write("HTTP/1.1 200 OK\r\n".toByteArray())
-                out.write("Content-Type: text/html; charset=utf-8\r\n".toByteArray())
-                out.write("Content-Length: ${responseBytes.size}\r\n".toByteArray())
-                out.write("Connection: close\r\n\r\n".toByteArray())
-                out.write(responseBytes)
-                out.flush()
-                socket.close()
-                server.close()
-
-                withContext(Dispatchers.Main) {
-                    if (!isStateValid) {
-                        Log.e("AuthServer", "Auth failed: state mismatch (expected $oauthStateParam, got $returnedState)")
-                        authState.value = AuthState.LoggedOut
-                        statusMsg.value = "Security error: invalid OAuth state parameter"
-                        Toast.makeText(this@MainActivity, "Authentication rejected: invalid state", Toast.LENGTH_LONG).show()
-                    } else if (code != null) {
-                        Log.d("AuthServer", "Captured authorization code with validated CSRF state ✓")
-                        statusMsg.value = "Exchanging code for token..."
-                        scope.launch { exchangeCodeForToken(code) }
-                    } else {
-                        Log.e("AuthServer", "Auth failed or cancelled: $error")
-                        authState.value = AuthState.LoggedOut
-                        statusMsg.value = "Auth cancelled: $error"
-                    }
-                }
-            } catch (e: Exception) {
-                Log.e("AuthServer", "Server exception", e)
-                withContext(Dispatchers.Main) {
-                    if (authState.value == AuthState.Connecting) {
-                        authState.value = AuthState.LoggedOut
-                        statusMsg.value = "Auth timeout or cancelled"
-                    }
-                }
-            }
-        }
-    }
-
-    private suspend fun exchangeCodeForToken(code: String) {
-        try {
-            val token = withContext(Dispatchers.IO) {
-                val conn = URL("https://accounts.spotify.com/api/token")
-                    .openConnection() as HttpURLConnection
-                conn.requestMethod = "POST"
-                conn.setRequestProperty("Content-Type", "application/x-www-form-urlencoded")
-                conn.connectTimeout = 10000
-                conn.readTimeout = 10000
-                conn.doOutput = true
-                val body = "grant_type=authorization_code" +
-                        "&code=${Uri.encode(code)}" +
-                        "&redirect_uri=${Uri.encode(REDIRECT_URI)}" +
-                        "&client_id=$CLIENT_ID" +
-                        "&code_verifier=${Uri.encode(codeVerifier)}"
-                conn.outputStream.write(body.toByteArray())
-                val response = conn.inputStream.bufferedReader().readText()
-                conn.disconnect()
-                val json = JSONObject(response)
-                val token = json.getString("access_token")
-                val refreshToken = json.optString("refresh_token")
-                val expiresIn = json.optLong("expires_in", 3600L)
-                SecureStorage.saveTokens(this@MainActivity, token, refreshToken, expiresIn)
-                accessTokenState.value = token
-                token
-            }
-            Log.d("Auth", "Access token acquired (${token.length} chars)")
-            statusMsg.value = "Connecting audio core..."
-            SpotifyBridge.connect(token)
-        } catch (e: Exception) {
-            Log.e("Auth", "Token exchange failed", e)
-            authState.value = AuthState.LoggedOut
-            statusMsg.value = "Token exchange failed: ${e.message}"
-        }
+        auth.startLogin(this)
     }
 
     private fun setupBridgeCallbacks() {
@@ -533,8 +310,8 @@ class MainActivity : ComponentActivity() {
             SpotifyBridge.setSpotifyConnect(connectEnabled.value, getSpotifyDeviceId())
             startPlaybackTicker()
             scope.launch {
-                loadRecentlyPlayed()
-                loadUserPlaylists()
+                library.loadRecentlyPlayed()
+                library.loadUserPlaylists()
             }
         }
         SpotifyBridge.onConnectError = { error ->
@@ -610,129 +387,6 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    private suspend fun loadRecentlyPlayed() {
-        try {
-            val token = SpotifyApi.getValidToken(this@MainActivity) ?: return
-            val tracks = withContext(Dispatchers.IO) {
-                val conn = URL("https://api.spotify.com/v1/me/player/recently-played?limit=20")
-                    .openConnection() as HttpURLConnection
-                conn.connectTimeout = 8000
-                conn.readTimeout = 8000
-                conn.setRequestProperty("Authorization", "Bearer $token")
-                val code = conn.responseCode
-                if (code == 401) {
-                    conn.disconnect()
-                    val refreshedToken = SpotifyApi.getValidToken(this@MainActivity, forceRefresh = true)
-                    if (refreshedToken == null) return@withContext emptyList<TrackItem>()
-                    val retryConn = URL("https://api.spotify.com/v1/me/player/recently-played?limit=20")
-                        .openConnection() as HttpURLConnection
-                    retryConn.connectTimeout = 8000
-                    retryConn.readTimeout = 8000
-                    retryConn.setRequestProperty("Authorization", "Bearer $refreshedToken")
-                    if (retryConn.responseCode !in 200..299) {
-                        retryConn.disconnect()
-                        return@withContext emptyList<TrackItem>()
-                    }
-                    val retryJson = JSONObject(retryConn.inputStream.bufferedReader().readText())
-                    retryConn.disconnect()
-                    val retryItems = retryJson.optJSONArray("items") ?: return@withContext emptyList<TrackItem>()
-                    return@withContext parseRecentlyPlayedItems(retryItems)
-                }
-                if (code !in 200..299) {
-                    conn.disconnect()
-                    return@withContext emptyList<TrackItem>()
-                }
-                val json = JSONObject(conn.inputStream.bufferedReader().readText())
-                conn.disconnect()
-                val items = json.optJSONArray("items") ?: return@withContext emptyList<TrackItem>()
-                parseRecentlyPlayedItems(items)
-            }
-            if (tracks.isNotEmpty()) {
-                tracksState.clear()
-                tracksState.addAll(tracks)
-                Log.d("API", "Loaded ${tracks.size} recently played tracks from Spotify ✓")
-            }
-        } catch (e: Exception) {
-            Log.e("API", "Failed to load recently played", e)
-        }
-    }
-
-    private fun parseRecentlyPlayedItems(items: org.json.JSONArray): List<TrackItem> {
-        return (0 until items.length()).mapNotNull { i ->
-            val item = items.optJSONObject(i) ?: return@mapNotNull null
-            val track = item.optJSONObject("track") ?: return@mapNotNull null
-            val artistsArr = track.optJSONArray("artists")
-            val artists = if (artistsArr != null) {
-                (0 until artistsArr.length()).joinToString(", ") { j ->
-                    artistsArr.optJSONObject(j)?.optString("name") ?: ""
-                }
-            } else ""
-            val alb = track.optJSONObject("album")
-            val images = alb?.optJSONArray("images")
-            val artUrl = getBestArtworkUrl(images)
-            val albumUri = alb?.optString("uri") ?: ""
-            val artistUri = artistsArr?.optJSONObject(0)?.optString("uri") ?: ""
-            TrackItem(
-                title = track.optString("name"),
-                artist = artists,
-                album = alb?.optString("name") ?: "",
-                artworkUrl = artUrl,
-                durationMs = track.optLong("duration_ms"),
-                uri = track.optString("uri"),
-                albumUri = albumUri,
-                artistUri = artistUri
-            )
-        }
-    }
-
-
-
-    private fun loadUserPlaylists() {
-        // Load immediately from offline disk cache if available (0 ms delay)
-        val cached = prefs.getString(KEY_CACHED_PLAYLISTS, null)
-        if (cached != null && userPlaylistsState.isEmpty()) {
-            parseAndApplyPlaylists(cached)
-        }
-
-        // Fetch fresh list in background (Stale-While-Revalidate)
-        SpotifyBridge.fetchUserPlaylists { ok, payload ->
-            if (ok && payload.isNotEmpty()) {
-                if (parseAndApplyPlaylists(payload)) {
-                    prefs.edit().putString(KEY_CACHED_PLAYLISTS, payload).apply()
-                }
-            }
-        }
-    }
-
-    private fun parseAndApplyPlaylists(jsonStr: String): Boolean {
-        try {
-            val obj = JSONObject(jsonStr)
-            val arr = obj.optJSONArray("playlists")
-            if (arr != null && arr.length() > 0) {
-                val parsed = mutableListOf<PlaylistItem>()
-                for (i in 0 until arr.length()) {
-                    val p = arr.getJSONObject(i)
-                    val uri = p.optString("uri")
-                    val name = p.optString("name")
-                    val owner = p.optString("owner", "Spotify")
-                    val artwork = p.optString("artwork_url")
-                    if (uri.isNotEmpty() && name.isNotEmpty()) {
-                        parsed.add(PlaylistItem(name, owner, artwork, uri))
-                    }
-                }
-                if (parsed.isNotEmpty()) {
-                    userPlaylistsState.clear()
-                    userPlaylistsState.addAll(parsed)
-                    Log.d("Playlists", "Loaded ${parsed.size} user playlists")
-                    return true
-                }
-            }
-        } catch (e: Exception) {
-            Log.e("Playlists", "Failed to parse playlists", e)
-        }
-        return false
-    }
-
     private fun syncVisibleQueue() {
         val list = mutableListOf<TrackItem>()
         val curr = livePlayingTrack.value ?: tracksState.getOrNull(0)
@@ -793,9 +447,6 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    private var lastNotifTrackUri: String? = null
-    private var lastNotifPlaying: Boolean? = null
-    private var lastNotifSyncTimeMs: Long = 0L
     private var lastCrossfadeTriggeredUri: String? = null
 
     private fun playTrackInternal(item: TrackItem) {
@@ -814,30 +465,13 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun syncPlaybackServiceNotification(pos: Long = progressMs.longValue, dur: Long = 0L, force: Boolean = false) {
-        val active = livePlayingTrack.value ?: tracksState.getOrNull(0) ?: return
-        val totalDur = if (dur > 0) dur else active.durationMs
-        val now = System.currentTimeMillis()
-        val trackChanged = active.uri != lastNotifTrackUri
-        val stateChanged = isPlaying.value != lastNotifPlaying
-
-        if (force || trackChanged || stateChanged) {
-            lastNotifTrackUri = active.uri
-            lastNotifPlaying = isPlaying.value
-            lastNotifSyncTimeMs = now
-            PlaybackService.updateNotification(
-                this,
-                active.title,
-                active.artist,
-                active.album,
-                active.artworkUrl,
-                isPlaying.value,
-                pos,
-                totalDur
-            )
-        } else if (now - lastNotifSyncTimeMs >= 3000L) {
-            lastNotifSyncTimeMs = now
-            PlaybackService.updatePosition(this, pos, isPlaying.value)
-        }
+        notifier.sync(
+            track = livePlayingTrack.value ?: tracksState.getOrNull(0),
+            isPlaying = isPlaying.value,
+            pos = pos,
+            dur = dur,
+            force = force
+        )
     }
 
     private fun advanceUpcomingState(upcoming: TrackItem) {
@@ -881,52 +515,6 @@ class MainActivity : ComponentActivity() {
         syncVisibleQueue()
         preloadUpcomingTrack()
         Log.d("Queue", "Cleared custom queue")
-    }
-
-    private fun createPlaylist(name: String, description: String) {
-        scope.launch {
-            val newPl = SpotifyApi.createPlaylist(this@MainActivity, name, description)
-            if (newPl != null) {
-                userPlaylistsState.add(0, newPl)
-                Toast.makeText(this@MainActivity, "Created playlist '${newPl.name}'", Toast.LENGTH_SHORT).show()
-            } else {
-                Toast.makeText(this@MainActivity, "Failed to create playlist", Toast.LENGTH_SHORT).show()
-            }
-        }
-    }
-
-    private fun deletePlaylist(playlist: PlaylistItem) {
-        scope.launch {
-            val ok = SpotifyApi.deletePlaylist(this@MainActivity, playlist.uri)
-            if (ok) {
-                userPlaylistsState.removeAll { it.uri == playlist.uri }
-                Toast.makeText(this@MainActivity, "Deleted playlist '${playlist.name}'", Toast.LENGTH_SHORT).show()
-            } else {
-                Toast.makeText(this@MainActivity, "Failed to delete playlist", Toast.LENGTH_SHORT).show()
-            }
-        }
-    }
-
-    private fun addTrackToPlaylist(playlist: PlaylistItem, track: TrackItem) {
-        scope.launch {
-            val ok = SpotifyApi.addTrackToPlaylist(this@MainActivity, playlist.uri, track.uri)
-            if (ok) {
-                Toast.makeText(this@MainActivity, "Added '${track.title}' to ${playlist.name}", Toast.LENGTH_SHORT).show()
-            } else {
-                Toast.makeText(this@MainActivity, "Failed to add track to playlist", Toast.LENGTH_SHORT).show()
-            }
-        }
-    }
-
-    private fun removeTrackFromPlaylist(playlist: PlaylistItem, track: TrackItem) {
-        scope.launch {
-            val ok = SpotifyApi.removeTrackFromPlaylist(this@MainActivity, playlist.uri, track.uri)
-            if (ok) {
-                Toast.makeText(this@MainActivity, "Removed '${track.title}' from ${playlist.name}", Toast.LENGTH_SHORT).show()
-            } else {
-                Toast.makeText(this@MainActivity, "Failed to remove track from playlist", Toast.LENGTH_SHORT).show()
-            }
-        }
     }
 
     private fun playTrackItem(item: TrackItem, queueContext: List<TrackItem>? = null, contextName: String? = null, stopAtEnd: Boolean = stopAtEndOfQueue.value) {
@@ -1192,7 +780,7 @@ class MainActivity : ComponentActivity() {
         PlaybackQueueManager.shared.saveState(this)
         super.onDestroy()
         PlaybackService.listener = null
-        authServer?.close()
+        auth.close()
         playbackTickerJob?.cancel()
         scope.cancel()
     }
