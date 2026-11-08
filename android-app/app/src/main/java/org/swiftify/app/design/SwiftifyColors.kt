@@ -28,6 +28,14 @@ enum class SwiftifyThemeMode(
         surfaceColor = Color(0xFF19191B),
         backgroundColor = Color(0xFF0C0C0D)
     ),
+    HEYILY(
+        id = "heyily",
+        displayName = "heyily<3 style",
+        subtitle = "PC Matugen Colors",
+        primaryColor = Color(0xFFDFBFBA),
+        surfaceColor = Color(0xFF161312),
+        backgroundColor = Color(0xFF161312)
+    ),
     CATPPUCCIN(
         id = "catppuccin",
         displayName = "Catppuccin Mocha",
@@ -275,10 +283,48 @@ object SwiftifyColors {
         surfaceContainerHighest = Color(0xFF1E1E1E)
     )
 
+    // 9. heyily<3 style (PC Matugen Desktop Theme - 1:1 Parity)
+    val HeyilyColorScheme = darkColorScheme(
+        primary = Color(0xFFDFBFBA),
+        onPrimary = Color(0xFF402B28),
+        primaryContainer = Color(0xFF58413E),
+        onPrimaryContainer = Color(0xFFFDDBD5),
+        inversePrimary = Color(0xFF715954),
+        secondary = Color(0xFFD8C2BE),
+        onSecondary = Color(0xFF3B2D2B),
+        secondaryContainer = Color(0xFF534341),
+        onSecondaryContainer = Color(0xFFF5DDDA),
+        tertiary = Color(0xFFE7BDB6),
+        onTertiary = Color(0xFF442925),
+        tertiaryContainer = Color(0xFF5D3F3A),
+        onTertiaryContainer = Color(0xFFFFDAD4),
+        background = Color(0xFF161312),
+        onBackground = Color(0xFFE9E1DF),
+        surface = Color(0xFF161312),
+        onSurface = Color(0xFFE9E1DF),
+        surfaceVariant = Color(0xFF4A4645),
+        onSurfaceVariant = Color(0xFFCCC5C3),
+        surfaceTint = Color(0xFFDFBFBA),
+        inverseSurface = Color(0xFFE9E1DF),
+        inverseOnSurface = Color(0xFF332F2F),
+        outline = Color(0xFF968F8E),
+        outlineVariant = Color(0xFF4A4645),
+        error = Color(0xFFFFB4AB),
+        onError = Color(0xFF690005),
+        errorContainer = Color(0xFF93000A),
+        onErrorContainer = Color(0xFFFFDAD6),
+        surfaceContainerLowest = Color(0xFF100D0D),
+        surfaceContainerLow = Color(0xFF1E1B1A),
+        surfaceContainer = Color(0xFF221F1E),
+        surfaceContainerHigh = Color(0xFF2D2928),
+        surfaceContainerHighest = Color(0xFF383433)
+    )
+
     fun colorSchemeFor(themeMode: SwiftifyThemeMode): ColorScheme {
         return when (themeMode) {
             SwiftifyThemeMode.SPOTIFY -> SpotifyColorScheme
             SwiftifyThemeMode.SWIFTIFY -> SwiftifyPinkColorScheme
+            SwiftifyThemeMode.HEYILY -> HeyilyColorScheme
             SwiftifyThemeMode.CATPPUCCIN -> CatppuccinColorScheme
             SwiftifyThemeMode.ROSE_PINE -> RosePineColorScheme
             SwiftifyThemeMode.GRUVBOX -> GruvboxColorScheme

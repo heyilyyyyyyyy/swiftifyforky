@@ -42,7 +42,7 @@ class MainActivity : ComponentActivity() {
     // Compose states
     private val authState = mutableStateOf<AuthState>(AuthState.Loading)
     private val accessTokenState = mutableStateOf<String?>(null)
-    private val currentThemeMode = mutableStateOf(SwiftifyThemeMode.SPOTIFY)
+    private val currentThemeMode = mutableStateOf(SwiftifyThemeMode.HEYILY)
     private val tracksState = mutableStateListOf<TrackItem>()
     private val recentlyPlayedState = mutableStateListOf<TrackItem>()
     private val playlistQueue = mutableListOf<TrackItem>()
@@ -145,7 +145,13 @@ class MainActivity : ComponentActivity() {
             library.parseAndApplyPlaylists(it)
         }
         library.loadCachedRecentlyPlayed()
-        currentThemeMode.value = SwiftifyThemeMode.fromId(prefs.getString("app_theme", null))
+        val savedTheme = prefs.getString("app_theme", null)
+        if (savedTheme == null || !prefs.contains("custom_heyily_applied")) {
+            prefs.edit().putString("app_theme", "heyily").putBoolean("custom_heyily_applied", true).apply()
+            currentThemeMode.value = SwiftifyThemeMode.HEYILY
+        } else {
+            currentThemeMode.value = SwiftifyThemeMode.fromId(savedTheme)
+        }
 
         val devName = getDeviceName()
         SpotifyBridge.init(devName)
