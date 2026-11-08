@@ -232,11 +232,11 @@ fun ExpandedPlayer(
                         color = Color(0x2BFFFFFF),
                         modifier = Modifier.fillMaxSize()
                     )
-                    Icon(
-                        imageVector = Icons.Rounded.KeyboardArrowDown,
+                    MaterialSymbol(
+                        symbol = MaterialSymbols.KeyboardArrowDown,
                         contentDescription = "Collapse",
                         tint = Color.White,
-                        modifier = Modifier.size(28.dp)
+                        size = 24.dp
                     )
                 }
 
@@ -309,11 +309,11 @@ fun ExpandedPlayer(
                             color = Color(0x2BFFFFFF),
                             modifier = Modifier.fillMaxSize()
                         )
-                        Icon(
-                            imageVector = Icons.Rounded.MoreVert,
+                        MaterialSymbol(
+                            symbol = MaterialSymbols.MoreVert,
                             contentDescription = "Options",
                             tint = Color.White,
-                            modifier = Modifier.size(22.dp)
+                            size = 22.dp
                         )
                     }
 
@@ -1025,11 +1025,11 @@ fun ExpandedPlayer(
                             }
                     )
                 }
-                Icon(
-                    imageVector = Icons.Rounded.Shuffle,
+                MaterialSymbol(
+                    symbol = MaterialSymbols.Shuffle,
                     contentDescription = "Shuffle",
                     tint = shuffleIconTint,
-                    modifier = Modifier.size(24.dp)
+                    size = 22.dp
                 )
             }
 
@@ -1076,16 +1076,15 @@ fun ExpandedPlayer(
                             }
                     )
                 }
-                Icon(
-                    imageVector = Icons.Rounded.SkipPrevious,
+                MaterialSymbol(
+                    symbol = MaterialSymbols.SkipPrevious,
                     contentDescription = "Previous",
                     tint = Color.White,
-                    modifier = Modifier
-                        .size(32.dp)
-                        .graphicsLayer {
-                            scaleX = prevIconScale
-                            scaleY = prevIconScale
-                        }
+                    size = 26.dp,
+                    modifier = Modifier.graphicsLayer {
+                        scaleX = prevIconScale
+                        scaleY = prevIconScale
+                    }
                 )
             }
 
@@ -1144,16 +1143,15 @@ fun ExpandedPlayer(
                             }
                     )
                 }
-                Icon(
-                    imageVector = Icons.Rounded.SkipNext,
+                MaterialSymbol(
+                    symbol = MaterialSymbols.SkipNext,
                     contentDescription = "Next",
                     tint = Color.White,
-                    modifier = Modifier
-                        .size(32.dp)
-                        .graphicsLayer {
-                            scaleX = nextIconScale
-                            scaleY = nextIconScale
-                        }
+                    size = 26.dp,
+                    modifier = Modifier.graphicsLayer {
+                        scaleX = nextIconScale
+                        scaleY = nextIconScale
+                    }
                 )
             }
 
@@ -1228,11 +1226,11 @@ fun ExpandedPlayer(
                         animationSpec = tween(180),
                         label = "repeatIconCrossfade"
                     ) { isSingleTrack ->
-                        Icon(
-                            imageVector = if (isSingleTrack) Icons.Rounded.RepeatOne else Icons.Rounded.Repeat,
+                        MaterialSymbol(
+                            symbol = if (isSingleTrack) MaterialSymbols.RepeatOne else MaterialSymbols.Repeat,
                             contentDescription = "Repeat",
                             tint = repeatIconTint,
-                            modifier = Modifier.size(24.dp)
+                            size = 22.dp
                         )
                     }
                 }

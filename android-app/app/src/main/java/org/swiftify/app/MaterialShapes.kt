@@ -1031,11 +1031,11 @@ fun StyledBackButton(
             color = MaterialTheme.colorScheme.surfaceContainerHigh,
             modifier = Modifier.fillMaxSize()
         )
-        Icon(
-            imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
+        MaterialSymbol(
+            symbol = MaterialSymbols.ArrowBack,
             contentDescription = "Back",
             tint = MaterialTheme.colorScheme.onSurface,
-            modifier = Modifier.size(20.dp)
+            size = 20.dp
         )
     }
 }
