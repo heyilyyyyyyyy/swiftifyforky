@@ -75,7 +75,7 @@ fun PlaylistDetailScreen(
     onPlayAll: (List<TrackItem>) -> Unit,
     onAddToQueue: ((TrackItem) -> Unit)? = null,
     onTrackTitleClick: ((TrackItem) -> Unit)? = null,
-    onArtistClick: ((String) -> Unit)? = null,
+    onArtistClick: ((name: String, uri: String) -> Unit)? = null,
     userPlaylists: List<PlaylistItem> = emptyList(),
     onDeletePlaylist: ((PlaylistItem) -> Unit)? = null,
     onAddTrackToPlaylist: ((PlaylistItem, TrackItem) -> Unit)? = null,
@@ -875,7 +875,7 @@ fun PlaylistDetailScreen(
                 Toast.makeText(context, context.getString(R.string.toast_added_to_queue, track.title), Toast.LENGTH_SHORT).show()
             },
             onGoToArtist = {
-                onArtistClick?.invoke(track.artist)
+                onArtistClick?.invoke(track.artist, track.artistUri)
             },
             onGoToAlbum = {
                 onTrackTitleClick?.invoke(track)

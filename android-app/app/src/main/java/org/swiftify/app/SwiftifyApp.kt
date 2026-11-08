@@ -479,7 +479,7 @@ fun SwiftifyApp(
                                 },
                                 onAddToQueue = onAddToQueue,
                                 onTrackTitleClick = { track -> openAlbumByTrack(track) },
-                                onArtistClick = { artistName -> openArtistScreen(artistName, "") },
+                                onArtistClick = { artistName, artistUri -> openArtistScreen(artistName, artistUri) },
                                 userPlaylists = userPlaylists,
                                 onDeletePlaylist = { p ->
                                     activePlaylist = null
@@ -589,9 +589,9 @@ fun SwiftifyApp(
                     onPrev = onPrev,
                     onSeek = onSeek,
                     onSelectTrack = { track -> onTrackSelect(track, null) },
-                    onArtistClick = { artistName ->
+                    onArtistClick = { artistName, artistUri ->
                         isPlayerExpanded = false
-                        openArtistScreen(artistName, "")
+                        openArtistScreen(artistName, artistUri)
                     },
                     onAlbumClick = {
                         isPlayerExpanded = false

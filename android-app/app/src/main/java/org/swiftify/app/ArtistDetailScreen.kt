@@ -83,7 +83,6 @@ fun ArtistDetailScreen(
 
     val context = androidx.compose.ui.platform.LocalContext.current
     val prefs = remember { context.getSharedPreferences("swiftify_prefs", Context.MODE_PRIVATE) }
-    val cacheKey = "cached_artist_" + artist.uri
 
     fun parseArtistPayload(payload: String) {
         try {
@@ -157,9 +156,10 @@ fun ArtistDetailScreen(
         }
     }
 
-    LaunchedEffect(artist.uri) {
+    LaunchedEffect(artist.name, artist.uri) {
         errorMessage = null
-        val cached = prefs.getString(cacheKey, null)
+        val effectiveCacheKey = if (artist.uri.isNotEmpty()) "cached_artist_" + artist.uri else "cached_artist_name_" + artist.name
+        val cached = prefs.getString(effectiveCacheKey, null)
         if (!cached.isNullOrEmpty()) {
             parseArtistPayload(cached)
             isLoading = false
@@ -169,19 +169,49 @@ fun ArtistDetailScreen(
             releases.clear()
         }
 
-        if (artist.uri.isNotEmpty()) {
-            SpotifyBridge.fetchArtistTopTracks(artist.uri) { ok, payload ->
+        fun loadTracks(uri: String) {
+            SpotifyBridge.fetchArtistTopTracks(uri) { ok, payload ->
                 isLoading = false
                 if (ok && payload.isNotEmpty()) {
                     parseArtistPayload(payload)
-                    prefs.edit().putString(cacheKey, payload).apply()
+                    prefs.edit().putString(effectiveCacheKey, payload).apply()
                 } else if (topTracks.isEmpty()) {
                     errorMessage = payload.ifEmpty { "Failed to load artist details" }
                 }
             }
+        }
+
+        if (artist.uri.isNotEmpty()) {
+            loadTracks(artist.uri)
+        } else if (artist.name.isNotEmpty()) {
+            // Automatically resolve artist by name via Spotify search if URI wasn't provided
+            SpotifyBridge.searchArtists(artist.name) { ok, searchJson ->
+                if (ok && searchJson.isNotEmpty()) {
+                    try {
+                        val obj = JSONObject(searchJson)
+                        val artistsArr = obj.optJSONArray("artists")
+                        val firstArtist = artistsArr?.optJSONObject(0)
+                        val resolvedUri = firstArtist?.optString("uri") ?: ""
+                        val resolvedArt = firstArtist?.optString("artwork_url") ?: ""
+                        if (resolvedArt.isNotEmpty() && artistAvatar.isEmpty()) {
+                            artistAvatar = resolvedArt
+                        }
+                        if (resolvedUri.isNotEmpty()) {
+                            loadTracks(resolvedUri)
+                            return@searchArtists
+                        }
+                    } catch (e: Exception) {
+                        Log.e("ArtistDetail", "Search error", e)
+                    }
+                }
+                isLoading = false
+                if (topTracks.isEmpty()) {
+                    errorMessage = "Artist not found on Spotify"
+                }
+            }
         } else {
             isLoading = false
-            errorMessage = "No Spotify URI for this artist"
+            errorMessage = "No artist information available"
         }
     }
 

@@ -22,8 +22,10 @@ import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.material.icons.rounded.Pause
 import androidx.compose.material.icons.rounded.PlayArrow
+import androidx.compose.material.icons.rounded.Person
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.drawscope.translate
 import androidx.compose.ui.Alignment
@@ -204,7 +206,7 @@ fun ShapeBurstEffect(
     secondaryColor: Color,
     tertiaryColor: Color,
     modifier: Modifier = Modifier,
-    count: Int = 10
+    count: Int = 18
 ) {
     if (triggerKey == 0L) return
 
@@ -212,33 +214,33 @@ fun ShapeBurstEffect(
     LaunchedEffect(triggerKey) {
         anim.animateTo(
             targetValue = 1f,
-            animationSpec = tween(durationMillis = 720, easing = LinearEasing)
+            animationSpec = tween(durationMillis = 850, easing = CubicBezierEasing(0.4f, 0.0f, 0.2f, 1.0f))
         )
     }
 
     val t = anim.value
     if (t in 0.001f..0.999f) {
         val particles = remember(triggerKey) {
-            val shapes = listOf("cookie9", "sunny", "cookie6", "softBurst")
+            val shapes = listOf("cookie9", "sunny", "cookie6", "softBurst", "heart", "clover4", "cookie4")
             val rnd = java.util.Random(triggerKey)
             List(count) { index ->
                 val angle = (2f * PI.toFloat() * (index + 0.6f * rnd.nextFloat()) / count) - (PI.toFloat() / 2f)
                 BurstSpec(
                     dx = cos(angle),
                     dy = sin(angle),
-                    reach = 42f + 54f * rnd.nextFloat(),
-                    size = 12f + 11f * rnd.nextFloat(),
+                    reach = 140f + 180f * rnd.nextFloat(),
+                    size = 28f + 24f * rnd.nextFloat(),
                     shape = shapes[rnd.nextInt(shapes.size)],
                     toneIndex = rnd.nextInt(3),
-                    turnDegrees = (if (rnd.nextBoolean()) -1f else 1f) * (140f + 280f * rnd.nextFloat())
+                    turnDegrees = (if (rnd.nextBoolean()) -1f else 1f) * (200f + 400f * rnd.nextFloat())
                 )
             }
         }
 
         val tones = listOf(primaryColor, tertiaryColor, secondaryColor)
-        val travel = 1f - (1f - t).pow(3)
-        val scale = if (t < 0.18f) (0.3f + 0.7f * (t / 0.18f)) else (1f - 0.45f * ((t - 0.18f) / 0.82f))
-        val alpha = if (t < 0.55f) 1f else (1f - (t - 0.55f) / 0.45f)
+        val travel = 1f - (1f - t).pow(2.5f)
+        val scale = if (t < 0.22f) (0.3f + 0.7f * (t / 0.22f)) else (1f - 0.40f * ((t - 0.22f) / 0.78f))
+        val alpha = if (t < 0.50f) 1f else (1f - (t - 0.50f) / 0.50f)
 
         Canvas(modifier = modifier) {
             val cx = size.width / 2f
@@ -246,7 +248,7 @@ fun ShapeBurstEffect(
 
             for (p in particles) {
                 val px = cx + p.dx * p.reach * travel
-                val py = cy + p.dy * p.reach * travel + (46f * t * t)
+                val py = cy + p.dy * p.reach * travel + (24f * t * t)
                 val pSize = p.size * scale
                 val color = tones[p.toneIndex].copy(alpha = alpha.coerceIn(0f, 1f))
 
@@ -335,13 +337,13 @@ fun SwiftifyPlayButton(
             .scale(pressScale),
         contentAlignment = Alignment.Center
     ) {
-        // Confetti shape burst on play
+        // Confetti shape burst on play with wide flight arena
         ShapeBurstEffect(
             triggerKey = burstTrigger,
             primaryColor = primaryColor,
             secondaryColor = secondaryColor,
             tertiaryColor = tertiaryColor,
-            modifier = Modifier.fillMaxSize()
+            modifier = Modifier.size(buttonSize * 3.5f)
         )
 
         // Morphing & spinning cookie button body
@@ -420,6 +422,27 @@ fun MaterialExpressiveShape(
         }
 
         content?.invoke()
+    }
+}
+
+@Composable
+fun MorphedExpressiveShape(
+    fromShape: String,
+    toShape: String,
+    morphProgress: Float,
+    color: Color,
+    modifier: Modifier = Modifier
+) {
+    Canvas(modifier = modifier) {
+        val path = buildMorphedExpressivePath(
+            fromShape = fromShape,
+            toShape = toShape,
+            morphProgress = morphProgress,
+            width = size.width,
+            height = size.height,
+            steps = 90
+        )
+        drawPath(path = path, color = color, style = androidx.compose.ui.graphics.drawscope.Fill)
     }
 }
 
@@ -621,18 +644,33 @@ fun SquiggleAvatar(
                 ),
             contentAlignment = Alignment.Center
         ) {
-            // Photo inside counter-rotates by -ringAngle with slight scale, keeping artist's face upright and covering all angles
-            coil.compose.AsyncImage(
-                model = imageUrl,
-                contentDescription = contentDescription,
-                modifier = Modifier
-                    .fillMaxSize()
-                    .scale(1.1f)
-                    .graphicsLayer {
-                        if (continuousRotation) rotationZ = -ringAngle
-                    },
-                contentScale = ContentScale.Crop
-            )
+            if (imageUrl.isNotEmpty()) {
+                coil.compose.AsyncImage(
+                    model = imageUrl,
+                    contentDescription = contentDescription,
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .scale(1.1f)
+                        .graphicsLayer {
+                            if (continuousRotation) rotationZ = -ringAngle
+                        },
+                    contentScale = ContentScale.Crop
+                )
+            } else {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(MaterialTheme.colorScheme.surfaceContainerHighest),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Rounded.Person,
+                        contentDescription = contentDescription,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(48.dp)
+                    )
+                }
+            }
         }
     }
 }

@@ -81,7 +81,7 @@ fun ExpandedPlayer(
     onPrev: () -> Unit,
     onSeek: (Long) -> Unit,
     onSelectTrack: (TrackItem) -> Unit,
-    onArtistClick: ((name: String) -> Unit)? = null,
+    onArtistClick: ((name: String, uri: String) -> Unit)? = null,
     onAlbumClick: (() -> Unit)? = null,
     isShuffle: Boolean = false,
     repeatMode: Int = 0, // 0 = off, 1 = repeat all, 2 = repeat one
@@ -347,7 +347,7 @@ fun ExpandedPlayer(
                             text = { Text(stringResource(R.string.menu_go_to_artist), color = Color.White, fontSize = 13.sp) },
                             onClick = {
                                 showOptionsMenu = false
-                                onArtistClick?.invoke(track.artist)
+                                onArtistClick?.invoke(track.artist, track.artistUri)
                             }
                         )
                         if (userPlaylists.isNotEmpty() && onAddTrackToPlaylist != null) {
@@ -872,7 +872,7 @@ fun ExpandedPlayer(
                     fontWeight = FontWeight.SemiBold,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.clickable { onArtistClick?.invoke(track.artist) }
+                    modifier = Modifier.clickable { onArtistClick?.invoke(track.artist, track.artistUri) }
                 )
             }
 
@@ -1123,28 +1123,58 @@ fun ExpandedPlayer(
                 contentAlignment = Alignment.Center
             ) {
                 val repeatAlpha by animateFloatAsState(if (repeatMode > 0) 0.35f else 0f)
-                val repeatShapeScale by animateFloatAsState(if (repeatMode > 0) 1.0f else 0.6f)
+                val repeatShapeScale by animateFloatAsState(
+                    targetValue = if (repeatMode > 0) 1.0f else 0.6f,
+                    animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessMedium)
+                )
+                val repeatMorphProgress by animateFloatAsState(
+                    targetValue = if (repeatMode == 2) 1.0f else 0.0f,
+                    animationSpec = spring(dampingRatio = 0.55f, stiffness = 320f),
+                    label = "repeatMorph"
+                )
+                val repeatIconRotation by animateFloatAsState(
+                    targetValue = if (repeatMode == 2) 360f else 0f,
+                    animationSpec = spring(dampingRatio = 0.6f, stiffness = 380f),
+                    label = "repeatIconRotation"
+                )
+
                 if (repeatAlpha > 0.01f) {
-                    MaterialExpressiveShape(
-                        shape = if (repeatMode == 2) "cookie4" else "cookie6",
+                    MorphedExpressiveShape(
+                        fromShape = "cookie6",
+                        toShape = "cookie4",
+                        morphProgress = repeatMorphProgress,
                         color = palette.accent.copy(alpha = repeatAlpha),
-                        modifier = Modifier.size(48.dp).graphicsLayer {
-                            scaleX = repeatShapeScale
-                            scaleY = repeatShapeScale
-                        }
+                        modifier = Modifier
+                            .size(48.dp)
+                            .graphicsLayer {
+                                scaleX = repeatShapeScale
+                                scaleY = repeatShapeScale
+                            }
                     )
                 }
-                Icon(
-                    imageVector = if (repeatMode == 2) Icons.Rounded.RepeatOne else Icons.Rounded.Repeat,
-                    contentDescription = "Repeat",
-                    tint = if (repeatMode > 0) palette.accent else Color(0x99FFFFFF),
+
+                Box(
                     modifier = Modifier
-                        .size(24.dp)
                         .graphicsLayer {
                             scaleX = repeatScale
                             scaleY = repeatScale
-                        }
-                )
+                            rotationZ = repeatIconRotation
+                        },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Crossfade(
+                        targetState = repeatMode == 2,
+                        animationSpec = tween(180),
+                        label = "repeatIconCrossfade"
+                    ) { isSingleTrack ->
+                        Icon(
+                            imageVector = if (isSingleTrack) Icons.Rounded.RepeatOne else Icons.Rounded.Repeat,
+                            contentDescription = "Repeat",
+                            tint = if (repeatMode > 0) palette.accent else Color(0x99FFFFFF),
+                            modifier = Modifier.size(24.dp)
+                        )
+                    }
+                }
             }
         }
 
