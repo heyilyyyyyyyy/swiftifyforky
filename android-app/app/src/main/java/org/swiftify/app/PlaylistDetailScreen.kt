@@ -757,20 +757,9 @@ fun PlaylistDetailScreen(
                                     }
                                 }
                             )
-                            .padding(horizontal = 8.dp),
+                            .padding(horizontal = 12.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                    Text(
-                        text = "${index + 1}",
-                        color = if (isCurrent) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.Medium,
-                        textAlign = TextAlign.Center,
-                        modifier = Modifier.width(30.dp)
-                    )
-
-                    Spacer(modifier = Modifier.width(6.dp))
-
                     Box(modifier = Modifier.size(44.dp)) {
                         AsyncImage(
                             model = track.artworkUrl,
