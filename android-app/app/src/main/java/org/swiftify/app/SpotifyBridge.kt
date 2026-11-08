@@ -124,6 +124,9 @@ object SpotifyBridge {
                 SwiftifyCoreLib.INSTANCE.swiftify_core_set_spotify_connect(
                     core, false, defaultDeviceName
                 )
+
+                // Ensure Android software volume is always 100% (phone system volume rocker controls STREAM_MUSIC)
+                SwiftifyCoreLib.INSTANCE.swiftify_core_set_volume(core, 1.0f)
             } catch (e: Throwable) {
                 Log.e(TAG, "Failed to initialize SwiftifyCore", e)
             }
@@ -142,6 +145,7 @@ object SpotifyBridge {
         val core = coreHandle ?: return
         val id = nextId()
         connectRequestId = id
+        SwiftifyCoreLib.INSTANCE.swiftify_core_set_volume(core, 1.0f)
         SwiftifyCoreLib.INSTANCE.swiftify_core_connect(core, id, accessToken, CLIENT_ID)
         Log.d(TAG, "swiftify_core_connect dispatched (request=$id)")
     }
@@ -150,6 +154,7 @@ object SpotifyBridge {
         val core = coreHandle ?: return
         val id = nextId()
         connectRequestId = id
+        SwiftifyCoreLib.INSTANCE.swiftify_core_set_volume(core, 1.0f)
         SwiftifyCoreLib.INSTANCE.swiftify_core_connect_stored(core, id, login, CLIENT_ID)
         Log.d(TAG, "swiftify_core_connect_stored dispatched (request=$id)")
     }

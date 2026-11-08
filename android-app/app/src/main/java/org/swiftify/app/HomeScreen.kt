@@ -277,6 +277,7 @@ fun HomeScreen(
                     Spacer(modifier = Modifier.height(16.dp))
                     WavyLine(
                         modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp),
+                        isPlaying = isPlaying,
                         color = heroPalette.accent.copy(alpha = 0.35f)
                     )
                 }
@@ -307,7 +308,7 @@ fun HomeScreen(
                             PlaylistItem(
                                 name = "Favourite Songs",
                                 owner = if (savedTrackCount > 0) "$savedTrackCount tracks" else "Your Collection",
-                                artworkUrl = "https://i.scdn.co/image/ab67616d0000b27344e9d13c687469d32a9f22a8",
+                                artworkUrl = "",
                                 uri = "spotify:collection"
                             )
                         )
@@ -521,7 +522,7 @@ fun HomeScreen(
                         amplitude = 1.3.dp,
                         strokeWidth = 2.0.dp,
                         gap = 4.0.dp,
-                        continuousRotation = isPlaying
+                        continuousRotation = false
                     )
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(

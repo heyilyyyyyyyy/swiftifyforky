@@ -425,7 +425,8 @@ object SpotifyApi {
     }
 
     suspend fun addTrackToPlaylist(context: Context, playlistUri: String, trackUri: String): Boolean = withContext(Dispatchers.IO) {
-        val cleanId = playlistUri.removePrefix("spotify:playlist:").trim()
+        val cleanId = playlistUri.substringAfterLast(":").substringAfterLast("/").substringBefore("?").trim()
+        val fullTrackUri = if (trackUri.startsWith("spotify:track:")) trackUri else "spotify:track:$trackUri"
         if (cleanId.isEmpty() || trackUri.isEmpty()) return@withContext false
 
         var token = getValidToken(context)
@@ -433,7 +434,7 @@ object SpotifyApi {
 
         val payload = JSONObject().apply {
             val arr = JSONArray()
-            arr.put(trackUri)
+            arr.put(fullTrackUri)
             put("uris", arr)
         }.toString()
 
@@ -447,9 +448,9 @@ object SpotifyApi {
                 conn.setRequestProperty("Authorization", "Bearer $token")
                 conn.setRequestProperty("Content-Type", "application/json; charset=UTF-8")
                 conn.doOutput = true
-                conn.outputStream.write(payload.toByteArray(Charsets.UTF_8))
+                conn.outputStream.use { it.write(payload.toByteArray(Charsets.UTF_8)) }
                 val code = conn.responseCode
-                Log.d(TAG, "addTrackToPlaylist $cleanId track=$trackUri -> HTTP $code")
+                Log.d(TAG, "addTrackToPlaylist $cleanId track=$fullTrackUri -> HTTP $code")
                 if (code in 200..299) {
                     conn.disconnect()
                     return@withContext true
@@ -458,6 +459,8 @@ object SpotifyApi {
                     token = getValidToken(context, forceRefresh = true)
                     continue
                 }
+                val errBody = conn.errorStream?.bufferedReader()?.use { it.readText() } ?: ""
+                Log.e(TAG, "addTrackToPlaylist $cleanId error HTTP $code: $errBody")
                 conn.disconnect()
             } catch (e: Exception) {
                 Log.e(TAG, "addTrackToPlaylist error", e)
@@ -468,7 +471,8 @@ object SpotifyApi {
     }
 
     suspend fun removeTrackFromPlaylist(context: Context, playlistUri: String, trackUri: String): Boolean = withContext(Dispatchers.IO) {
-        val cleanId = playlistUri.removePrefix("spotify:playlist:").trim()
+        val cleanId = playlistUri.substringAfterLast(":").substringAfterLast("/").substringBefore("?").trim()
+        val fullTrackUri = if (trackUri.startsWith("spotify:track:")) trackUri else "spotify:track:$trackUri"
         if (cleanId.isEmpty() || trackUri.isEmpty()) return@withContext false
 
         var token = getValidToken(context)
@@ -476,7 +480,7 @@ object SpotifyApi {
 
         val payload = JSONObject().apply {
             val arr = JSONArray()
-            arr.put(JSONObject().apply { put("uri", trackUri) })
+            arr.put(JSONObject().apply { put("uri", fullTrackUri) })
             put("tracks", arr)
         }.toString()
 
@@ -490,9 +494,9 @@ object SpotifyApi {
                 conn.setRequestProperty("Authorization", "Bearer $token")
                 conn.setRequestProperty("Content-Type", "application/json; charset=UTF-8")
                 conn.doOutput = true
-                conn.outputStream.write(payload.toByteArray(Charsets.UTF_8))
+                conn.outputStream.use { it.write(payload.toByteArray(Charsets.UTF_8)) }
                 val code = conn.responseCode
-                Log.d(TAG, "removeTrackFromPlaylist $cleanId track=$trackUri -> HTTP $code")
+                Log.d(TAG, "removeTrackFromPlaylist $cleanId track=$fullTrackUri -> HTTP $code")
                 if (code in 200..299) {
                     conn.disconnect()
                     return@withContext true
@@ -501,6 +505,8 @@ object SpotifyApi {
                     token = getValidToken(context, forceRefresh = true)
                     continue
                 }
+                val errBody = conn.errorStream?.bufferedReader()?.use { it.readText() } ?: ""
+                Log.e(TAG, "removeTrackFromPlaylist $cleanId error HTTP $code: $errBody")
                 conn.disconnect()
             } catch (e: Exception) {
                 Log.e(TAG, "removeTrackFromPlaylist error", e)

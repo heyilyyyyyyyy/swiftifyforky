@@ -158,6 +158,9 @@ class PlaybackService : Service(), AudioManager.OnAudioFocusChangeListener {
         val powerManager = getSystemService(Context.POWER_SERVICE) as? PowerManager
         wakeLock = powerManager?.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "swiftify:playback_wakelock")
 
+        // Mobile playback always runs at 100% app software volume (system volume rocker controls STREAM_MUSIC)
+        SpotifyBridge.setVolume(1.0f)
+
         restoreQueueStateIfNeeded()
 
         mediaSession = MediaSessionCompat(this, "SwiftifyMediaSession").apply {

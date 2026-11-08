@@ -155,11 +155,12 @@ class MainActivity : ComponentActivity() {
 
         val devName = getDeviceName()
         SpotifyBridge.init(devName)
+        SpotifyBridge.setVolume(1.0f)
 
         // Apply startup audio, cache & connect settings
         val quality = prefs.getInt("audio_quality_kbps", 320)
         SpotifyBridge.setStreamQuality(quality)
-        val norm = prefs.getBoolean("volume_norm", true)
+        val norm = prefs.getBoolean("volume_norm", false)
         SpotifyBridge.setVolumeNormalization(norm)
         val connect = prefs.getBoolean("spotify_connect_enabled", false)
         connectEnabled.value = connect

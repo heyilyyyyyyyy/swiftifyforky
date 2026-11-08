@@ -498,27 +498,20 @@ fun PlaylistDetailScreen(
                     Box(
                         modifier = Modifier
                             .size(176.dp)
-                            .shadow(20.dp, RoundedCornerShape(12.dp), spotColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.24f))
-                            .clip(RoundedCornerShape(12.dp))
-                            .background(MaterialTheme.colorScheme.surfaceContainerHigh),
+                            .shadow(20.dp, RoundedCornerShape(12.dp), spotColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.24f)),
                         contentAlignment = Alignment.Center
                     ) {
-                        val finalCover = if (playlistCoverUrl.isNotEmpty()) playlistCoverUrl else playlist.coverUrl
-                        if (finalCover.isNotEmpty()) {
-                            AsyncImage(
-                                model = finalCover,
-                                contentDescription = playlist.name,
-                                modifier = Modifier.fillMaxSize(),
-                                contentScale = ContentScale.Crop
-                            )
-                        } else {
-                            Icon(
-                                imageVector = androidx.compose.material.icons.Icons.Rounded.QueueMusic,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.size(64.dp)
-                            )
+                        val currentCover = if (playlistCoverUrl.isNotEmpty()) playlistCoverUrl else playlist.coverUrl
+                        val effectivePlaylist = remember(playlist, currentCover) {
+                            playlist.copy(artworkUrl = currentCover)
                         }
+                        PlaylistCover(
+                            playlist = effectivePlaylist,
+                            tracks = playlistTracks,
+                            modifier = Modifier.fillMaxSize(),
+                            shape = RoundedCornerShape(12.dp),
+                            iconSize = 64.dp
+                        )
                     }
 
                     Spacer(modifier = Modifier.height(14.dp))
@@ -890,6 +883,12 @@ fun PlaylistDetailScreen(
             onAddToPlaylist = if (onAddTrackToPlaylist != null) {
                 { targetTrackForAddToPlaylist = track }
             } else null,
+            onRemoveFromPlaylist = if (onRemoveTrackFromPlaylist != null) {
+                {
+                    onRemoveTrackFromPlaylist.invoke(playlist, track)
+                    playlistTracks.remove(track)
+                }
+            } else null,
             onShare = {
                 val cleanTrackId = track.uri.removePrefix("spotify:track:").trim()
                 val sendIntent = Intent().apply {
@@ -964,29 +963,12 @@ fun AddToPlaylistBottomSheet(
                                 .padding(12.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Box(
-                                modifier = Modifier
-                                    .size(42.dp)
-                                    .clip(RoundedCornerShape(7.dp))
-                                    .background(MaterialTheme.colorScheme.surfaceContainerHighest),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                if (p.artworkUrl.isNotEmpty()) {
-                                    AsyncImage(
-                                        model = p.artworkUrl,
-                                        contentDescription = null,
-                                        modifier = Modifier.fillMaxSize(),
-                                        contentScale = ContentScale.Crop
-                                    )
-                                } else {
-                                    Icon(
-                                        imageVector = Icons.Rounded.MusicNote,
-                                        contentDescription = null,
-                                        tint = MaterialTheme.colorScheme.primary,
-                                        modifier = Modifier.size(22.dp)
-                                    )
-                                }
-                            }
+                            PlaylistCover(
+                                playlist = p,
+                                modifier = Modifier.size(42.dp),
+                                shape = RoundedCornerShape(7.dp),
+                                iconSize = 22.dp
+                            )
                             Spacer(modifier = Modifier.width(14.dp))
                             Column(modifier = Modifier.weight(1f)) {
                                 Text(

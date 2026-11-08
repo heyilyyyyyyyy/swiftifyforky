@@ -54,7 +54,7 @@ fun SettingsScreen(
         mutableIntStateOf(prefs.getInt("audio_quality_kbps", 320))
     }
     var normalizationEnabled by remember {
-        mutableStateOf(prefs.getBoolean("volume_norm", true))
+        mutableStateOf(prefs.getBoolean("volume_norm", false))
     }
     var crossfadeEnabled by remember {
         mutableStateOf(prefs.getBoolean("crossfade_enabled", false))

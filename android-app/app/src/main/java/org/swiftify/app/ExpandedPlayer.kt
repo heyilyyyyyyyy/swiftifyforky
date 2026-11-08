@@ -943,34 +943,61 @@ fun ExpandedPlayer(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Shuffle with clover4 shape backing
+            // Shuffle with clover4 shape backing and spring bounce animation
+            val shuffleInteraction = remember { MutableInteractionSource() }
+            val isShufflePressed by shuffleInteraction.collectIsPressedAsState()
+            val shuffleScale by animateFloatAsState(
+                targetValue = if (isShufflePressed) 0.80f else if (isShuffle) 1.08f else 1.0f,
+                animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessMedium)
+            )
             Box(
                 modifier = Modifier
                     .size(52.dp)
-                    .clickable { onToggleShuffle() },
+                    .clip(CircleShape)
+                    .clickable(
+                        interactionSource = shuffleInteraction,
+                        indication = null,
+                        role = Role.Button,
+                        onClick = onToggleShuffle
+                    ),
                 contentAlignment = Alignment.Center
             ) {
-                if (isShuffle) {
+                val cloverAlpha by animateFloatAsState(if (isShuffle) 0.35f else 0f)
+                val cloverScale by animateFloatAsState(if (isShuffle) 1.0f else 0.6f)
+                if (cloverAlpha > 0.01f) {
                     MaterialExpressiveShape(
                         shape = "clover4",
-                        color = palette.accent.copy(alpha = 0.35f),
-                        modifier = Modifier.size(48.dp)
+                        color = palette.accent.copy(alpha = cloverAlpha),
+                        modifier = Modifier.size(48.dp).graphicsLayer {
+                            scaleX = cloverScale
+                            scaleY = cloverScale
+                        }
                     )
                 }
                 Icon(
                     imageVector = Icons.Rounded.Shuffle,
                     contentDescription = "Shuffle",
                     tint = if (isShuffle) palette.accent else Color(0x99FFFFFF),
-                    modifier = Modifier.size(24.dp)
+                    modifier = Modifier
+                        .size(24.dp)
+                        .graphicsLayer {
+                            scaleX = shuffleScale
+                            scaleY = shuffleScale
+                        }
                 )
             }
 
-            // Prev with rounded arrowLeft shape backing on click
+            // Prev with spring press animation and circular ripple
             val prevInteraction = remember { MutableInteractionSource() }
             val isPrevPressed by prevInteraction.collectIsPressedAsState()
+            val prevScale by animateFloatAsState(
+                targetValue = if (isPrevPressed) 0.80f else 1.0f,
+                animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessMedium)
+            )
             Box(
                 modifier = Modifier
                     .size(56.dp)
+                    .clip(CircleShape)
                     .clickable(
                         interactionSource = prevInteraction,
                         indication = null,
@@ -979,18 +1006,25 @@ fun ExpandedPlayer(
                     ),
                 contentAlignment = Alignment.Center
             ) {
-                if (isPrevPressed) {
-                    MaterialExpressiveShape(
-                        shape = "arrowLeft",
-                        color = Color(0x33FFFFFF),
-                        modifier = Modifier.size(52.dp)
+                val prevPressAlpha by animateFloatAsState(if (isPrevPressed) 0.22f else 0f)
+                if (prevPressAlpha > 0.01f) {
+                    Box(
+                        modifier = Modifier
+                            .size(48.dp)
+                            .clip(CircleShape)
+                            .background(Color.White.copy(alpha = prevPressAlpha))
                     )
                 }
                 Icon(
                     imageVector = Icons.Rounded.SkipPrevious,
                     contentDescription = "Previous",
                     tint = Color.White,
-                    modifier = Modifier.size(36.dp)
+                    modifier = Modifier
+                        .size(36.dp)
+                        .graphicsLayer {
+                            scaleX = prevScale
+                            scaleY = prevScale
+                        }
                 )
             }
 
@@ -1006,12 +1040,17 @@ fun ExpandedPlayer(
                 tertiaryColor = palette.accent
             )
 
-            // Next with rounded arrowRight shape backing on click
+            // Next with spring press animation and circular ripple
             val nextInteraction = remember { MutableInteractionSource() }
             val isNextPressed by nextInteraction.collectIsPressedAsState()
+            val nextScale by animateFloatAsState(
+                targetValue = if (isNextPressed) 0.80f else 1.0f,
+                animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessMedium)
+            )
             Box(
                 modifier = Modifier
                     .size(56.dp)
+                    .clip(CircleShape)
                     .clickable(
                         interactionSource = nextInteraction,
                         indication = null,
@@ -1020,40 +1059,69 @@ fun ExpandedPlayer(
                     ),
                 contentAlignment = Alignment.Center
             ) {
-                if (isNextPressed) {
-                    MaterialExpressiveShape(
-                        shape = "arrowRight",
-                        color = Color(0x33FFFFFF),
-                        modifier = Modifier.size(52.dp)
+                val nextPressAlpha by animateFloatAsState(if (isNextPressed) 0.22f else 0f)
+                if (nextPressAlpha > 0.01f) {
+                    Box(
+                        modifier = Modifier
+                            .size(48.dp)
+                            .clip(CircleShape)
+                            .background(Color.White.copy(alpha = nextPressAlpha))
                     )
                 }
                 Icon(
                     imageVector = Icons.Rounded.SkipNext,
                     contentDescription = "Next",
                     tint = Color.White,
-                    modifier = Modifier.size(36.dp)
+                    modifier = Modifier
+                        .size(36.dp)
+                        .graphicsLayer {
+                            scaleX = nextScale
+                            scaleY = nextScale
+                        }
                 )
             }
 
-            // Repeat with cookie6 / cookie4 shape backing
+            // Repeat with cookie6 / cookie4 shape backing and spring bounce animation
+            val repeatInteraction = remember { MutableInteractionSource() }
+            val isRepeatPressed by repeatInteraction.collectIsPressedAsState()
+            val repeatScale by animateFloatAsState(
+                targetValue = if (isRepeatPressed) 0.80f else if (repeatMode > 0) 1.08f else 1.0f,
+                animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessMedium)
+            )
             Box(
                 modifier = Modifier
                     .size(52.dp)
-                    .clickable { onToggleRepeat() },
+                    .clip(CircleShape)
+                    .clickable(
+                        interactionSource = repeatInteraction,
+                        indication = null,
+                        role = Role.Button,
+                        onClick = onToggleRepeat
+                    ),
                 contentAlignment = Alignment.Center
             ) {
-                if (repeatMode > 0) {
+                val repeatAlpha by animateFloatAsState(if (repeatMode > 0) 0.35f else 0f)
+                val repeatShapeScale by animateFloatAsState(if (repeatMode > 0) 1.0f else 0.6f)
+                if (repeatAlpha > 0.01f) {
                     MaterialExpressiveShape(
                         shape = if (repeatMode == 2) "cookie4" else "cookie6",
-                        color = palette.accent.copy(alpha = 0.35f),
-                        modifier = Modifier.size(48.dp)
+                        color = palette.accent.copy(alpha = repeatAlpha),
+                        modifier = Modifier.size(48.dp).graphicsLayer {
+                            scaleX = repeatShapeScale
+                            scaleY = repeatShapeScale
+                        }
                     )
                 }
                 Icon(
                     imageVector = if (repeatMode == 2) Icons.Rounded.RepeatOne else Icons.Rounded.Repeat,
                     contentDescription = "Repeat",
                     tint = if (repeatMode > 0) palette.accent else Color(0x99FFFFFF),
-                    modifier = Modifier.size(24.dp)
+                    modifier = Modifier
+                        .size(24.dp)
+                        .graphicsLayer {
+                            scaleX = repeatScale
+                            scaleY = repeatScale
+                        }
                 )
             }
         }

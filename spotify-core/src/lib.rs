@@ -134,7 +134,7 @@ impl Default for SpotifyState {
             player: None,
             standby_player: None,
             mixer: None,
-            volume: 0.75,
+            volume: 1.0,
             stream_bitrate: Bitrate::default(),
             volume_normalization: false,
             audio_cache: None,

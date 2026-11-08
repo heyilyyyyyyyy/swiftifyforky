@@ -1,9 +1,10 @@
 package org.swiftify.app
 
+import androidx.compose.animation.core.*
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.height
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.runtime.Composable
+import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
@@ -20,11 +21,27 @@ import kotlin.math.sin
 @Composable
 fun WavyLine(
     modifier: Modifier = Modifier,
+    isPlaying: Boolean = false,
     color: Color = MaterialTheme.colorScheme.primary.copy(alpha = 0.25f),
     wavelength: Float = 14.2f,
     amplitude: Float = 1.3f,
     strokeWidth: Float = 2.0f
 ) {
+    val phase = if (isPlaying) {
+        val infiniteTransition = rememberInfiniteTransition(label = "WavyLinePhase")
+        infiniteTransition.animateFloat(
+            initialValue = 0f,
+            targetValue = 2f * PI.toFloat(),
+            animationSpec = infiniteRepeatable(
+                animation = tween(durationMillis = 1500, easing = LinearEasing),
+                repeatMode = RepeatMode.Restart
+            ),
+            label = "wavy_phase"
+        ).value
+    } else {
+        0f
+    }
+
     Canvas(modifier = modifier.height((amplitude * 2 + strokeWidth * 2 + 4f).dp)) {
         val width = size.width
         val midY = size.height / 2f
@@ -37,7 +54,7 @@ fun WavyLine(
         val step = 1.5f
         var x = 0f
         while (x <= width) {
-            val y = midY + sin((x / wavelengthPx) * 2f * PI.toFloat()) * ampPx
+            val y = midY + sin(((x / wavelengthPx) * 2f * PI.toFloat()) - phase) * ampPx
             if (first) {
                 path.moveTo(x, y)
                 first = false

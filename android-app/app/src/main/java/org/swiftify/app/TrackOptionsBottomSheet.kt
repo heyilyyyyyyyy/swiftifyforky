@@ -33,6 +33,7 @@ fun TrackOptionsBottomSheet(
     onGoToArtist: () -> Unit,
     onGoToAlbum: () -> Unit,
     onAddToPlaylist: (() -> Unit)? = null,
+    onRemoveFromPlaylist: (() -> Unit)? = null,
     onShare: (() -> Unit)? = null
 ) {
     ModalBottomSheet(
@@ -153,6 +154,19 @@ fun TrackOptionsBottomSheet(
                     onClick = {
                         onDismiss()
                         onAddToPlaylist()
+                    }
+                )
+            }
+
+            // Action: Remove from this Playlist
+            if (onRemoveFromPlaylist != null) {
+                TrackOptionRow(
+                    icon = Icons.Rounded.DeleteOutline,
+                    iconTint = MaterialTheme.colorScheme.error,
+                    title = "Remove from this playlist",
+                    onClick = {
+                        onDismiss()
+                        onRemoveFromPlaylist()
                     }
                 )
             }

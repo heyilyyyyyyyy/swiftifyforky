@@ -179,6 +179,20 @@ class LibraryRepository(
                     playlists.clear()
                     playlists.addAll(parsed)
                     Log.d("Playlists", "Loaded ${parsed.size} user playlists")
+
+                    // Asynchronously fetch 1st track album art for playlists lacking cover (e.g. "вайб банутый")
+                    scope.launch {
+                        for (i in 0 until playlists.size) {
+                            val pl = playlists[i]
+                            if (pl.artworkUrl.isEmpty() && !pl.uri.contains("collection")) {
+                                val sampleTracks = SpotifyApi.fetchAllPlaylistTracks(context, pl.uri, maxTracks = 1)
+                                val firstArt = sampleTracks.firstOrNull()?.artworkUrl
+                                if (!firstArt.isNullOrEmpty()) {
+                                    playlists[i] = pl.copy(artworkUrl = firstArt)
+                                }
+                            }
+                        }
+                    }
                     return true
                 }
             }
@@ -214,7 +228,15 @@ class LibraryRepository(
 
     fun addTrackToPlaylist(playlist: PlaylistItem, track: TrackItem) {
         scope.launch {
-            val ok = SpotifyApi.addTrackToPlaylist(context, playlist.uri, track.uri)
+            val isLikedSongs = playlist.uri == "spotify:collection" ||
+                    playlist.uri.contains("collection") ||
+                    playlist.name.equals("Favourite Songs", ignoreCase = true) ||
+                    playlist.name.equals("Любимые треки", ignoreCase = true)
+            val ok = if (isLikedSongs) {
+                SpotifyApi.setTrackSaved(context, track.uri, true)
+            } else {
+                SpotifyApi.addTrackToPlaylist(context, playlist.uri, track.uri)
+            }
             if (ok) {
                 Toast.makeText(context, context.getString(R.string.toast_added_to_playlist, track.title, playlist.name), Toast.LENGTH_SHORT).show()
             } else {
@@ -225,7 +247,15 @@ class LibraryRepository(
 
     fun removeTrackFromPlaylist(playlist: PlaylistItem, track: TrackItem) {
         scope.launch {
-            val ok = SpotifyApi.removeTrackFromPlaylist(context, playlist.uri, track.uri)
+            val isLikedSongs = playlist.uri == "spotify:collection" ||
+                    playlist.uri.contains("collection") ||
+                    playlist.name.equals("Favourite Songs", ignoreCase = true) ||
+                    playlist.name.equals("Любимые треки", ignoreCase = true)
+            val ok = if (isLikedSongs) {
+                SpotifyApi.setTrackSaved(context, track.uri, false)
+            } else {
+                SpotifyApi.removeTrackFromPlaylist(context, playlist.uri, track.uri)
+            }
             if (ok) {
                 Toast.makeText(context, context.getString(R.string.toast_removed_from_playlist, track.title, playlist.name), Toast.LENGTH_SHORT).show()
             } else {

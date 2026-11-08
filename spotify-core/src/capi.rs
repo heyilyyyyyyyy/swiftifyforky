@@ -726,7 +726,7 @@ query!(swiftify_core_audio_output_stalled -> bool, false, |core| core.audio_outp
 query!(swiftify_core_playback_position_ms -> u32, 0, |core| core.playback_position_ms());
 query!(swiftify_core_playback_duration_ms -> u32, 0, |core| core.playback_duration_ms());
 query!(swiftify_core_take_end_of_track -> bool, false, |core| core.take_end_of_track());
-query!(swiftify_core_volume -> f32, 0.75, |core| core.volume());
+query!(swiftify_core_volume -> f32, 1.0, |core| core.volume());
 query!(swiftify_core_output_rate -> u32, 0, |core| core.output_rate());
 
 /// Returns the current track metadata as JSON, or an empty string.

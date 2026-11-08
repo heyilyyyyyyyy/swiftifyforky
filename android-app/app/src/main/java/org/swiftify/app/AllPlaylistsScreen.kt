@@ -140,34 +140,14 @@ fun AllPlaylistsScreen(
                             .clickable { onPlaylistClick(playlist) }
                             .padding(12.dp)
                     ) {
-                        Box(
+                        PlaylistCover(
+                            playlist = playlist,
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .aspectRatio(1f)
-                                .clip(RoundedCornerShape(12.dp))
-                                .background(MaterialTheme.colorScheme.surfaceContainerHighest)
-                        ) {
-                            if (playlist.artworkUrl.isNotEmpty()) {
-                                AsyncImage(
-                                    model = playlist.artworkUrl,
-                                    contentDescription = playlist.name,
-                                    modifier = Modifier.fillMaxSize(),
-                                    contentScale = ContentScale.Crop
-                                )
-                            } else {
-                                Box(
-                                    modifier = Modifier.fillMaxSize(),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Rounded.MusicNote,
-                                        contentDescription = null,
-                                        tint = MaterialTheme.colorScheme.primary,
-                                        modifier = Modifier.size(32.dp)
-                                    )
-                                }
-                            }
-                        }
+                                .aspectRatio(1f),
+                            shape = RoundedCornerShape(12.dp),
+                            iconSize = 38.dp
+                        )
 
                         Spacer(modifier = Modifier.height(10.dp))
 

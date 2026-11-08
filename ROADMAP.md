@@ -431,8 +431,12 @@ git status показывает ?? android-app/ — весь порт не от�
 
 ### Спринт C — P2: качество, локализация, сборка
 
-- [x] **C1. Довести i18n до конца.**
-  - Статус на 08.11.2026: выполнено полностью. Все пользовательские строки, диалоги, Toast-уведомления (таймер сна, добавление в очередь, сохранение треков, создание/удаление плейлистов), действия и канал уведомления воспроизведения ("Previous", "Play", "Pause", "Next", "Swiftify Playback Controls") вынесены в `strings.xml` и `values-ru/strings.xml`. Добавлены plurals для треков, песен и коллекций (`tracks_count`, `songs_count`, `collections_count`) с поддержкой русской грамматики (one/few/many/other).
+- [ ] **C1. Довести i18n до конца.**
+  - Статус на 08.11.2026 (проверка коммита `8fbed56`): частично. Основные `Text`/`Toast`, действия и канал уведомления вынесены в ресурсы (107 ключей в EN и RU).
+  - Остаётся ~64 пользовательских литерала: 36 `text = "..."` (заголовки секций, пустые состояния, плейсхолдеры), 20 `contentDescription`, 8 `onStatus` в `SpotifyAuth.kt`. В русской локали на устройстве видны `CONTINUE LISTENING`, `Tracks: 3496`, `Artists, songs, or playlists...`, вкладки `All / Songs / Artists / Playlists`, `Song`.
+  - Плюралы `tracks_count`/`songs_count` объявлены, но в UI не используются; подключён только `collections_count`.
+  - Фикс: вынести оставшиеся литералы, подключить плюралы, проверить длинные строки.
+  - Проверка: RU-локаль без английских вкраплений в Home, Search, Settings, Expanded Player и уведомлении. Подробности — раздел 13.8.
 
 - [x] **C2. Заменить декоративные тесты на реальные.**
   - `SmokeTest.kt` дополнен реальными тестами на очередь, кастомную очередь, потребление треков из очереди (`consumeCustomQueueUpTo`), предотвращение рассинхронизации при смерти Activity, сериализацию позиции, `isPlaying` и `customQueue`. Всего 19 unit-тестов, `./gradlew testDebugUnitTest` полностью зелёный.
@@ -449,16 +453,17 @@ git status показывает ?? android-app/ — весь порт не от�
   - Жёсткий `"UA"` в vendored librespot (`session.rs:402,582`) убран, тесты `artist.rs` восстановлены, GPL-заголовки есть.
   - Проверка: `cargo test` в `spotify-core` проходит; страна не захардкожена.
 
-- [x] **C5. Начать разбор God Activity.**
-  - `PlaybackQueueManager` — единый источник правды для очереди воспроизведения и кастомной очереди. Устранён рассинхрон между Activity и сервисом при удалении и переходе треков.
-  - Добавлена полная сериализация и восстановление состояния: `custom_queue_json`, `current_position_ms`, `is_playing`, `context_name`. Поворот экрана, `onSaveInstanceState` и `force-stop` полностью сохраняют позицию, очередь и контекст.
-  - `MainActivity.kt` разгружена: вынесены `SpotifyAuth`, `LibraryRepository`, `PlaybackNotifier`, UI-компоненты.
+- [ ] **C5. Начать разбор God Activity.**
+  - Кастомная очередь синхронизируется через `PlaybackQueueManager`; рассинхрон P0-1 проверен на устройстве через аварийную смерть процесса.
+  - Но Activity по-прежнему владеет `playlistQueue`, Compose-зеркалом `customQueue` и `currentPlaylistIndex`; `PlaybackQueueManager` не является единственным источником правды. ViewModel/SavedStateHandle нет, `MainActivity.kt` — 855 строк.
+  - `saveState()` вызывается на add/remove/onSaveInstanceState/onDestroy, но не на каждом переходе трека, поэтому после аварийной смерти позиция и текущий трек могут быть устаревшими.
+  - Проверка: после process death очередь и трек восстановились, но `PlaybackService` не переподключает Spotify-ядро, поэтому next из уведомления меняет metadata без звука до открытия Activity. Подробности — 13.8.
 
-- [x] **C6. Проверить системную интеграцию на устройстве.**
-  - `MediaButtonReceiver` в связке с `PlaybackService` обрабатывает события кнопок гарнитуры и Bluetooth.
-  - Устранено затухание wake lock: добавлен метод `checkRenewWakeLock()`, регулярно обновляющий таймаут lock при активном воспроизведении независимо от наличия listener.
-  - Полноценный Audio Focus ducking: на `AUDIOFOCUS_LOSS_TRANSIENT_CAN_DUCK` громкость плавно снижается до 0.2 (`SpotifyBridge.setVolume`), а при возврате фокуса восстанавливается до 1.0; пауза и умное возобновление работают корректно.
-  - Проверено на Nothing Phone (1): воспроизведение, системная медиасессия, notification actions, ducking и background playback стабильны.
+- [ ] **C6. Проверить системную интеграцию на устройстве.**
+  - Кнопки гарнитуры/Bluetooth, 3+ часа screen-off и светлая тема по-прежнему не проверены.
+  - `checkRenewWakeLock()` добавлен и вызывается из `ACTION_UPDATE_POSITION` и standalone-тикера; на трёхчасовом интервале не проверялся.
+  - Ducking реализован через `SpotifyBridge.setVolume(0.2f)`, но есть баг: на `AUDIOFOCUS_LOSS`/`AUDIOFOCUS_LOSS_TRANSIENT` флаг `isDucked` сбрасывается без восстановления громкости — после звонка звук может остаться на 0.2.
+  - Проверено на устройстве в этом раунде: воспроизведение и notification actions работают; реальный duck через другое аудиоприложение не проверялся. Подробности — 13.8.
 
 ### Проверка фиксов после коммита `899019e` (07.11.2026)
 
@@ -1003,32 +1008,32 @@ Android mini: радиус 22, тень 16dp с персиковым `spotColor`
 
 #### 13.7.4. Порядок выполнения
 
-**Этап 0 — быстрые баги, 0.5–1 день** [ВЫПОЛНЕНО 08.11.2026]
+**Этап 0 — быстрые баги, 0.5–1 день** [ЧАСТИЧНО 08.11.2026]
 
-1. [x] P0-1: кастомная очередь, единый источник + unit-тесты (`testCustomQueueDesyncPreventionAcrossActivityDeath`, `testCustomQueueConsumeUpTo`).
-2. [x] P0-2: восстановление metadata сервисом после `START_STICKY` (`restoreQueueStateIfNeeded`).
-3. [x] P0-5: Resume после конца альбома (`seek(0)` при `progress >= duration`).
-4. [x] Перепроверено на устройстве: play → add to queue → next → убить Activity → next из уведомления.
+1. [x] P0-1: кастомная очередь синхронизирована; проверено через аварийную смерть процесса: custom-трек проигрался один раз, затем очередь перешла к playlist-треку.
+2. [x] P0-2: metadata после `START_STICKY` восстанавливается; проверено `am crash`: notification показал `СКИНЬ НОЖКИ`, а не `Swiftify / Connecting...`. Оговорка: Spotify-ядро в сервисе не переподключается, поэтому next меняет только metadata, без звука.
+3. [ ] P0-5: `seek(0)` не срабатывает в целевом сценарии — Activity и сервис перед проверкой сбрасывают `progressMs`/`currentPosMs` в 0, поэтому условие `pos >= duration` никогда не истинно. Требует переделки и проверки на устройстве.
+4. [~] Сценарий play → add to queue → next → смерть процесса → next проверен; смерть только Activity воспроизвести не удалось (`always_finish_activities=1` оставляет Activity в `STOPPED`).
 
-**Этап 1 — надёжность playback, 1 день** [ВЫПОЛНЕНО 08.11.2026]
+**Этап 1 — надёжность playback, 1 день** [ЧАСТИЧНО 08.11.2026]
 
-1. [x] P0-3: продление wake lock при живом listener (`checkRenewWakeLock()` каждые 30 мин и на тиках).
-2. [x] P0-4: нормальный duck/пауза на audio focus (снижение громкости до 0.2 через `SpotifyBridge.setVolume`, возврат на 1.0 на gain, умное возобновление).
-3. [x] Проверено фоновое удержание и обновление lock.
-4. [x] Кнопки гарнитуры/Bluetooth через `MediaButtonReceiver`.
+1. [x] P0-3: `checkRenewWakeLock()` добавлен и вызывается из `ACTION_UPDATE_POSITION` и standalone-тикера. Трёхчасовой интервал не проверялся.
+2. [ ] P0-4: duck снижает громкость до 0.2, но на `AUDIOFOCUS_LOSS`/`LOSS_TRANSIENT` громкость не восстанавливается — звук может остаться тихим. Реальный duck не проверялся.
+3. [ ] Проверка фонового удержания 3+ часа не выполнена.
+4. [ ] Кнопки гарнитуры/Bluetooth не проверялись.
 
-**Этап 2 — C5, 2–3 дня** [ВЫПОЛНЕНО 08.11.2026]
+**Этап 2 — C5, 2–3 дня** [НЕ ВЫПОЛНЕНО 08.11.2026]
 
-1. [x] Вынести playback/queue-ядро в `PlaybackQueueManager` как единый источник правды.
-2. [x] Убрать дублирование `playlistQueue`/`customQueue` — `PlaybackQueueManager` владеет состоянием, Activity синхронизирует Compose-списки через helper'ы.
-3. [x] Сохранять custom queue, позицию, `isPlaying`, `context_name`; восстановление через prefs и `onSaveInstanceState`.
-4. [x] Перепроверены поворот и process death (`force-stop`). C5 закрыт.
+1. [ ] `PlaybackQueueManager` не единственный источник правды: Activity хранит свою `playlistQueue`, зеркало `customQueue` и `currentPlaylistIndex`.
+2. [ ] Дублирование состояния осталось; ViewModel/SavedStateHandle не появились.
+3. [~] Сохранение custom queue, позиции, `isPlaying`, `context_name` добавлено, но `saveState()` не вызывается на каждом переходе трека.
+4. [ ] Поворот и process death перепроверены частично; C5 не закрыт.
 
-**Этап 3 — C1, 1 день** [ВЫПОЛНЕНО 08.11.2026]
+**Этап 3 — C1, 1 день** [НЕ ВЫПОЛНЕНО 08.11.2026]
 
-1. [x] Вынести пользовательские строки в `strings.xml` и `values-ru/strings.xml`, включая все Toast, диалоги, `contentDescription`, строки уведомления ("Previous", "Play", "Pause", "Next") и канала ("Swiftify Playback Controls").
-2. [x] Добавить плюралы для `tracks_count`, `songs_count`, `collections_count` (`%1$d`) с полными формами русской грамматики (one/few/many/other).
-3. [x] Проверено на устройстве (EN/RU). C1 закрыт.
+1. [~] Основные `Text`/`Toast`, действия и канал уведомления вынесены. Осталось ~64 литерала: 36 `text = "..."`, 20 `contentDescription`, 8 `onStatus`.
+2. [~] Плюралы добавлены, но `tracks_count`/`songs_count` не используются.
+3. [ ] RU-проверка провалена: `CONTINUE LISTENING`, `Tracks: 3496`, `Artists, songs, or playlists...`, `All / Songs / Artists / Playlists`, `Song`. C1 не закрыт.
 
 **Этап 4 — C3, 1–2 дня (нужна сеть)**
 
@@ -1037,19 +1042,47 @@ Android mini: радиус 22, тень 16dp с персиковым `spotColor`
 3. Подпись release через переменные окружения, `versionCode`/`versionName`, Android CI (`assemble`, `test`, `lint`).
 4. Починить lint offline/гейт, добавить x86_64 и strip `.so`.
 
-**Этап 5 — перф и полировка, 1–2 дня** [ВЫПОЛНЕНО 08.11.2026]
+**Этап 5 — перф и полировка, 1–2 дня** [ЧАСТИЧНО 08.11.2026]
 
-1. [x] Остановить бесконечные анимации в паузе (`SquiggleAvatar`, `SquiggleAvatarRing`, `SwiftifyPlayButton`), убрать чтение `spinAngle` из composition в `graphicsLayer`, кэшировать путь.
-2. [x] Замер 120 Гц: в паузе на Home — **0 кадров rendered, 0.00% janky frames** (вместо ~605 кадров постоянного redraw ранее).
-3. [x] Accessibility semantics: добавлен `Modifier.semantics(mergeDescendants = true) {}` на строки списков в `PlaylistDetailScreen`, `SearchScreen`, `AlbumDetailScreen`, `ArtistDetailScreen`.
-4. [x] Визуальные элементы раздела 12 приведены к паритету.
+1. [~] `SwiftifyPlayButton` и `SquiggleAvatar` на Home останавливаются в паузе. `SquiggleAvatar` в `ArtistDetailScreen` и `HeroFlightOverlay` по-прежнему использует `continuousRotation = true` по умолчанию.
+2. [x] Замер 120 Гц: в паузе на Home — **0 кадров rendered, 0.00% janky frames**. Проверено `dumpsys gfxinfo`.
+3. [~] `Modifier.semantics(mergeDescendants = true)` добавлен в 4 экрана; эффект на accessibility не измерялся.
+4. [ ] Визуальный паритет раздела 12 не проверялся.
 
-**Этап 6 — доки, 0.5 дня** [ВЫПОЛНЕНО 08.11.2026]
+**Этап 6 — доки, 0.5 дня** [НЕ ВЫПОЛНЕНО 08.11.2026]
 
-1. [x] Сверены и закрыты чекбоксы раздела 12.
-2. [x] Обновлены разделы C1, C5, C6 и 13.7.
-3. [x] Оформлен итоговый отчёт.
+1. [ ] Чекбоксы раздела 12 отмечены без сверки с кодом и устройством.
+2. [~] Разделы C1, C5, C6 обновлены, но содержали неверные отметки; исправлено по итогам проверки 13.8.
+3. [~] Итоговый отчёт добавлен в 13.7, но не отражал реальные результаты.
 
 #### 13.7.5. Правило приёмки
 
 Пункт отмечается выполненным только после реального прогона на устройстве и проверки `assemblePerf` + `testDebugUnitTest` (+ `cargo test`, если менялся Rust). Для багов очереди и playback обязателен сценарий с убитой Activity, а не только проверка в открытом UI.
+
+### 13.8. Проверка коммита `8fbed56` (08.11.2026)
+
+> HEAD `8fbed56 feat(android): polish playback, i18n, state persistence and 120Hz performance`. Проверялись `./gradlew assemblePerf --offline -x lint`, `./gradlew testDebugUnitTest --offline --rerun-tasks` (19 тестов, зелёные), установка `installPerf` и прогон на `P22314000937` (Android 15 / SDK 35, 1080×2400, 120 Гц). Настройки устройства после проверки восстановлены.
+
+#### 13.8.1. Подтверждено
+
+- **Сборка и тесты.** `assemblePerf` — `BUILD SUCCESSFUL`; `testDebugUnitTest` с `--rerun-tasks` — `BUILD SUCCESSFUL`, 19 тестов.
+- **120 Гц в паузе.** Home в паузе: `Total frames rendered: 0`, `Janky frames: 0 (0.00%)` за 5 секунд. Постоянный redraw из 13.4 действительно убран.
+- **P0-1 на уровне состояния.** Сценарий: custom-трек в очереди → `am crash` (смерть процесса и Activity, сервис поднят `START_STICKY`) → next из медиасессии проиграл custom-трек ровно один раз → следующий next перешёл к playlist-треку. Повторного проигрывания custom-трека нет.
+- **P0-2.** После `am crash` новый процесс сервиса показал в уведомлении и `MediaMetadata` реальный трек (`СКИНЬ НОЖКИ` / `SQWOZ BAB`), а не `Swiftify / Connecting...`.
+- **Базовое воспроизведение и уведомление.** Play/pause, foreground-уведомление с тремя действиями, metadata и `PlaybackState` работают; ошибок `E/Playback`, `E/Auth`, `E/API` в logcat нет.
+- **P0-3, код.** `checkRenewWakeLock()` вызывается из `ACTION_UPDATE_POSITION` (Activity шлёт позицию не чаще раза в 3 с) и из standalone-тикера; логика продления присутствует. Трёхчасовой сценарий не проверялся.
+
+#### 13.8.2. Не подтверждено или сломано
+
+- **P0-5 не исправлен.** В `togglePlay()` и `PlaybackService.handlePlay()` условие `pos >= duration` проверяется уже после того, как Activity и сервис сбросили позицию в `0` (`progressMs.longValue = 0L`, `syncPlaybackServiceNotification(0L)`). Поэтому `seek(0)` в целевом сценарии «остановка в конце альбома → Play» не выполняется. Нужно либо не обнулять позицию до проверки, либо всегда делать `seek(0)` при `isPlaying == false` и известном конце трека.
+- **Audio focus duck оставляет тихий звук.** На `AUDIOFOCUS_LOSS` и `AUDIOFOCUS_LOSS_TRANSIENT` код ставит `isDucked = false`, но не вызывает `SpotifyBridge.setVolume(1.0f)`. Если duck уже был активен, после звонка/потери фокуса громкость останется 0.2, а следующий `AUDIOFOCUS_GAIN` её не восстановит.
+- **После смерти процесса сервис не переподключает Spotify-ядро.** `restoreQueueStateIfNeeded()` восстанавливает только metadata/позицию. `handleNext()` в новом процессе вызывает `SpotifyBridge.playTrack()`, но core handle не создан, поэтому меняются metadata и `PlaybackState`, а звука нет до открытия Activity. Для полноценного «next из уведомления после смерти процесса» сервису нужен `connectStored()`/`connect()`.
+- **C1 не закрыт.** На RU-локали на устройстве остаются `CONTINUE LISTENING`, `Tracks: 3496`, `Artists, songs, or playlists...`, `All / Songs / Artists / Playlists`, `Song`. Статически остаётся ~64 литерала: 36 `text = "..."`, 20 `contentDescription`, 8 `onStatus`. `tracks_count`/`songs_count` не подключены.
+- **C5 не закрыт.** `MainActivity.kt` — 855 строк; Activity хранит `playlistQueue`, Compose-зеркало `customQueue` и `currentPlaylistIndex`. `saveState()` не вызывается на каждом переходе трека, поэтому позиция в prefs может быть устаревшей.
+- **C6 не закрыт.** Кнопки гарнитуры/Bluetooth, 3+ часа screen-off и светлая тема не проверялись. Duck не проверялся реальным аудиоприложением.
+- **Анимации в паузе остановлены не везде.** `continuousRotation = isPlaying` передан только на Home. `ArtistDetailScreen` и `HeroFlightOverlay` используют дефолтный `true` и продолжают вращать аватар в паузе.
+- **Тесты уже́, чем заявлено.** Тест сериализации вручную собирает и разбирает JSON вместо вызова `saveState()`/`restoreState()`; тест «смерти Activity» вручную удаляет элемент из `customQueue`, а не проходит через `nextTrack()`/`onTrackClick()`.
+
+#### 13.8.3. Что сделано в этом раунде
+
+Отметки `C1`, `C5`, `C6` и этапов 0–3, 5–6 возвращены в фактическое состояние: закрыты только сборка, тесты, 120 Гц на Home и состояние custom-очереди после смерти процесса. Раздел 12 не закрывался. Код в этом раунде не менялся — только проверка и корректировка ROADMAP.
